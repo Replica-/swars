@@ -319,3 +319,36 @@ Then, do `make` as the [general building instructions](#general-building-instruc
 ## Done
 
 That's all. See more documentation at [swars.vexillium.org](http://swars.vexillium.org/).
+
+
+## Debugging with MYSYS2 Visual Studio Code
+https://code.visualstudio.com/docs/cpp/config-mingw
+
+pacman -S --needed base-devel mingw-w64-ucrt-x86_64-toolchain
+
+Make Debug version as above - depending on where the python lib is installed set the path accordingly
+
+$ PATH="/mingw32/bin:/usr/bin:$PATH" CPPFLAGS="-DDEBUG -D__DEBUG" CFLAGS="-m32 -g -O0 -Wall" CXXFLAGS="-m32 -g -O0 -Wall" LDFLAGS="-m32 -g -O0 -Wall" PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig" ../configure
+
+Install ASM Lens extension and configure Launch json to run GDB
+
+{
+   "name": "(gdb) Launch",
+   "type": "cppdbg",
+   "request": "launch",
+   "program": "D:/development/swars/debug/src/swars.exe",
+   "args": ["--windowed"],
+   "stopAtEntry": false,
+   "cwd": "${workspaceFolder}",
+   "environment": [],
+   "externalConsole": true,
+   "MIMode": "gdb",
+   "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe",
+   "setupCommands": [
+         {
+            "description": "Abilita la riformattazione per gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+         }
+   ]
+}

@@ -305,7 +305,7 @@ ubyte scanner_width_pct = 20;
 ubyte scanner_height_pct = 25;
 
 /** Minimum user zoom (when most area is visible). */
-short user_zoom_min = 127;
+short user_zoom_min = 100;
 /** Maxumum user zoom (largest magnification). */
 short user_zoom_max = 260;
 
@@ -613,7 +613,7 @@ short get_render_area_for_zoom(short zoom)
 {
     if (lbDisplay.GraphicsScreenHeight < 400)
         return 24;
-    return 30; // for zoom=127 and screen proportion 4:3
+    return 60; // for zoom=127 and screen proportion 4:3
 }
 
 
@@ -2021,17 +2021,8 @@ void process_view_inputs(int thing)
 
     p_person = &things[thing];
     wdef = &weapon_defs[p_person->U.UPerson.CurrentWeapon];
-    zoom = zoom_levels[wdef->RangeBlocks];
-    if (zoom > user_zoom_max)
-        zoom = user_zoom_max;
-    if (zoom < user_zoom_min)
-        zoom = user_zoom_min;
-    // User zoom is not scaled to resolution
-    if (zoom >= ingame.UserZoom)
-        ingame.UserZoom = zoom;
-    else
-        zoom = ingame.UserZoom;
-
+    zoom = user_zoom_min;
+    
     zoom = get_scaled_zoom(zoom);
 
     zdelta = zoom - overall_scale;
@@ -4404,11 +4395,20 @@ void game_graphics_inputs(void)
     if (lbKeyOn[KC_F] && (lbShift == KMod_NONE))
     {
         lbKeyOn[KC_F] = 0;
-        if (game_perspective == 5)
-            game_perspective = 0;
-        else
-            game_perspective = 5;
+        game_perspective--;
+
+        printf("Game perspective %d\n", game_perspective);
     }
+
+    if (lbKeyOn[KC_F] && (lbShift == KMod_SHIFT))
+    {
+        lbKeyOn[KC_F] = 0;
+        game_perspective++;
+
+        printf("Game perspective %d\n", game_perspective);
+    }
+
+    
 
     if ((ingame.UserFlags & UsrF_Cheats) && lbKeyOn[KC_T] && (lbShift & KMod_ALT))
     {
@@ -7849,13 +7849,13 @@ ubyte do_user_interface(void)
             n = -2;
         else
             n = 2;
-        render_area_a += n;
+        render_area_a += n*2;
 
         if ( lbShift & KMod_SHIFT )
             n = -2;
         else
             n = 2;
-        render_area_b += n;
+        render_area_b += n/2;
 
         if (render_area_a < 2)
             render_area_a = 2;
