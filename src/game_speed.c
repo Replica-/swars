@@ -20,6 +20,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #if defined(_WIN32)
 #include <windows.h>
@@ -53,6 +54,8 @@ ulong prev_tick_time = 0;
 ushort game_num_fps = 16;
 
 ushort fifties_per_gameturn = 3;
+
+static void profiler_poll_key(void);
 
 #define TURN_DELAY_STEP 4
 #define TURN_DELAY_MAX 400
@@ -130,6 +133,7 @@ ubyte get_speed_control_inputs(void)
         frameskip_decrease();
         did_inp |= GINPUT_DIRECT;
     }
+    profiler_poll_key();
     // Delay between game turns; [ makes it longer (slower game), ] shorter
     if (is_key_pressed(KC_LBRACKET, KMod_DONTCARE))
     {
@@ -176,6 +180,108 @@ void perf_phase_end(enum PerfPhase phase)
 {
     perf_phase_acc[phase] += perf_now_us() - perf_phase_start[phase];
 }
+
+#if defined(_WIN32)
+/* Sampling profiler: Scroll Lock starts it, the next Scroll Lock stops it
+ * and writes "profile_samples.txt" (address and hit count of the instruction
+ * the main thread was at), to be resolved against the exe symbols with addr2line.
+ */
+#define PROF_MAX_SAMPLES 400000
+
+static ulong prof_samples[PROF_MAX_SAMPLES];
+static volatile ulong prof_count = 0;
+static volatile int prof_running = 0;
+static HANDLE prof_main_thread = NULL;
+static HANDLE prof_thread = NULL;
+
+static DWORD WINAPI profiler_sampler(LPVOID param)
+{
+    CONTEXT ctx;
+
+    while (prof_running && prof_count < PROF_MAX_SAMPLES)
+    {
+        SuspendThread(prof_main_thread);
+        ctx.ContextFlags = CONTEXT_CONTROL;
+        if (GetThreadContext(prof_main_thread, &ctx))
+            prof_samples[prof_count++] = (ulong)ctx.Eip;
+        ResumeThread(prof_main_thread);
+        Sleep(1);
+    }
+    return 0;
+}
+
+static int prof_cmp_ulong(const void *a, const void *b)
+{
+    ulong va = *(const ulong *)a, vb = *(const ulong *)b;
+    return (va > vb) - (va < vb);
+}
+
+static void profiler_start(void)
+{
+    HMODULE winmm;
+    DWORD (WINAPI *p_timeBeginPeriod)(UINT);
+
+    if (prof_main_thread == NULL)
+        DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(),
+          &prof_main_thread, 0, FALSE, DUPLICATE_SAME_ACCESS);
+    winmm = LoadLibraryA("winmm.dll");
+    if (winmm != NULL) {
+        p_timeBeginPeriod = (DWORD (WINAPI *)(UINT))GetProcAddress(winmm, "timeBeginPeriod");
+        if (p_timeBeginPeriod != NULL)
+            p_timeBeginPeriod(1);
+    }
+    LOGSYNC("profiler started");
+    prof_count = 0;
+    prof_running = 1;
+    prof_thread = CreateThread(NULL, 0, profiler_sampler, NULL, 0, NULL);
+}
+
+static void profiler_stop(void)
+{
+    FILE *fh;
+    ulong i, n, run;
+
+    prof_running = 0;
+    if (prof_thread != NULL) {
+        WaitForSingleObject(prof_thread, 2000);
+        CloseHandle(prof_thread);
+        prof_thread = NULL;
+    }
+    n = prof_count;
+    qsort(prof_samples, n, sizeof(ulong), prof_cmp_ulong);
+    fh = fopen("profile_samples.txt", "w");
+    if (fh == NULL) {
+        LOGERR("profiler could not open profile_samples.txt for writing");
+        return;
+    }
+    LOGSYNC("profiler stopped, %lu samples written", n);
+    fprintf(fh, "total %lu base %08lx\n", n, (ulong)GetModuleHandleA(NULL));
+    for (i = 0; i < n; i += run)
+    {
+        for (run = 1; (i + run < n) && (prof_samples[i + run] == prof_samples[i]); run++)
+            ;
+        fprintf(fh, "%08lx %lu\n", prof_samples[i], run);
+    }
+    fclose(fh);
+}
+
+static void profiler_poll_key(void)
+{
+    if (is_key_pressed(KC_SCROLL, KMod_DONTCARE) || is_key_pressed(KC_PAUSE, KMod_DONTCARE)
+      || is_key_pressed(KC_F7, KMod_CONTROL))
+    {
+        clear_key_pressed(KC_SCROLL);
+        clear_key_pressed(KC_PAUSE);
+        clear_key_pressed(KC_F7);
+        if (prof_running)
+            profiler_stop();
+        else
+            profiler_start();
+    }
+}
+#else
+static void profiler_poll_key(void) { }
+#endif
 
 #define FPS_TEXT_BUF_W 400
 #define FPS_TEXT_BUF_H 10
