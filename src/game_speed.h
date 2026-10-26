@@ -73,8 +73,9 @@ ubyte get_speed_control_inputs(void);
 
 void wait_next_gameturn(void);
 
-/** Delay between game turns in ms; ie. 62 means 16 turns per second. */
-extern short turn_delay_ms;
+/** Limit of frames per second, 0 for no limit. Game logic runs once per frame,
+ * so this also sets the game speed; 16 is the original pace. */
+extern short game_fps_cap;
 
 /** Counts a drawn frame and draws the FPS counter in the top right corner. */
 void fps_counter_show(void);

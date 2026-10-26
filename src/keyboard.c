@@ -484,19 +484,19 @@ void set_default_game_keys(void)
 
     LbMemorySet(kbkeys, 0, sizeof(kbkeys));
     kbkeys[GKey_NONE] = KC_UNASSIGNED;
-    kbkeys[GKey_VIEW_SPIN_L] = KC_DELETE;
-    kbkeys[GKey_VIEW_SPIN_R] = KC_PGDOWN;
+    kbkeys[GKey_VIEW_SPIN_L] = KC_Q;
+    kbkeys[GKey_VIEW_SPIN_R] = KC_E;
     kbkeys[GKey_FIRE] = KC_LCONTROL;
     kbkeys[GKey_CHANGE_MD_WP] = KC_LALT;
     kbkeys[GKey_CHANGE_AGENT] = KC_TAB;
-    kbkeys[GKey_UP] = KC_UP;
-    kbkeys[GKey_DOWN] = KC_DOWN;
+    kbkeys[GKey_UP] = KC_W;
+    kbkeys[GKey_DOWN] = KC_S;
     kbkeys[GKey_GOTO_POINT] = KC_RCONTROL;
     kbkeys[GKey_GROUP] = KC_OEM_102;
-    kbkeys[GKey_LEFT] = KC_LEFT;
+    kbkeys[GKey_LEFT] = KC_A;
     kbkeys[GKey_ZOOM_OUT] = KC_HOME;
-    kbkeys[GKey_SELF_DESTRUCT] = KC_D;
-    kbkeys[GKey_RIGHT] = KC_RIGHT;
+    kbkeys[GKey_SELF_DESTRUCT] = KC_V;
+    kbkeys[GKey_RIGHT] = KC_D;
     kbkeys[GKey_ZOOM_IN] = KC_END;
     kbkeys[GKey_DROP_WEAPON] = KC_Z;
     kbkeys[GKey_PAUSE] = KC_P;
@@ -508,7 +508,7 @@ void set_default_game_keys(void)
     kbkeys[GKey_SEL_AGENT_4] = KC_4;
     kbkeys[GKey_SEL_AGENT_3] = KC_3;
     kbkeys[GKey_TRANS_OBJECTS] = KC_B;
-    kbkeys[GKey_SCANNER_PULSE] = KC_S;
+    kbkeys[GKey_SCANNER_PULSE] = KC_X;
     kbkeys[GKey_CAMERA_PERSPECTV] = KC_F;
     kbkeys[GKey_TRANS_OBJ_SURF_COL] = KC_J;
     kbkeys[GKey_TRANS_OBJ_LINE_COL] = KC_H;

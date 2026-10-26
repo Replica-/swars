@@ -57,18 +57,31 @@ ushort fifties_per_gameturn = 3;
 
 static void profiler_poll_key(void);
 
-#define TURN_DELAY_STEP 4
-#define TURN_DELAY_MAX 400
+#define FPS_CAP_MAX 240
 
-/** Time to wait between game turns, in milliseconds. */
-short turn_delay_ms = 1000/16;
+/** Limit of frames per second; 0 means no limit. */
+short game_fps_cap = 16;
 
-static void turn_delay_clip(void)
+static void fps_cap_change(int dir)
 {
-    if (turn_delay_ms > TURN_DELAY_MAX)
-        turn_delay_ms = TURN_DELAY_MAX;
-    else if (turn_delay_ms < 0)
-        turn_delay_ms = 0;
+    int cap = game_fps_cap;
+
+    // Finer steps at the low end, where the game pace is changing the most
+    if (dir > 0) {
+        if (cap == 0)
+            return;
+        cap += (cap < 30) ? 1 : (cap < 120) ? 5 : 10;
+        if (cap > FPS_CAP_MAX)
+            cap = 0;
+    } else {
+        if (cap == 0)
+            cap = FPS_CAP_MAX;
+        else
+            cap -= (cap <= 30) ? 1 : (cap <= 120) ? 5 : 10;
+        if (cap < 1)
+            cap = 1;
+    }
+    game_fps_cap = cap;
 }
 
 /******************************************************************************/
@@ -134,19 +147,17 @@ ubyte get_speed_control_inputs(void)
         did_inp |= GINPUT_DIRECT;
     }
     profiler_poll_key();
-    // Delay between game turns; [ makes it longer (slower game), ] shorter
+    // Frame rate cap; [ lowers it, ] raises it, and going past the top removes the cap
     if (is_key_pressed(KC_LBRACKET, KMod_DONTCARE))
     {
         clear_key_pressed(KC_LBRACKET);
-        turn_delay_ms += TURN_DELAY_STEP;
-        turn_delay_clip();
+        fps_cap_change(-1);
         did_inp |= GINPUT_DIRECT;
     }
     if (is_key_pressed(KC_RBRACKET, KMod_DONTCARE))
     {
         clear_key_pressed(KC_RBRACKET);
-        turn_delay_ms -= TURN_DELAY_STEP;
-        turn_delay_clip();
+        fps_cap_change(1);
         did_inp |= GINPUT_DIRECT;
     }
     return did_inp;
@@ -354,31 +365,48 @@ void fps_counter_show(void)
         window_frames = 0;
     }
 
-    snprintf(locstr, sizeof(locstr), "FPS %lu TPS %lu SKIP %d DLY %d  DRAW %lu.%lu SWAP %lu.%lu",
-      shown_fps, shown_tps, (int)frameskip, (int)turn_delay_ms,
-      shown_draw_us / 1000, (shown_draw_us / 100) % 10,
-      shown_swap_us / 1000, (shown_swap_us / 100) % 10);
+    {
+        char capstr[16];
+        if (game_fps_cap > 0)
+            snprintf(capstr, sizeof(capstr), "%d", (int)game_fps_cap);
+        else
+            snprintf(capstr, sizeof(capstr), "OFF");
+        snprintf(locstr, sizeof(locstr), "FPS %lu TPS %lu SKIP %d CAP %s  DRAW %lu.%lu SWAP %lu.%lu",
+          shown_fps, shown_tps, (int)frameskip, capstr,
+          shown_draw_us / 1000, (shown_draw_us / 100) % 10,
+          shown_swap_us / 1000, (shown_swap_us / 100) % 10);
+    }
     lbDisplay.DrawFlags = 0;
     draw_scaled_text_right(lbDisplay.GraphicsScreenWidth - 6, 4, locstr, colour_lookup[ColLU_WHITE]);
 }
 void wait_next_gameturn(void)
 {
-    static TbClockMSec last_loop_time = 0;
-    TbClockMSec curr_time = LbTimerClock();
-    TbClockMSec sleep_end;
+    static ulong last_frame_us = 0;
+    ulong now_us, period_us, target_us;
 
-    if (frameskip == 0)
-        sleep_end = last_loop_time + turn_delay_ms;
-    else
-        sleep_end = curr_time;
-    // If we missed the normal sleep target (ie. there was a slowdown), reset the value and do not sleep
-    if ((sleep_end < curr_time) || (sleep_end > curr_time + turn_delay_ms)) {
-        LOGNO("missed FPS target, last frame time %ld too far from current %ld",
-          (ulong)sleep_end, (ulong)curr_time);
-        sleep_end = curr_time;
+    // With a frame skip, or without a cap, run as fast as possible
+    if ((frameskip != 0) || (game_fps_cap <= 0)) {
+        last_frame_us = perf_now_us();
+        return;
     }
-    LbSleepUntil(sleep_end);
-    last_loop_time = sleep_end;
+    period_us = 1000000 / game_fps_cap;
+    now_us = perf_now_us();
+    target_us = last_frame_us + period_us;
+    // If we missed the target (there was a slowdown), do not try to catch up
+    if (((long)(target_us - now_us) < 0) || ((long)(target_us - now_us) > (long)period_us)) {
+        last_frame_us = now_us;
+        return;
+    }
+#if defined(_WIN32)
+    // Sleep for most of the wait, then spin for the rest; Sleep() alone is too coarse
+    while ((long)(target_us - perf_now_us()) > 2500)
+        Sleep(1);
+    while ((long)(target_us - perf_now_us()) > 0)
+        ;
+#else
+    LbSleepUntil(LbTimerClock() + (target_us - now_us) / 1000);
+#endif
+    last_frame_us = target_us;
 }
 
 /**

@@ -179,6 +179,8 @@
  */
 #define CAMERA_TILT_MIN -192
 #define CAMERA_TILT_MAX -152
+/** Zoom change per one notch of the mouse wheel. */
+#define CAMERA_ZOOM_WHEEL_STEP 20
 #define CAMERA_ZOOM_MIN 16
 #define CAMERA_ZOOM_MAX 600
 #define CAMERA_ROTATION_INPUT_MULTIPLIER 256
@@ -911,6 +913,7 @@ TbBool adjust_mission_engine_to_video_mode(void)
     // screen, and the mouse picking is not accurate there; start every mission with
     // the plain isometric view (the camera key still switches it on)
     game_perspective = ProjM_Isometric;
+    LbMouseWheelTake(); // wheel turns made on other screens should not zoom the mission
     game_high_resolution = (lbDisplay.ScreenMode == screen_mode_game_hi);
     // Set scale 15% over the min, to create a nice pan effect
     overall_scale = (get_overall_scale_min() * 295) >> 8;
@@ -3996,6 +3999,11 @@ void scroll_map_input(int *p_dx, int *p_dy)
     {
         dx = (is_gamekey_kbd_pressed(GKey_RIGHT) & 1) - (is_gamekey_kbd_pressed(GKey_LEFT) & 1);
         dy = (is_gamekey_kbd_pressed(GKey_DOWN) & 1) - (is_gamekey_kbd_pressed(GKey_UP) & 1);
+        // Arrows pan the view as well, as they did before the pan keys were moved to WASD
+        if (dx == 0)
+            dx = (lbKeyOn[KC_RIGHT] & 1) - (lbKeyOn[KC_LEFT] & 1);
+        if (dy == 0)
+            dy = (lbKeyOn[KC_DOWN] & 1) - (lbKeyOn[KC_UP] & 1);
     }
 
     {
@@ -4276,15 +4284,18 @@ void do_rotate_map(void)
     }
 
     short zoom_input = 0;
+    int wheel_input;
     if (is_gamekey_pressed(GKey_ZOOM_IN))
         zoom_input++;
     if (is_gamekey_pressed(GKey_ZOOM_OUT))
         zoom_input--;
+    // Mouse wheel zooms around the screen centre, same as the keys do
+    wheel_input = LbMouseWheelTake();
 
     // Update zoom level
-    if (zoom_input != 0)
+    if ((zoom_input != 0) || (wheel_input != 0))
     {
-        short new_zoom = ingame.UserZoom + (zoom_input * 8);
+        short new_zoom = ingame.UserZoom + (zoom_input * 8) + (wheel_input * CAMERA_ZOOM_WHEEL_STEP);
 
         if (new_zoom < CAMERA_ZOOM_MIN) {
             if (pktrec_mode != PktR_PLAYBACK) {

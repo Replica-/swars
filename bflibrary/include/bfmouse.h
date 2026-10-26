@@ -105,6 +105,12 @@ TbResult LbMouseGetSpriteOffset(long *hot_x, long *hot_y);
 TbResult LbMouseChangeSprite(const struct TbSprite *pointer_spr);
 
 /**
+ * Returns how many mouse wheel notches happened since the previous call,
+ *  and clears the counter. Positive means the wheel was rolled away from the user.
+ */
+int LbMouseWheelTake(void);
+
+/**
  * Changes mouse movement ratio.
  * Note that this function can be run even before mouse setup. Still, the factor
  *  will be reset during the installation - so use it after LbMouseSetup().

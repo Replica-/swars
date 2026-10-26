@@ -173,6 +173,20 @@ TbResult LbMouseRemove(void)
 }
 
 
+/** Mouse wheel notches since the last LbMouseWheelTake(); positive is away from the user.
+ * Kept apart from lbDisplay, as the layout of that structure is shared with assembly code.
+ */
+static volatile int lbMouseWheelAccum = 0;
+
+int LbMouseWheelTake(void)
+{
+    int delta;
+
+    delta = lbMouseWheelAccum;
+    lbMouseWheelAccum = 0;
+    return delta;
+}
+
 TbResult LbMouseOnBeginSwap(void)
 {
     if (hw_cursor_active)
@@ -509,6 +523,11 @@ TbResult MEvent(const SDL_Event *ev)
         ret = mouseControl(action, &pos);
         return ret;
     case SDL_MOUSEWHEEL:
+        lbMouseWheelAccum += ev->wheel.y;
+        if (lbMouseWheelAccum > 20)
+            lbMouseWheelAccum = 20;
+        else if (lbMouseWheelAccum < -20)
+            lbMouseWheelAccum = -20;
         pos.x = 0;
         pos.y = 0;
         ret = mouseControl(ev->wheel.y > 0 ? MActn_WHEELMOVEUP : MActn_WHEELMOVEDOWN, &pos);

@@ -61,6 +61,12 @@ TbResult LbMouseRemove(void)
 }
 
 
+int LbMouseWheelTake(void)
+{
+    // Wheel is not tracked in the SDL1 version
+    return 0;
+}
+
 TbResult LbMouseOnBeginSwap(void)
 {
     if (!pointerHandler.PointerBeginSwap())
