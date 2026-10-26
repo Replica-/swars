@@ -18,8 +18,11 @@
  */
 /******************************************************************************/
 #include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 #include <SDL.h>
 #include "bfmouse.h"
+#include "bfpalette.h"
 
 #if defined(HAVE_CONFIG_H)
 #  include "bfconfig.h"
@@ -37,7 +40,115 @@ extern "C" {
 
 #define AUTORESET_MIN_SHIFT 50
 
+long PointerDraw(long x, long y, const struct TbSprite *spr, TbPixel *outbuf,
+  unsigned long scanline);
+extern ubyte lbPalette[];
+
 };
+
+/** Mouse pointer drawn by the OS instead of the game.
+ *
+ * The software pointer is drawn into the game screen on each frame, so it moves
+ * only as often as the game draws - 16 times per second at the original pace.
+ * The OS cursor follows the mouse at the full rate of the display.
+ * Setting the SWFX_SOFT_CURSOR environment variable brings back the software one.
+ */
+static SDL_Cursor *hw_cursor = NULL;
+static bool hw_cursor_active = false;
+static ubyte hw_cursor_palette[PALETTE_8b_SIZE];
+
+static void LbIMouseFreeHwCursor(void)
+{
+    hw_cursor_active = false;
+    if (hw_cursor != NULL) {
+        SDL_SetCursor(SDL_GetDefaultCursor());
+        SDL_FreeCursor(hw_cursor);
+        hw_cursor = NULL;
+    }
+}
+
+/** Creates the OS cursor from the current game pointer sprite and palette.
+ */
+static void LbIMouseUpdateHwCursor(void)
+{
+    const struct TbSprite *spr;
+    struct TbPoint *hotspot;
+    SDL_Surface *surf;
+    SDL_Cursor *cursor;
+    TbPixel *buf;
+    int w, h, pitch, x, y;
+
+    if (getenv("SWFX_SOFT_CURSOR") != NULL)
+        return;
+    spr = pointerHandler.GetPointer();
+    if (spr == NULL) {
+        LbIMouseFreeHwCursor();
+        SDL_ShowCursor(SDL_DISABLE);
+        return;
+    }
+    w = (spr->SWidth * lbUnitsPerPixel + 16) / 16;
+    h = (spr->SHeight * lbUnitsPerPixel + 16) / 16;
+    if ((w < 1) || (h < 1) || (w > 128) || (h > 128))
+        return;
+    pitch = w + 16;
+    buf = (TbPixel *)malloc(pitch * (h + 16));
+    if (buf == NULL)
+        return;
+    // 255 is the colour which the software pointer treats as transparent
+    memset(buf, 255, pitch * (h + 16));
+    PointerDraw(0, 0, spr, buf, pitch);
+
+    surf = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_RGBA32);
+    if (surf == NULL) {
+        free(buf);
+        return;
+    }
+    SDL_LockSurface(surf);
+    for (y = 0; y < h; y++)
+    {
+        ubyte *dst = (ubyte *)surf->pixels + y * surf->pitch;
+        for (x = 0; x < w; x++)
+        {
+            TbPixel pix = buf[y * pitch + x];
+            if (pix == 255) {
+                dst[4*x + 0] = dst[4*x + 1] = dst[4*x + 2] = dst[4*x + 3] = 0;
+            } else {
+                dst[4*x + 0] = lbPalette[3*pix + 0] << 2;
+                dst[4*x + 1] = lbPalette[3*pix + 1] << 2;
+                dst[4*x + 2] = lbPalette[3*pix + 2] << 2;
+                dst[4*x + 3] = 255;
+            }
+        }
+    }
+    SDL_UnlockSurface(surf);
+    free(buf);
+
+    hotspot = pointerHandler.GetPointerOffset();
+    cursor = SDL_CreateColorCursor(surf, hotspot->x * lbUnitsPerPixel / 16, hotspot->y * lbUnitsPerPixel / 16);
+    SDL_FreeSurface(surf);
+    if (cursor == NULL) {
+        LOGERR("could not create OS cursor: %s", SDL_GetError());
+        return;
+    }
+    SDL_SetCursor(cursor);
+    if (hw_cursor != NULL)
+        SDL_FreeCursor(hw_cursor);
+    hw_cursor = cursor;
+    memcpy(hw_cursor_palette, lbPalette, PALETTE_8b_SIZE);
+    SDL_ShowCursor(SDL_ENABLE);
+    hw_cursor_active = true;
+}
+
+/** Called after the palette changes; the OS cursor has the colours baked in.
+ */
+extern "C" void LbMouseOnPaletteChange(void)
+{
+    if (!hw_cursor_active)
+        return;
+    if (memcmp(hw_cursor_palette, lbPalette, PALETTE_8b_SIZE) == 0)
+        return;
+    LbIMouseUpdateHwCursor();
+}
 
 TbResult LbMousePlace(void)
 {
@@ -64,6 +175,8 @@ TbResult LbMouseRemove(void)
 
 TbResult LbMouseOnBeginSwap(void)
 {
+    if (hw_cursor_active)
+        return Lb_SUCCESS;
     if (!pointerHandler.PointerBeginSwap())
         return Lb_FAIL;
     return Lb_SUCCESS;
@@ -71,6 +184,8 @@ TbResult LbMouseOnBeginSwap(void)
 
 TbResult LbMouseOnEndSwap(void)
 {
+    if (hw_cursor_active)
+        return Lb_SUCCESS;
     if (!pointerHandler.PointerEndSwap())
         return Lb_FAIL;
     return Lb_SUCCESS;
@@ -85,6 +200,7 @@ TbResult LbMouseChangeSpriteOffset(long hot_x, long hot_y)
     if (!pointerHandler.SetPointerOffset(-hot_x, -hot_y))
         return Lb_FAIL;
 
+    LbIMouseUpdateHwCursor();
     return Lb_SUCCESS;
 }
 
@@ -115,6 +231,7 @@ TbResult LbMouseChangeSprite(const struct TbSprite *pointer_spr)
     if (!pointerHandler.SetMousePointer(pointer_spr))
         return Lb_FAIL;
 
+    LbIMouseUpdateHwCursor();
     return Lb_SUCCESS;
 }
 
@@ -228,6 +345,7 @@ TbResult LbMouseSuspend(void)
     if (!lbMouseInstalled)
         return Lb_FAIL;
 
+    LbIMouseFreeHwCursor();
     if (!pointerHandler.Release())
         return Lb_FAIL;
 

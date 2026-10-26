@@ -907,6 +907,10 @@ TbBool adjust_mission_engine_to_video_mode(void)
     TbBool ret;
 
     ret = true;
+    // Perspective projection bends the map into a sphere towards the edges of the
+    // screen, and the mouse picking is not accurate there; start every mission with
+    // the plain isometric view (the camera key still switches it on)
+    game_perspective = ProjM_Isometric;
     game_high_resolution = (lbDisplay.ScreenMode == screen_mode_game_hi);
     // Set scale 15% over the min, to create a nice pan effect
     overall_scale = (get_overall_scale_min() * 295) >> 8;
