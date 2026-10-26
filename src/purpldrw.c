@@ -158,11 +158,25 @@ void draw_sprite_purple_list(int x, int y, const struct TbSprite *p_sprite)
     p_pditem->Type = PuDT_SPRITE;
 }
 
-void draw_trig_purple_list(long x2, long y2, long x3, long y3)
+void draw_trig_purple_list(int x2, int y2, int x3, int y3)
 {
+#if 0
     asm volatile (
       "call ASM_draw_trig_purple_list\n"
         : : "a" (x2), "d" (y2), "b" (x3), "c" (y3));
+#endif
+    struct PurpleDrawItem *p_pditem;
+
+    p_pditem = &purple_draw_list[purple_draw_index];
+    purple_draw_index++;
+
+    p_pditem->U.Line.Colour = vec_colour;
+    p_pditem->Flags = lbDisplay.DrawFlags;
+    p_pditem->U.Line.X1 = lbDisplay.GraphicsWindowX + x2;
+    p_pditem->U.Line.Y1 = lbDisplay.GraphicsWindowY + y2;
+    p_pditem->U.Line.X2 = lbDisplay.GraphicsWindowX + x3;
+    p_pditem->U.Line.Y2 = lbDisplay.GraphicsWindowY + y3;
+    p_pditem->Type = PuDT_HOLORAY;
 }
 
 void copy_box_purple_list(long x, long y, ulong width, ulong height)

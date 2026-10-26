@@ -40,7 +40,7 @@ struct ScreenButton;
 
 void draw_text_purple_list2(int x, int y, const char *text, ushort line);
 void draw_sprite_purple_list(int x, int y, const struct TbSprite *sprite);
-void draw_trig_purple_list(long x2, long y2, long x3, long y3);
+void draw_trig_purple_list(int x2, int y2, int x3, int y3);
 void copy_box_purple_list(long x, long y, ulong width, ulong height);
 void draw_box_purple_list(int x, int y, ulong width, ulong height, int colour);
 void draw_line_purple_list(int x1, int y1, int x2, int y2, int colour);
