@@ -4332,6 +4332,158 @@ void do_rotate_map(void)
     engn_cam_yaw_vel = new_cam_yaw_vel;
 }
 
+/** Half size on screen of an agent, in 1/256 of overall_scale, used by the drag box selection. */
+#define BOX_SELECT_AGENT_HALF_W 14
+#define BOX_SELECT_AGENT_HALF_H 22
+
+static TbBool box_select_active = false;
+static int box_select_x0, box_select_y0, box_select_x1, box_select_y1;
+
+static TbBool agent_overlaps_screen_rect(struct Thing *p_agent, int rx1, int ry1, int rx2, int ry2)
+{
+    struct EnginePoint ep;
+    int hw, hh;
+
+    // Same body point which the target markers are drawn around
+    ep.X3d = PRCCOORD_TO_MAPCOORD(p_agent->X) - engn_xc;
+    ep.Y3d = PRCCOORD_TO_YCOORD(p_agent->Y) + 8 * 15; // engn_yc subtracted within transform_point()
+    ep.Z3d = PRCCOORD_TO_MAPCOORD(p_agent->Z) - engn_zc;
+    ep.Flags = 0;
+    transform_point(&ep);
+
+    hw = (overall_scale * BOX_SELECT_AGENT_HALF_W) >> 8;
+    hh = (overall_scale * BOX_SELECT_AGENT_HALF_H) >> 8;
+    if (hw < 5)
+        hw = 5;
+    if (hh < 8)
+        hh = 8;
+    if ((ep.pp.X + hw < rx1) || (ep.pp.X - hw > rx2))
+        return false;
+    if ((ep.pp.Y + hh < ry1) || (ep.pp.Y - hh > ry2))
+        return false;
+    return true;
+}
+
+/** Selects the agents which overlap the given screen rectangle, and only them.
+ *
+ * The game controls one agent at a time, so the first covered agent (the current
+ * one, if it is covered) gets selected, and the other covered ones are made to
+ * follow and protect it - the way the group button does it. Agents outside of the
+ * rectangle are released from any such group.
+ */
+static ubyte box_select_apply(int rx1, int ry1, int rx2, int ry2)
+{
+    PlayerInfo *p_locplayer;
+    struct Thing *covered[AGENTS_SQUAD_MAX_COUNT];
+    struct Thing *p_leader;
+    ThingIdx dcthing;
+    int n, ncov;
+
+    p_locplayer = &players[local_player_no];
+    dcthing = p_locplayer->DirectControl[0];
+    ncov = 0;
+    for (n = 0; (n < playable_agents) && (n < AGENTS_SQUAD_MAX_COUNT); n++)
+    {
+        struct Thing *p_agent;
+
+        p_agent = p_locplayer->MyAgent[n];
+        if ((p_agent == NULL) || (p_agent->Type != TT_PERSON))
+            continue;
+        if (((p_agent->Flag & TngF_Destroyed) != 0) || ((p_agent->Flag2 & TgF2_KnockedOut) != 0))
+            continue;
+        if (!person_can_accept_control(p_agent->ThingOffset))
+            continue;
+        if (agent_overlaps_screen_rect(p_agent, rx1, ry1, rx2, ry2))
+            covered[ncov++] = p_agent;
+    }
+    // A box with no agents in it changes nothing
+    if (ncov == 0)
+        return GINPUT_NONE;
+
+    p_leader = covered[0];
+    for (n = 0; n < ncov; n++)
+    {
+        if (covered[n]->ThingOffset == dcthing)
+            p_leader = covered[n];
+    }
+
+    // Grouping is changed directly, not through packets, so keep it to single player
+    if (!in_network_game)
+    {
+        for (n = 0; (n < playable_agents) && (n < AGENTS_SQUAD_MAX_COUNT); n++)
+        {
+            struct Thing *p_agent;
+
+            p_agent = p_locplayer->MyAgent[n];
+            if ((p_agent == NULL) || (p_agent->Type != TT_PERSON))
+                continue;
+            if (p_agent->State == PerSt_PROTECT_PERSON)
+            {
+                p_agent->State = PerSt_NONE;
+                p_agent->GotoThingIndex = 0;
+                p_agent->Owner = 0;
+                remove_path(p_agent);
+            }
+        }
+        for (n = 0; n < ncov; n++)
+        {
+            if (covered[n] != p_leader)
+                make_peep_protect_peep(covered[n], p_leader);
+        }
+    }
+
+    my_build_packet(&packets[local_player_no], PAct_SELECT_AGENT, dcthing, p_leader->ThingOffset, 0, 0);
+    user_input_control_flags_raise(local_player_no, 0, UInpCtrF_LBtnDown);
+    return GINPUT_PACKET;
+}
+
+/** Handles the Shift + mouse drag selection box.
+ * @return GINPUT_PACKET if the selection has made a packet.
+ */
+static ubyte box_select_input(void)
+{
+    if (!box_select_active)
+    {
+        if (((lbShift & KMod_SHIFT) == 0) || !lbDisplay.LeftButton)
+            return GINPUT_NONE;
+        if (mouse_move_over_any_hud_element())
+            return GINPUT_NONE;
+        box_select_active = true;
+        box_select_x0 = lbDisplay.MMouseX;
+        box_select_y0 = lbDisplay.MMouseY;
+    }
+    box_select_x1 = lbDisplay.MMouseX;
+    box_select_y1 = lbDisplay.MMouseY;
+    // The drag is not a click for the rest of the input code
+    lbDisplay.LeftButton = 0;
+    if (lbDisplay.MLeftButton)
+        return GINPUT_NONE;
+
+    box_select_active = false;
+    return box_select_apply(
+      min(box_select_x0, box_select_x1), min(box_select_y0, box_select_y1),
+      max(box_select_x0, box_select_x1), max(box_select_y0, box_select_y1));
+}
+
+/** Draws the selection box while it is being dragged. */
+static void box_select_draw(void)
+{
+    TbPixel col;
+    int x0, y0, x1, y1;
+
+    if (!box_select_active)
+        return;
+    col = colour_lookup[ColLU_GREEN];
+    x0 = min(box_select_x0, box_select_x1);
+    y0 = min(box_select_y0, box_select_y1);
+    x1 = max(box_select_x0, box_select_x1);
+    y1 = max(box_select_y0, box_select_y1);
+    LbDrawLine(x0, y0, x1, y0, col);
+    LbDrawLine(x0, y1, x1, y1, col);
+    LbDrawLine(x0, y0, x0, y1, col);
+    LbDrawLine(x1, y0, x1, y1, col);
+}
+
 ubyte process_mouse_inputs(void)
 {
 #if 0
@@ -4354,7 +4506,14 @@ ubyte process_mouse_inputs(void)
         user_input_control_flags_clear(local_player_no, mouser, UInpCtrF_LBtnDown);
     if (!lbDisplay.MRightButton)
         user_input_control_flags_clear(local_player_no, mouser, UInpCtrF_RBtnDown);
-    if ((ingame.DisplayMode != DpM_ENGINEPLY) && (ingame.DisplayMode != DpM_UNKN_3B))
+    if ((ingame.DisplayMode != DpM_ENGINEPLY) && (ingame.DisplayMode != DpM_UNKN_3B)) {
+        box_select_active = false;
+        return did_inp;
+    }
+    did_inp |= box_select_input();
+    if ((did_inp & GINPUT_PACKET) != 0)
+        return did_inp;
+    if (box_select_active)
         return did_inp;
     did_inp |= process_panel_state();
     if ((did_inp & GINPUT_PACKET) != 0)
@@ -4903,7 +5062,8 @@ ubyte do_user_interface(void)
     static GameKey sel_agent_gkeys[] = {
         GKey_SEL_AGENT_1, GKey_SEL_AGENT_2, GKey_SEL_AGENT_3, GKey_SEL_AGENT_4
     };
-    static GameTurn last_sel_agent_turn[AGENTS_SQUAD_MAX_COUNT] = {0};
+    static TbClockMSec last_sel_agent_time[AGENTS_SQUAD_MAX_COUNT] = {0};
+#define SEL_AGENT_DOUBLE_TAP_MS 500
     assert(sizeof(sel_agent_gkeys)/sizeof(sel_agent_gkeys[0]) <= AGENTS_SQUAD_MAX_COUNT);
     for (n = 0; n < (int)(sizeof(sel_agent_gkeys)/sizeof(sel_agent_gkeys[0])); n++)
     {
@@ -4929,7 +5089,8 @@ ubyte do_user_interface(void)
                     my_build_packet(&packets[local_player_no], PAct_SELECT_AGENT, dcthing, p_agent->ThingOffset, 0, 0);
                     user_input_control_flags_raise(local_player_no, 0, UInpCtrF_LBtnDown);
                     // Double tapping - center view on the agent
-                    if (gameturn - last_sel_agent_turn[n] < 7)
+                    // The window is measured in time, as turns are not a fixed duration
+                    if (LbTimerClock() - last_sel_agent_time[n] < SEL_AGENT_DOUBLE_TAP_MS)
                     {
                       struct Packet *p_pckt;
 
@@ -4939,13 +5100,15 @@ ubyte do_user_interface(void)
                       engn_yc = PRCCOORD_TO_MAPCOORD(p_agent->Y);
                       dcthing = p_locplayer->DirectControl[mouser];
                       build_packet(p_pckt, PAct_SELECT_AGENT, dcthing, p_agent->ThingOffset, 0, 0);
-                      if (p_agent->ThingOffset == (short)p_locplayer->DirectControl[mouser])
-                      {
-                          engn_xc = PRCCOORD_TO_MAPCOORD(p_agent->X);
-                          engn_zc = PRCCOORD_TO_MAPCOORD(p_agent->Z);
-                      }
+                      // Move the view right away, whether or not the agent was already controlled
+                      engn_xc = PRCCOORD_TO_MAPCOORD(p_agent->X);
+                      engn_zc = PRCCOORD_TO_MAPCOORD(p_agent->Z);
+                      last_sel_agent_time[n] = 0;
                     }
-                    last_sel_agent_turn[n] = gameturn;
+                    else
+                    {
+                      last_sel_agent_time[n] = LbTimerClock();
+                    }
                 }
                 did_inp |= GINPUT_PACKET;
                 return did_inp;
@@ -5774,6 +5937,7 @@ void show_game_screen(void)
     BAT_play();
 
     // Drawn together with the rest of the HUD, so that it is part of the same frame
+    box_select_draw();
     fps_counter_show();
 
     if (execute_commands)
