@@ -1,0 +1,100 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Build only",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "$env:MSYSTEM='MINGW32'; $env:CHERE_INVOKING='1'; & 'D:/development/msys64/usr/bin/bash.exe' -lc 'cd /d/development/swars/debug && make -j$(nproc)'",
+            "cwd": "${workspaceFolder}/debug"
+        },
+        {
+            "name": "(gdb) Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "D:/development/swars/debug/src/syndwarsfx.exe",
+            "args": ["-g", "-W"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/debug/src",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "D:/development/msys64/mingw32/bin;${env:PATH}"
+                }
+            ],
+            "externalConsole": true,
+            "MIMode": "gdb",
+            "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe",
+            "setupCommands": [
+                {
+                    "description": "Abilita la riformattazione per gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "(gdb) Build & Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "D:/development/swars/debug/src/syndwarsfx.exe",
+            "args": ["-g", "-W"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/debug/src",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "D:/development/msys64/mingw32/bin;${env:PATH}"
+                }
+            ],
+            "externalConsole": true,
+            "preLaunchTask": "build-debug",
+            "MIMode": "gdb",
+            "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe",
+            "setupCommands": [
+                {
+                    "description": "Abilita la riformattazione per gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "Release build only",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "$env:MSYSTEM='MINGW32'; $env:CHERE_INVOKING='1'; & 'D:/development/msys64/usr/bin/bash.exe' -lc 'cd /d/development/swars/release && make -j$(nproc)'",
+            "cwd": "${workspaceFolder}/release"
+        },
+        {
+            "name": "Release Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "D:/development/swars/release/src/syndwarsfx.exe",
+            "args": ["-g", "-W"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/release/src",
+            "environment": [],
+            "externalConsole": true,
+            "MIMode": "gdb",
+            "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe"
+        },
+        {
+            "name": "Release Build & Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "D:/development/swars/release/src/syndwarsfx.exe",
+            "args": ["-g", "-W"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/release/src",
+            "environment": [],
+            "externalConsole": true,
+            "MIMode": "gdb",
+            "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe",
+            "preLaunchTask": "build-release"
+        }
+    ]
+}

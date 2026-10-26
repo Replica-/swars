@@ -73,6 +73,22 @@ ubyte get_speed_control_inputs(void);
 
 void wait_next_gameturn(void);
 
+/** Delay between game turns in ms; ie. 62 means 16 turns per second. */
+extern short turn_delay_ms;
+
+/** Counts a drawn frame and draws the FPS counter in the top right corner. */
+void fps_counter_show(void);
+
+/** Phases of a frame which have their duration measured for the FPS counter. */
+enum PerfPhase {
+    PerfPhase_Draw,
+    PerfPhase_Swap,
+    PerfPhase_COUNT,
+};
+
+void perf_phase_begin(enum PerfPhase phase);
+void perf_phase_end(enum PerfPhase phase);
+
 TbBool display_needs_redraw_this_turn(void);
 void update_tick_time(void);
 

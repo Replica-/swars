@@ -179,8 +179,8 @@
  */
 #define CAMERA_TILT_MIN -192
 #define CAMERA_TILT_MAX -152
-#define CAMERA_ZOOM_MIN 120
-#define CAMERA_ZOOM_MAX 256
+#define CAMERA_ZOOM_MIN 16
+#define CAMERA_ZOOM_MAX 600
 #define CAMERA_ROTATION_INPUT_MULTIPLIER 256
 #define CAMERA_TILT_INPUT_MULTIPLIER 4
 
@@ -802,12 +802,14 @@ void process_view_inputs(int thing)
     int zoom;
 
     p_person = &things[thing];
-    zoom = get_weapon_zoom_min(p_person->U.UPerson.CurrentWeapon);
-    // User zoom is not scaled to resolution
-    if (zoom >= ingame.UserZoom)
-        ingame.UserZoom = zoom;
-    else
-        zoom = ingame.UserZoom;
+    (void)p_person;
+    // User zoom is not scaled to resolution; no weapon-range based minimum,
+    // the zoom is only kept within the sane bounds
+    if (ingame.UserZoom < user_zoom_min)
+        ingame.UserZoom = user_zoom_min;
+    else if (ingame.UserZoom > user_zoom_max)
+        ingame.UserZoom = user_zoom_max;
+    zoom = ingame.UserZoom;
 
     process_overall_scale(zoom);
 }
@@ -1617,7 +1619,7 @@ void init_level(void)
     ingame.TrackX = engn_xc;
     ingame.TrackZ = engn_zc;
     ingame.fld_unkCA6 = 0;
-    ingame.UserZoom = 120;
+    ingame.UserZoom = 100;
     word_1AABD0 = next_floor_texture;
     init_crater_textures();
     bang_init();
@@ -5740,7 +5742,7 @@ TbBool skip_redraw_this_turn(void)
     {
         return ((gameturn & 0xF) != 0);
     }
-    return false;
+    return !display_needs_redraw_this_turn();
 }
 
 void show_game_screen(void)
@@ -5755,6 +5757,9 @@ void show_game_screen(void)
         gproc3_unknsub2();
 
     BAT_play();
+
+    // Drawn together with the rest of the HUD, so that it is part of the same frame
+    fps_counter_show();
 
     if (execute_commands)
     {
@@ -6187,7 +6192,9 @@ void game_process(void)
         if ((ingame.DisplayMode == DpM_ENGINEPLY)
           && ((ingame.Flags & TngF_ProgressAction) != 0))
             process_explode();
+        perf_phase_begin(PerfPhase_Draw);
         draw_game();
+        perf_phase_end(PerfPhase_Draw);
         debug_trace_turn_bound(gameturn);
         load_packet();
         if ( ((active_flags_general_unkn01 & 0x8000) != 0) !=
@@ -6211,8 +6218,10 @@ void game_process(void)
         }
         else if (!skip_redraw_this_turn())
         {
+            perf_phase_begin(PerfPhase_Swap);
             game_update();
             LbScreenSwapClear(0);
+            perf_phase_end(PerfPhase_Swap);
         }
 
         update_unkn_changing_colors();

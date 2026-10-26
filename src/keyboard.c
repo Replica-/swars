@@ -174,8 +174,6 @@ TbKeyMods get_gamekey_modifier(GameKey gkey)
         break;
     case GKey_TRANS_OBJ_SURF_COL:
     case GKey_TRANS_OBJ_LINE_COL:
-    case GKey_GAMESPEED_INC:
-    case GKey_GAMESPEED_DEC:
         kmodif = KMod_CONTROL;
         break;
     case GKey_CAMERA_PERSPECTV:
