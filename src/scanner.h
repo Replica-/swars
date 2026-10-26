@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file scanner.h
  *     Header file for scanner.c.
@@ -30,44 +30,63 @@ extern "C" {
 #define SCANNER_BIG_BLIP_COUNT 16
 #define SCANNER_GROUP_COUNT 6
 #define SCANNER_ARC_COUNT 4
+#define SCANNER_POINTS_PER_ARC 5
+#define SCANNER_BBP_ADDS_COUNT 16
+
+#define SCANNER_MAPDATA_WIDTH 256
+#define SCANNER_MAPDATA_HEIGHT 256
 
 struct Objective;
+struct NetscanObjective;
+struct PanelStyle;
 
-struct BigBlip
+struct SimplePoint {
+    s32 X;
+    s32 Z;
+};
+
+struct MovingPoint {
+    s32 X;
+    s32 Z;
+    s32 VelX;
+    s32 VelZ;
+};
+
+struct BigBlip // sizeof=12
 {
-  long X;
-  long Z;
+  s32 X;
+  s32 Z;
   ubyte Colour;
   ubyte Period;
   ubyte Speed;
   ubyte Counter;
 };
 
-struct Arc
+struct Arc // sizeof=20
 {
-  long X1;
-  long Z1;
-  long X2;
-  long Z2;
+  s32 X1;
+  s32 Z1;
+  s32 X2;
+  s32 Z2;
   ubyte ColourIsUnused;
   ubyte Period;
   ubyte SpeedIsUnused;
   ubyte Counter;
 };
 
-struct Scanner
+struct Scanner // sizeof=0x467 (before resize)
 {
-  long X1;
-  long Y1;
-  long X2;
-  long Y2;
-  long MX;
-  long MZ;
-  long Zoom;
-  long Angle;
-  long Contrast;
-  long Brightness;
-  long Width[200];
+  s32 X1; // offset=ingame+0x00C
+  s32 Y1;
+  s32 X2;
+  s32 Y2;
+  s32 MX;
+  s32 MZ;
+  s32 Zoom;
+  s32 Angle;
+  s32 Contrast;
+  s32 Brightness;
+  s32 Width[500]; // offset=ingame+0x034; modified 200 -> 500
   struct BigBlip BigBlip[SCANNER_BIG_BLIP_COUNT];
   struct Arc Arc[SCANNER_ARC_COUNT];
   ubyte Group[SCANNER_GROUP_COUNT];
@@ -78,17 +97,28 @@ struct Scanner
 
 #pragma pack()
 /******************************************************************************/
-extern long *SCANNER_width;
-extern ubyte SCANNER_data[256][256];
+extern struct MovingPoint SCANNER_arcpoint[SCANNER_ARC_COUNT * SCANNER_POINTS_PER_ARC];
+extern struct SimplePoint SCANNER_bbpoint[SCANNER_BIG_BLIP_COUNT * SCANNER_BBP_ADDS_COUNT];
 
-extern short waft_table2[32];
-extern short waft_table[32];
+extern s32 *SCANNER_width;
+extern ubyte SCANNER_data[SCANNER_MAPDATA_HEIGHT][SCANNER_MAPDATA_WIDTH];
+extern ushort SCANNER_base_zoom_factor;
+extern ushort SCANNER_user_zoom_factor;
+extern ubyte SCANNER_scale_dots;
+extern u32 dword_1DB1A0;
+extern s32 scanner_arrow_mode;
 
+void SCANNER_clear(void);
 void SCANNER_init(void);
 void SCANNER_fill_in(void);
-void SCANNER_set_colour(ubyte col);
-void SCANNER_find_position(int x, int y, int *U, int *V);
+void SCANNER_fill_in_a_little_bit(int x1, int y1, int x2, int y2);
+void SCANNER_set_colours(struct PanelStyle *p_style);
+void SCANNER_find_position(int x, int y, int *Ua, int *Vb);
 void SCANNER_data_to_screen(void);
+void SCANNER_set_zoom(int zoom);
+
+void SCANNER_fe_process_turn(void);
+void SCANNER_process_turn(void);
 
 /** Set screen location box coordinates of the scanner view.
  *
@@ -100,11 +130,16 @@ void SCANNER_data_to_screen(void);
  */
 void SCANNER_set_screen_box(short x, short y, short width, short height, short cutout);
 
-void add_blippoint_to_scanner(int x, int z, ubyte colour);
+void SCANNER_process_arcpoints(void);
 
 TbBool mouse_move_over_scanner(void);
 void clear_all_scanner_signals(void);
 void add_signal_to_scanner(struct Objective *p_objectv, ubyte flag);
+void add_netscan_signal_to_scanner(struct NetscanObjective *p_nsobv, ubyte flag);
+
+void redo_scanner_init(void);
+void redo_scanner_process(void);
+
 /******************************************************************************/
 #ifdef __cplusplus
 }

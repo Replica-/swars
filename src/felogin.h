@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file felogin.h
  *     Header file for felogin.c.
@@ -31,7 +31,7 @@ extern "C" {
 #pragma pack()
 /******************************************************************************/
 
-void show_login_screen(void);
+ubyte show_login_screen(void);
 void init_login_screen_boxes(void);
 void reset_login_screen_boxes_flags(void);
 void set_flag01_login_screen_boxes(void);

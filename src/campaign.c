@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file campaign.c
  *     Routines campaign progress and missions definitions.
@@ -22,13 +22,21 @@
 #include "bfmemory.h"
 #include "bfmemut.h"
 #include "bfini.h"
+#include <ctype.h>
+#include <stdlib.h>
+
 #include "cybmod.h"
 #include "weapon.h"
-#include "lvobjctv.h"
 #include "game_data.h"
+#include "game_options.h"
 #include "game.h"
-#include "wadfile.h"
+#include "lvfiles.h"
+#include "lvobjctv.h"
+#include "misstat.h"
+#include "mydraw.h"
 #include "swlog.h"
+#include "wadfile.h"
+#include "wrcities.h"
 /******************************************************************************/
 
 enum MissionListConfigCmd {
@@ -77,6 +85,7 @@ enum MissionListConfigCmd {
     MissL_RemainUntilSuccess,
     MissL_IsFinalMission,
     MissL_PreProcess,
+    MissL_Atmosphere,
 };
 
 const struct TbNamedEnum missions_conf_common_cmds[] = {
@@ -132,12 +141,35 @@ const struct TbNamedEnum missions_conf_mission_cmds[] = {
   {"RemainUntilSuccess",MissL_RemainUntilSuccess},
   {"IsFinalMission",MissL_IsFinalMission},
   {"PreProcess",	MissL_PreProcess},
+  {"Atmosphere",	MissL_Atmosphere},
   {NULL,			0},
 };
 
 const struct TbNamedEnum missions_conf_common_types[] = {
   {"SP",			1},
   {"MP",			2},
+  {NULL,			0},
+};
+
+const struct TbNamedEnum missions_conf_atmosphere_types[] = {
+  {"EARTH",			MAtmsph_Earth},
+  {"SPACE",			MAtmsph_Space},
+  {"MOON",			MAtmsph_Moon},
+  {NULL,			0},
+};
+
+const struct TbNamedEnum missions_conf_weather_types[] = {
+  {"SUNNY",			MWeathr_Sunny},
+  {"RAINY",			MWeathr_Rainy},
+  {"SNOWY",			MWeathr_Snowy},
+  {NULL,			0},
+};
+
+const struct TbNamedEnum missions_conf_wait_to_fade_types[] = {
+  {"NEVER",			1},
+  {"ON_SUCCESS",	WTFade_ON_SUCCESS | 1},
+  {"ON_FAIL",		WTFade_ON_FAIL | 1},
+  {"ALWAYS",		WTFade_ON_SUCCESS|WTFade_ON_FAIL | 1},
   {NULL,			0},
 };
 
@@ -158,6 +190,17 @@ const struct TbNamedEnum missions_conf_any_bool[] = {
 };
 
 struct Campaign campaigns[CAMPAIGNS_MAX_COUNT];
+ubyte background_type = 0;
+
+struct Mission mission_list[MISSIONS_MAX_COUNT];
+ushort next_mission = 1;
+
+short mission_open[MISSION_STATE_SLOTS_COUNT];
+short mission_state[MISSION_STATE_SLOTS_COUNT];
+
+char mission_name[50] = "None";
+
+char *memload_netscan_text = NULL;
 
 /** Size of campaign strings within the engine buffer.
  */
@@ -165,8 +208,9 @@ ushort campaign_strings_len = 0;
 
 /** Size of mission strings after campaign strings.
  */
-extern ushort mission_strings_len; // = 0;
-extern ushort display_mode;
+ushort mission_strings_len = 0;
+
+ushort display_mode = 0;
 
 void load_campaigns(void)
 {
@@ -198,17 +242,32 @@ ushort selectable_campaigns_count(void)
     return matches;
 }
 
+void clear_mission_state_slots(void)
+{
+    ushort mslot;
+
+    for (mslot = 0; mslot < MISSION_STATE_SLOTS_COUNT; mslot++) {
+        mission_open[mslot] = 0;
+        mission_state[mslot] = MResol_UNDECIDED;
+    }
+}
+
 ushort find_mission_state_slot(ushort missi)
 {
     ushort mslot;
 
     if (missi < 1)
         return 0;
-    for (mslot = 1; mslot < MISSION_STATES_COUNT; mslot++) {
+    for (mslot = 1; mslot < MISSION_STATE_SLOTS_COUNT; mslot++) {
         if (mission_open[mslot] == missi)
             break;
+        // First empty slot means all further slots are empty too
+        if (mission_open[mslot] == 0) {
+            mslot = 0;
+            break;
+        }
     }
-    if (mslot >= MISSION_STATES_COUNT)
+    if (mslot >= MISSION_STATE_SLOTS_COUNT)
         mslot = 0;
     return mslot;
 }
@@ -217,24 +276,35 @@ ushort find_empty_mission_state_slot(void)
 {
     ushort mslot;
 
-    for (mslot = 1; mslot < MISSION_STATES_COUNT; mslot++) {
+    for (mslot = 1; mslot < MISSION_STATE_SLOTS_COUNT; mslot++) {
         if (mission_open[mslot] == 0)
             break;
     }
-    if (mslot >= MISSION_STATES_COUNT)
+    if (mslot >= MISSION_STATE_SLOTS_COUNT)
         mslot = 0;
+    // since the empty slot may now become used,
+    // clear the next to assure 0-terminated list
+    if ((mslot > 0) && (mslot < MISSION_STATE_SLOTS_COUNT-1))
+        mission_open[mslot+1] = 0;
     return mslot;
 }
 
-void remove_mission_state_slot(ushort mslot)
+void remove_mission_state_slot(ushort missi)
 {
-    ushort i;
+    ushort mslot, i;
 
-    for (i = mslot; i < MISSION_STATES_COUNT-1; i++)
+    mslot = find_mission_state_slot(missi);
+    if (mslot == 0)
+        return;
+
+    for (i = mslot; i < MISSION_STATE_SLOTS_COUNT-1; i++)
     {
         mission_open[i] = mission_open[i + 1];
         mission_state[i] = mission_state[i + 1];
     }
+    // Clear the last element, to mark it as unused
+    mission_open[i] = 0;
+    mission_state[i] = MResol_UNDECIDED;
 }
 
 ushort replace_mission_state_slot(ushort old_missi, ushort new_missi)
@@ -243,18 +313,60 @@ ushort replace_mission_state_slot(ushort old_missi, ushort new_missi)
 
     mslot = find_mission_state_slot(old_missi);
     mission_open[mslot] = new_missi;
-    mission_state[mslot] = 0;
+    mission_state[mslot] = MResol_UNDECIDED;
     return mslot;
+}
+
+short get_mission_state_using_state_slot(ushort missi)
+{
+    ushort mslot;
+
+    mslot = find_mission_state_slot(missi);
+    if (mslot == 0) {
+        LOGWARN("Tried to get state for mission %d with no slot assigned", (int)missi);
+        return MResol_UNDECIDED;
+    }
+    return mission_state[mslot];
+}
+
+void set_mission_state_using_state_slot(ushort missi, short mstate)
+{
+    ushort mslot;
+
+    mslot = find_mission_state_slot(missi);
+    if (mslot == 0) {
+        mslot = find_empty_mission_state_slot();
+        if (mslot != 0)
+            mission_open[mslot] = missi;
+    }
+    if (mslot == 0) {
+        LOGERR("No free slot found for mission %d state %d", (int)missi, (int)mstate);
+        return;
+    }
+    mission_state[mslot] = MResol_UNDECIDED;
 }
 
 ushort find_mission_with_map_and_level(ushort mapno, ushort level)
 {
     ushort missi;
 
-    for (missi = 1; missi < MISSIONS_MAX_COUNT; missi++) {
+    for (missi = 1; missi < next_mission; missi++) {
         struct Mission *p_missi;
         p_missi = &mission_list[missi];
         if ((p_missi->MapNo == mapno) && (p_missi->LevelNo == level))
+            return missi;
+        if ((p_missi->MapNo == mapno) && (p_missi->ReLevelNo == level))
+            return missi;
+    }
+    return 0;
+}
+
+ushort find_first_mission_with_map(short mapno)
+{
+    ushort missi;
+    for (missi = 1; missi < next_mission; missi++)
+    {
+        if (mission_list[missi].MapNo == mapno)
             return missi;
     }
     return 0;
@@ -270,7 +382,7 @@ void init_mission_states(void)
     mslot = find_mission_state_slot(ingame.CurrentMission);
     if (mslot > 0) {
         missi = mission_open[mslot];
-        mission_state[mslot] = 0;
+        mission_state[mslot] = MResol_UNDECIDED;
     } else {
         missi = ingame.CurrentMission;
         LOGWARN("Mission %d has no slot; initing anyway", (int)missi);
@@ -287,9 +399,11 @@ void init_mission_states(void)
         if (objectv == 0)
             break;
         p_objectv = &game_used_objectives[objectv];
-        p_objectv->Status = 0;
+        p_objectv->Status = ObvStatu_UNDECIDED;
         objectv = p_objectv->Next;
     }
+    if (i >= 100)
+        LOGERR("Over %d success objectives attached to mission %d", i, (int)missi);
     LOGSYNC("Prepared %d success objectives for mission %d", i, (int)missi);
 
     objectv = mission_list[missi].FailHead;
@@ -297,9 +411,11 @@ void init_mission_states(void)
         if (objectv == 0)
             break;
         p_objectv = &game_used_objectives[objectv];
-        p_objectv->Status = 0;
+        p_objectv->Status = ObvStatu_UNDECIDED;
         objectv = p_objectv->Next;
     }
+    if (i >= 100)
+        LOGERR("Over %d fail objectives attached to mission %d", i, (int)missi);
     LOGSYNC("Prepared %d fail objectives for mission %d", i, (int)missi);
 }
 
@@ -391,7 +507,7 @@ void read_missions_bin_file(int num)
 {
     TbFileHandle fh;
     char locstr[52];
-    ulong fmtver;
+    u32 fmtver;
     char *p_str;
     int i;
 
@@ -401,7 +517,7 @@ void read_missions_bin_file(int num)
     fh = LbFileOpen(locstr, Lb_FILE_MODE_READ_ONLY);
     if (fh != INVALID_FILE)
     {
-        LbFileRead(fh, &fmtver, sizeof(ulong));
+        LbFileRead(fh, &fmtver, sizeof(u32));
         LbFileRead(fh, &mission_strings_len, sizeof(ushort));
         LbFileRead(fh, p_str, mission_strings_len);
         LbFileRead(fh, &next_mission, sizeof(ushort));
@@ -430,14 +546,14 @@ void read_missions_bin_file(int num)
     }
 
     if (!in_network_game)
-        LbMemorySet(mission_status, 0, 120 * sizeof(struct MissionStatus));
+        clear_mission_status_all();
     if (fmtver < 2)
     {
         for (i = 1; i < next_mission; i++)
           mission_list[i].ReLevelNo = 0;
     }
     for (i = 1; i < next_mission; i++)
-        mission_list[i].Complete = 0;
+        mission_list[i].Complete = MResol_UNDECIDED;
 }
 
 void read_mission_netscan_objectives_bin(void)
@@ -470,7 +586,8 @@ void read_mission_netscan_objectives_bin(void)
 void save_mission_single_conf(TbFileHandle fh, struct Mission *p_missi, char *buf)
 {
     if (p_missi->TextName == NULL) {
-        sprintf(buf, "Name = MAP%03d - LEVEL%03d\n", (int)p_missi->MapNo, (int)p_missi->LevelNo);
+        sprintf(buf, "Name = MAP%03d - LEVEL%03d.%d\n", (int)p_missi->MapNo,
+          LEVEL_NUM_STRAIN(p_missi->LevelNo), LEVEL_NUM_VARIANT(p_missi->LevelNo));
     } else {
         sprintf(buf, "Name = %s\n", p_missi->TextName);
     }
@@ -536,7 +653,7 @@ void save_mission_single_conf(TbFileHandle fh, struct Mission *p_missi, char *bu
           (int)p_missi->ExtraRewardType, (int)p_missi->ExtraRewardParam);
         LbFileWrite(fh, buf, strlen(buf));
     }
-    if ((p_missi->SuccessLevel[0]|p_missi->SuccessLevel[1]|p_missi->SuccessLevel[2]) != 0) {
+    if ((p_missi->SuccessLevel[0]|p_missi->SuccessLevel[1]) != 0) {
         sprintf(buf, "SuccessLevel = %d %d\n",
           (int)p_missi->SuccessLevel[0], (int)p_missi->SuccessLevel[1]);
         LbFileWrite(fh, buf, strlen(buf));
@@ -556,7 +673,8 @@ void save_mission_single_conf(TbFileHandle fh, struct Mission *p_missi, char *bu
         LbFileWrite(fh, buf, strlen(buf));
     }
     {
-        sprintf(buf, "LevelNo = %d\n", (int)p_missi->LevelNo);
+        sprintf(buf, "LevelNo = %d.%d\n", LEVEL_NUM_STRAIN(p_missi->LevelNo),
+          LEVEL_NUM_VARIANT(p_missi->LevelNo));
         LbFileWrite(fh, buf, strlen(buf));
     }
     if (p_missi->BankTestFail != 0) {
@@ -574,7 +692,8 @@ void save_mission_single_conf(TbFileHandle fh, struct Mission *p_missi, char *bu
         LbFileWrite(fh, buf, strlen(buf));
     }
     if (p_missi->ReLevelNo != 0) {
-        sprintf(buf, "ReLevelNo = %d\n", (int)p_missi->ReLevelNo);
+        sprintf(buf, "ReLevelNo = %d.%d\n", LEVEL_NUM_STRAIN(p_missi->ReLevelNo),
+          LEVEL_NUM_VARIANT(p_missi->ReLevelNo));
         LbFileWrite(fh, buf, strlen(buf));
     }
     if (p_missi->CashReward != 0) {
@@ -590,15 +709,17 @@ void save_mission_single_conf(TbFileHandle fh, struct Mission *p_missi, char *bu
         LbFileWrite(fh, buf, strlen(buf));
     }
     if (p_missi->WaitToFade != 0) {
-        sprintf(buf, "WaitToFade = %hu\n", p_missi->WaitToFade);
+        sprintf(buf, "WaitToFade = 0x%x %u\n", (p_missi->WaitToFade & 0xE000),
+                  (p_missi->WaitToFade & 0x1FFF));
+
         LbFileWrite(fh, buf, strlen(buf));
     }
     if (p_missi->PreProcess != 0) {
       sprintf(buf, "PreProcess = %hu\n", p_missi->PreProcess);
       LbFileWrite(fh, buf, strlen(buf));
     }
-    if ((p_missi->field_4A) != 0) {
-        sprintf(buf, "field_4A = %d\n", (int)p_missi->field_4A);
+    if ((p_missi->Atmosphere) != 0) {
+        sprintf(buf, "Atmosphere = %d %d\n", (int)(p_missi->Atmosphere) & 0x0F, (int)(p_missi->Atmosphere >> 4) & 0x0F);
         LbFileWrite(fh, buf, strlen(buf));
     }
     if (p_missi->field_4B != 0) {
@@ -614,7 +735,7 @@ void save_missions_conf_file(int num)
     char conf_fname[80];
     int i;
 
-    sprintf(conf_fname, "%s" FS_SEP_STR "miss%03d.ini", "conf", num);
+    sprintf(conf_fname, "%s/miss%03d.ini", "conf", num);
     fh = LbFileOpen(conf_fname, Lb_FILE_MODE_NEW);
     if (fh == INVALID_FILE) {
         LOGERR("Could not create '%s' file.", conf_fname);
@@ -706,20 +827,31 @@ TbBool read_missions_conf_info(int num)
     struct Campaign *p_campgn;
     char *p_str;
 
-    sprintf(conf_fname, "%s" FS_SEP_STR "miss%03d.ini", "conf", num);
+    sprintf(conf_fname, "%s/miss%03d.ini", "conf", num);
+    if (!LbFileExists(conf_fname)) {
+        LOGSYNC("Could not find '%s' file", conf_fname);
+        p_campgn = &campaigns[num];
+        LbMemorySet(p_campgn, 0, sizeof(struct Campaign));
+        return false;
+    }
     conf_fh = LbFileOpen(conf_fname, Lb_FILE_MODE_READ_ONLY);
     if (conf_fh != INVALID_FILE) {
         conf_len = LbFileLengthHandle(conf_fh);
-        if (conf_len > 1024*1024)
-            conf_len = 1024*1024;
-        conf_buf = LbMemoryAlloc(conf_len+16);
+    } else {
+        LOGSYNC("Could not open '%s' file", conf_fname);
+        conf_len = 0;
+    }
+    if (conf_len > 1024*1024)
+        conf_len = 1024*1024;
+    conf_buf = LbMemoryAlloc(conf_len+16);
+    if (conf_buf == NULL) {
+        LOGSYNC("Could not alloc mem for '%s' file", conf_fname);
+        return false;
+    }
+    if (conf_fh != INVALID_FILE) {
         conf_len = LbFileRead(conf_fh, conf_buf, conf_len);
         LOGSYNC("Processing '%s' file, %d bytes", conf_fname, conf_len);
         LbFileClose(conf_fh);
-    } else {
-        LOGSYNC("Could not open '%s' file.", conf_fname);
-        conf_buf = LbMemoryAlloc(16);
-        conf_len = 0;
     }
     conf_buf[conf_len] = '\0';
     LbIniParseStart(&parser, conf_buf, conf_len);
@@ -885,6 +1017,22 @@ TbBool read_missions_conf_info(int num)
     return true;
 }
 
+int ApIniValueGetIntDotInt(struct TbIniParser *parser, long *dst1, long *dst2)
+{
+    char buf[64];
+    char *bend;
+    int i;
+    i = LbIniValueGetStrWord(parser, buf, sizeof(buf));
+    if (i < 1)
+        return i;
+    *dst1 = strtol(buf,&bend,0);
+    if (*bend != '.')
+        return 0;
+    bend++; // Skip the dot
+    *dst2 = strtol(bend,&bend,0);
+    return (int)(bend - buf);
+}
+
 /** Reads missions file, with information on all missions included.
  */
 void read_missions_conf_file(int num)
@@ -892,7 +1040,7 @@ void read_missions_conf_file(int num)
     TbFileHandle conf_fh;
     TbBool done;
     int i, n;
-    long k;
+    long k, l;
     char *conf_buf;
     struct TbIniParser parser;
     struct Campaign *p_campgn;
@@ -902,7 +1050,7 @@ void read_missions_conf_file(int num)
     int missi;
     char *p_str;
 
-    sprintf(conf_fname, "%s" FS_SEP_STR "miss%03d.ini", "conf", num);
+    sprintf(conf_fname, "%s/miss%03d.ini", "conf", num);
     conf_fh = LbFileOpen(conf_fname, Lb_FILE_MODE_READ_ONLY);
     if (conf_fh != INVALID_FILE) {
         conf_len = LbFileLengthHandle(conf_fh);
@@ -963,6 +1111,9 @@ void read_missions_conf_file(int num)
             {
                 i = LbIniValueGetNamedEnum(&parser, weapon_names);
                 if (i <= 0) {
+                    if (i == 0)
+                        break;
+                    CONFWRNLOG("Could not recognize \"%s\" command parameter.", COMMAND_TEXT(cmd_num));
                     break;
                 }
                 n |= (1 << (i-1));
@@ -976,6 +1127,9 @@ void read_missions_conf_file(int num)
             {
                 i = LbIniValueGetNamedEnum(&parser, weapon_names);
                 if (i <= 0) {
+                    if (i == 0)
+                        break;
+                    CONFWRNLOG("Could not recognize \"%s\" command parameter.", COMMAND_TEXT(cmd_num));
                     break;
                 }
                 n |= (1 << (i-1));
@@ -989,6 +1143,9 @@ void read_missions_conf_file(int num)
             {
                 i = LbIniValueGetNamedEnum(&parser, mod_names);
                 if (i <= 0) {
+                    if (i == 0)
+                        break;
+                    CONFWRNLOG("Could not recognize \"%s\" command parameter.", COMMAND_TEXT(cmd_num));
                     break;
                 }
                 n |= (1 << (i-1));
@@ -1002,6 +1159,9 @@ void read_missions_conf_file(int num)
             {
                 i = LbIniValueGetNamedEnum(&parser, mod_names);
                 if (i <= 0) {
+                    if (i == 0)
+                        break;
+                    CONFWRNLOG("Could not recognize \"%s\" command parameter.", COMMAND_TEXT(cmd_num));
                     break;
                 }
                 n |= (1 << (i-1));
@@ -1037,7 +1197,7 @@ void read_missions_conf_file(int num)
 #undef COMMAND_TEXT
     for (missi = 0; missi < next_mission; missi++)
     {
-        char sect_name[16];
+        char sect_name[32];
         struct Mission *p_missi;
 
         p_missi = &mission_list[missi];
@@ -1197,6 +1357,9 @@ void read_missions_conf_file(int num)
                 {
                     i = LbIniValueGetNamedEnum(&parser, weapon_names);
                     if (i <= 0) {
+                        if (i == 0)
+                            break;
+                        CONFWRNLOG("Could not recognize \"%s\" command parameter.", COMMAND_TEXT(cmd_num));
                         break;
                     }
                     n |= (1 << (i-1));
@@ -1285,13 +1448,14 @@ void read_missions_conf_file(int num)
                 CONFDBGLOG("%s %d", COMMAND_TEXT(cmd_num), (int)p_missi->MapNo);
                 break;
             case MissL_LevelNo:
-                i = LbIniValueGetLongInt(&parser, &k);
+                i = ApIniValueGetIntDotInt(&parser, &k, &l);
                 if (i <= 0) {
                     CONFWRNLOG("Could not read \"%s\" command parameter.", COMMAND_TEXT(cmd_num));
                     break;
                 }
-                p_missi->LevelNo = k;
-                CONFDBGLOG("%s %d", COMMAND_TEXT(cmd_num), (int)p_missi->LevelNo);
+                p_missi->LevelNo = LEVEL_NUM(k,l);
+                CONFDBGLOG("%s %d.%d", COMMAND_TEXT(cmd_num), LEVEL_NUM_STRAIN(p_missi->LevelNo),
+                  LEVEL_NUM_VARIANT(p_missi->LevelNo));
                 break;
             case MissL_BankTestFail:
                 i = LbIniValueGetLongInt(&parser, &k);
@@ -1326,13 +1490,14 @@ void read_missions_conf_file(int num)
                   (int)p_missi->MissionCond[3], (int)p_missi->MissionCond[4]);
                 break;
             case MissL_ReLevelNo:
-                i = LbIniValueGetLongInt(&parser, &k);
+                i = ApIniValueGetIntDotInt(&parser, &k, &l);
                 if (i <= 0) {
                     CONFWRNLOG("Could not read \"%s\" command parameter.", COMMAND_TEXT(cmd_num));
                     break;
                 }
-                p_missi->ReLevelNo = k;
-                CONFDBGLOG("%s %d", COMMAND_TEXT(cmd_num), (int)p_missi->ReLevelNo);
+                p_missi->ReLevelNo = LEVEL_NUM(k,l);
+                CONFDBGLOG("%s %d.%d", COMMAND_TEXT(cmd_num), LEVEL_NUM_STRAIN(p_missi->ReLevelNo),
+                  LEVEL_NUM_VARIANT(p_missi->ReLevelNo));
                 break;
             case MissL_CashReward:
                 i = LbIniValueGetLongInt(&parser, &k);
@@ -1362,13 +1527,20 @@ void read_missions_conf_file(int num)
                 CONFDBGLOG("%s %d", COMMAND_TEXT(cmd_num), (int)p_missi->PANEnd);
                 break;
             case MissL_WaitToFade:
-                i = LbIniValueGetLongInt(&parser, &k);
+                i = LbIniValueGetNamedEnum(&parser, missions_conf_wait_to_fade_types);
                 if (i <= 0) {
-                    CONFWRNLOG("Could not read \"%s\" command parameter.", COMMAND_TEXT(cmd_num));
+                    CONFWRNLOG("Could not recognize \"%s\" command 1st parameter.", COMMAND_TEXT(cmd_num));
                     break;
                 }
-                p_missi->WaitToFade = k;
-                CONFDBGLOG("%s %d", COMMAND_TEXT(cmd_num), (int)p_missi->WaitToFade);
+                p_missi->WaitToFade = (i & 0xE000);
+                i = LbIniValueGetLongInt(&parser, &k);
+                if (i <= 0) {
+                    CONFWRNLOG("Could not read \"%s\" command 2nd parameter.", COMMAND_TEXT(cmd_num));
+                    break;
+                }
+                p_missi->WaitToFade |= (k & 0x1FFF);
+                CONFDBGLOG("%s 0x%x %d", COMMAND_TEXT(cmd_num), (p_missi->WaitToFade & 0xE000),
+                  (p_missi->WaitToFade & 0x1FFF));
                 break;
 
             case MissL_ImmediateNextOnSuccess:
@@ -1416,6 +1588,20 @@ void read_missions_conf_file(int num)
                 p_missi->PreProcess = k;
                 CONFDBGLOG("%s %d", COMMAND_TEXT(cmd_num), (int)p_missi->PreProcess);
                 break;
+            case MissL_Atmosphere:
+                i = LbIniValueGetNamedEnum(&parser, missions_conf_atmosphere_types);
+                if (i <= 0) {
+                    CONFWRNLOG("Could not recognize \"%s\" command parameter.", COMMAND_TEXT(cmd_num));
+                    break;
+                }
+                p_missi->Atmosphere = (p_missi->Atmosphere & 0xF0) | (i << 0);
+                i = LbIniValueGetNamedEnum(&parser, missions_conf_weather_types);
+                if (i <= 0) {
+                    CONFWRNLOG("Could not recognize \"%s\" command parameter.", COMMAND_TEXT(cmd_num));
+                    break;
+                }
+                p_missi->Atmosphere = (p_missi->Atmosphere & 0x0F) | (i << 4);
+                break;
             case 0: // comment
                 break;
             case -1: // end of buffer
@@ -1430,6 +1616,10 @@ void read_missions_conf_file(int num)
         }
 #undef COMMAND_TEXT
 
+        if ((p_missi->ReLevelNo != 0) &&
+          (LEVEL_NUM_STRAIN(p_missi->LevelNo) != LEVEL_NUM_STRAIN(p_missi->ReLevelNo))) {
+            CONFWRNLOG("ReLevelNo of different strain than LevelNo in \"%s\" section.", sect_name);
+        }
         // Parse the [missuccessN] sections of loaded file
         done = false;
         sprintf(sect_name, "missuccess%d", missi);
@@ -1591,15 +1781,15 @@ TbResult load_netscan_text_data(ushort mapno, ushort level)
     int secnum_int;
 
     found = 0;
-    totlen = load_file_alltext("textdata/netscan.txt", netscan_text);
+    totlen = load_file_alltext("textdata/netscan.txt", memload_netscan_text);
     if (totlen == Lb_FAIL) {
         return Lb_FAIL;
     }
-    if (totlen >= netscan_text_len) {
-        LOGERR("Insufficient memory for netscan_text - %d instead of %d", netscan_text_len, totlen);
-        totlen = netscan_text_len - 1;
+    if (totlen >= memload_netscan_text_len) {
+        LOGERR("Insufficient memory for netscan_text - %d instead of %d", memload_netscan_text_len, totlen);
+        totlen = memload_netscan_text_len - 1;
     }
-    p = netscan_text;
+    p = memload_netscan_text;
     while ( !found )
     {
         // Find section
@@ -1635,9 +1825,9 @@ TbResult load_netscan_text_data(ushort mapno, ushort level)
                 while ((c != '\n') && (c != '\0'));
                 *(p - 1) = '\0';
 
-                netscan_objectives[i].TextOffset = text - netscan_text;
-                my_preprocess_text(netscan_text + netscan_objectives[i].TextOffset);
-                k = my_count_lines(netscan_text + netscan_objectives[i].TextOffset);
+                netscan_objectives[i].TextOffset = text - memload_netscan_text;
+                my_preprocess_text(memload_netscan_text + netscan_objectives[i].TextOffset);
+                k = my_count_lines(memload_netscan_text + netscan_objectives[i].TextOffset);
                 netscan_objectives[i].TextLines = k;
             }
         }
@@ -1645,31 +1835,26 @@ TbResult load_netscan_text_data(ushort mapno, ushort level)
     return found ? Lb_SUCCESS : Lb_OK;
 }
 
-TbResult load_mission_name_text(ubyte missi)
+TbResult load_mission_name_text(ushort missi)
 {
-#if 0
-    asm volatile ("call ASM_load_mission_name_text\n"
-        : : "a" (missi));
-    return Lb_SUCCESS;
-#endif
     int totlen;
     ushort len;
     int cmissi;
     char *p;
     char c;
 
-    totlen = load_file_alltext("textdata/names.txt", memload);
+    totlen = load_file_alltext("textdata/names.txt", memload_city_prop_text);
     if (totlen == Lb_FAIL) {
         mission_name[0] = '\0';
         return Lb_FAIL;
     }
-    if (totlen >= memload_len) {
-        LOGERR("Insufficient memory for memload - %d instead of %d", memload_len, totlen);
-        totlen = memload_len - 1;
+    if (totlen >= memload_city_prop_text_len) {
+        LOGERR("Insufficient memory for city_prop_text - %d instead of %d", memload_city_prop_text_len, totlen);
+        totlen = memload_city_prop_text_len - 1;
     }
-    memload[totlen] = '\0';
+    memload_city_prop_text[totlen] = '\0';
 
-    p = (char *)memload;
+    p = memload_city_prop_text;
     cmissi = -1;
     while ( 1 )
     {
@@ -1722,11 +1907,33 @@ TbBool mission_has_immediate_previous(ushort missi)
     return ((p_missi->Flags & MisF_ImmediatePrevious) != 0);
 }
 
+TbBool mission_has_fail_email_or_triggers(ushort missi)
+{
+    struct Mission *p_missi;
+    p_missi = &mission_list[missi];
+    if (p_missi->FailID != 0)
+        return true;
+    if ((p_missi->FailTrigger[0]|p_missi->FailTrigger[1]|p_missi->FailTrigger[2]) != 0)
+        return true;
+    return false;
+}
+
 TbBool mission_is_final_at_game_end(ushort missi)
 {
     struct Mission *p_missi;
     p_missi = &mission_list[missi];
     return ((p_missi->Flags & MisF_IsFinalMission) != 0);
+}
+
+void missions_clear_bank_tests(void)
+{
+    short missi;
+
+    for (missi = 1; missi < next_mission; missi++)
+    {
+        mission_list[missi].BankTest = 0;
+        mission_list[missi].BankTestFail = 0;
+    }
 }
 
 /******************************************************************************/

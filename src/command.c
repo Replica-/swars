@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file command.c
  *     Routines for person command handling.
@@ -23,8 +23,10 @@
 #include "bfmemory.h"
 #include "bfmemut.h"
 #include "bfutility.h"
-#include "thing.h"
+
 #include "building.h"
+#include "thing.h"
+#include "thing_search.h"
 #include "pepgroup.h"
 #include "swlog.h"
 /******************************************************************************/
@@ -74,12 +76,6 @@ enum CommandDefFlags {
     CmDF_ReqParent = 0x00400000,
 };
 
-struct CommandDef {
-    const char *CmdName;
-    void *vefify;
-    ulong Flags;
-};
-
 struct CommandDef command_defs[] = {
     /* Means end of command chain. */
     {"TNG_CMD_NONE",				NULL,				CmDF_None },
@@ -99,7 +95,7 @@ struct CommandDef command_defs[] = {
     {"TNG_CMD_PROTECT_PERSON",		NULL,				CmDF_ReqPersonThing },
     {"TNG_CMD_HIDE",				NULL,				CmDF_None },
     {"TNG_CMD_GET_ITEM",			NULL,				CmDF_ReqPVIThing },
-    {"TNG_CMD_USE_WEAPON",			NULL,				CmDF_ReqOtherIndex|CmDF_ReqCoord }, // OtherIndex = weapon
+    {"TNG_CMD_USE_WEAPON",			NULL,				CmDF_ReqOtherIndex|CmDF_ReqCoord }, // OtherIndex = weapon type
     {"TNG_CMD_DROP_SPEC_ITEM",		NULL,				CmDF_ReqPVIThing },
     {"TNG_CMD_AVOID_PERSON",		NULL,				CmDF_ReqPersonThing },
     {"TNG_CMD_WAND_AVOID_GROUP",	NULL,				CmDF_ReqGroup },
@@ -110,8 +106,8 @@ struct CommandDef command_defs[] = {
     {"TNG_CMD_CATCH_TRAIN",			NULL,				CmDF_ReqStationCoord },
     {"TNG_CMD_OPEN_DOME",			NULL,				CmDF_ReqDomeCoord },
     {"TNG_CMD_CLOSE_DOME",			NULL,				CmDF_ReqDomeCoord },
-    {"TNG_CMD_DROP_WEAPON",			NULL,				CmDF_ReqOtherIndex }, // OtherIndex = weapon
-    {"TNG_CMD_CATCH_FERRY",			NULL,				CmDF_ReqOtherThing },
+    {"TNG_CMD_DROP_WEAPON",			NULL,				CmDF_ReqOtherIndex }, // OtherIndex = weapon type
+    {"TNG_CMD_CATCH_FERRY",			NULL,				CmDF_ReqCoord|CmDF_ReqRange1 },
     {"TNG_CMD_EXIT_FERRY",			NULL,				CmDF_ReqOtherThing },
     {"TNG_CMD_PING_EXIST",			NULL,				CmDF_None },
     {"TNG_CMD_GOTOPOINT_FACE",		NULL,				CmDF_ReqOtherIndex|CmDF_ReqCoord|CmDF_ReqRange1 }, // OtherIndex = face
@@ -194,7 +190,7 @@ struct CommandDef command_defs[] = {
     {"TNG_CMD_UNKN6B",				NULL,				CmDF_None },
     {"TNG_CMD_UNKN6C",				NULL,				CmDF_None },
     {"TNG_CMD_UNKN6D",				NULL,				CmDF_None },
-    {"TNG_CMD_LOOP_COM",			NULL,				CmDF_ReqOtherIndex }, // OtherIndex = command
+    {"TNG_CMD_LOOP_COM",			NULL,				CmDF_ReqOtherIndex }, // OtherIndex = command index
     /* Repeat until event commands */
     {"TNG_CMD_UNTIL_P_V_DEAD",		NULL,				CmDF_ReqPVIThing },
     {"TNG_CMD_UNTIL_MEM_G_DEAD",	NULL,				CmDF_ReqGroup|CmDF_ReqCountT },
@@ -221,7 +217,7 @@ struct CommandDef command_defs[] = {
     {"TNG_CMD_WITHIN_OFF",			NULL,				CmDF_None },
     {"TNG_CMD_LOCK_BUILDN",			NULL,				CmDF_ReqBuildingCoord },
     {"TNG_CMD_UNLOCK_BUILDN",		NULL,				CmDF_ReqBuildingCoord },
-    {"TNG_CMD_SELECT_WEAPON",		NULL,				CmDF_ReqOtherIndex }, // OtherIndex = weapon
+    {"TNG_CMD_SELECT_WEAPON",		NULL,				CmDF_ReqOtherIndex }, // OtherIndex = weapon type
     {"TNG_CMD_HARD_AS_AGENT",		NULL,				CmDF_None },
     {"TNG_CMD_UNTIL_G_NOT_SEEN",	NULL,				CmDF_ReqGroup },
     {"TNG_CMD_START_DANGER_MUSIC",	NULL,				CmDF_None },
@@ -230,10 +226,32 @@ struct CommandDef command_defs[] = {
     {"TNG_CMD_UNTRUCE_GROUP",		NULL,				CmDF_ReqGroup },
     {"TNG_CMD_PLAY_SAMPLE",			NULL,				CmDF_ReqOtherIndex }, // OtherIndex = sample
     {"TNG_CMD_IGNORE_ENEMIES",		NULL,				CmDF_None },
-    {"TNG_CMD_FULL_STAMINA",		NULL,				CmDF_None },
-    {"TNG_CMD_UNKN91",				NULL,				CmDF_ReqOtherIndex|CmDF_ReqArg1 },
+    {"TNG_CMD_FIT_AS_AGENT",		NULL,				CmDF_None },
+    {"TNG_CMD_CAMERA_ROTATE",		NULL,				CmDF_ReqOtherIndex|CmDF_ReqArg1 }, //  OtherIndex = degrees delta, Arg1 = speed
     {NULL,							NULL,				CmDF_None },
 };
+
+struct Command *game_commands = NULL;
+ushort next_command = 1;
+ubyte execute_commands = 0;
+
+const char *command_codename(ushort cmd)
+{
+    struct Command *p_cmd;
+    struct CommandDef *p_cdef;
+
+    if (cmd >= next_command) {
+        return "TNG_CMD_INVALID";
+    }
+    p_cmd = &game_commands[cmd];
+
+    if (p_cmd->Type > PCmd_TYPES_COUNT) {
+        return "TNG_CMD_BADTYPE";
+    }
+    p_cdef = &command_defs[p_cmd->Type];
+
+    return p_cdef->CmdName;
+}
 
 void snprint_command(char *buf, ulong buflen, ushort cmd)
 {
@@ -248,81 +266,128 @@ void snprint_command(char *buf, ulong buflen, ushort cmd)
     s = buf;
 
     if (p_cmd->Type > PCmd_TYPES_COUNT) {
-        sprintf(s, "%s%hu()", "INVALID", cmd);
+        snprintf(s, buflen - (s - buf), "%s%hu()", "INVALID", cmd);
         return;
     }
 
     p_cdef = &command_defs[p_cmd->Type];
 
-    sprintf(s, "%s( ", p_cdef->CmdName);
+    snprintf(s, buflen - (s - buf), "%s( ", p_cdef->CmdName);
     s += strlen(s);
     nparams = 0;
 
     if (((p_cdef->Flags & CmDF_ReqSubType) != 0) ||
       (p_cmd->SubType != 0)) {
-        if (nparams) { sprintf(s, ", "); s += strlen(s); }
-        sprintf(s, "SubType(%d)", (int)p_cmd->SubType);
+        if (nparams) { snprintf(s, buflen - (s - buf), ", "); s += strlen(s); }
+        snprintf(s, buflen - (s - buf), "SubType(%d)", (int)p_cmd->SubType);
         s += strlen(s);
         nparams++;
     }
 
     if (((p_cdef->Flags & CmDF_ReqCoord) != 0) ||
       (p_cmd->X|p_cmd->Y|p_cmd->Z) != 0) {
-        if (nparams) { sprintf(s, ", "); s += strlen(s); }
-        sprintf(s, "Coord(%hd,%hd,%hd)", p_cmd->X, p_cmd->Y, p_cmd->Z);
+        if (nparams) { snprintf(s, buflen - (s - buf), ", "); s += strlen(s); }
+        snprintf(s, buflen - (s - buf), "Coord(%hd,%hd,%hd)", p_cmd->X, p_cmd->Y, p_cmd->Z);
         s += strlen(s);
         nparams++;
     }
 
-    if (((p_cdef->Flags & CmDF_ReqOtherThing) != 0) ||
-      (p_cmd->OtherThing != 0)) {
-        if (nparams) { sprintf(s, ", "); s += strlen(s); }
-        sprintf(s, "Thing(%hd)", p_cmd->OtherThing);
+    if ((p_cdef->Flags & (CmDF_ReqPersonThing|CmDF_ReqPVIThing|CmDF_ReqOtherThing)) != 0) {
+        if (nparams) { snprintf(s, buflen - (s - buf), ", "); s += strlen(s); }
+        snprintf(s, buflen - (s - buf), "Thing(%hd)", p_cmd->OtherThing);
+        s += strlen(s);
+        nparams++;
+    }
+    else if ((p_cdef->Flags & CmDF_ReqGroup) != 0) {
+        if (nparams) { snprintf(s, buflen - (s - buf), ", "); s += strlen(s); }
+        snprintf(s, buflen - (s - buf), "Group(%hd)", p_cmd->OtherThing);
+        s += strlen(s);
+        nparams++;
+    }
+    else if (((p_cdef->Flags & CmDF_ReqOtherIndex) != 0) || (p_cmd->OtherThing != 0)) {
+        if (nparams) { snprintf(s, buflen - (s - buf), ", "); s += strlen(s); }
+        snprintf(s, buflen - (s - buf), "Index(%hd)", p_cmd->OtherThing);
         s += strlen(s);
         nparams++;
     }
 
-    if (((p_cdef->Flags & CmDF_ReqArg1) != 0) ||
-      (p_cmd->Arg1 != 0) || (p_cmd->Arg2 != 0)) {
-        if (nparams) { sprintf(s, ", "); s += strlen(s); }
-        sprintf(s, "Args(%hd,%hd)", p_cmd->Arg1, p_cmd->Arg2);
+    // some commands have both CmDF_ReqCoord2 and CmDF_ReqRange1; which one is used depends on AreaIsRect flag
+    if ((((p_cdef->Flags & CmDF_ReqCoord2) != 0) && ((p_cdef->Flags & CmDF_ReqRange1) == 0)) ||
+     (((p_cdef->Flags & CmDF_ReqCoord2) != 0) && ((p_cdef->Flags & CmDF_ReqRange1) != 0) &&
+      ((p_cmd->Flags & PCmdF_AreaIsRect) != 0))) {
+        if (nparams) { snprintf(s, buflen - (s - buf), ", "); s += strlen(s); }
+        if ((p_cdef->Flags & CmDF_ReqCountT) != 0)
+            snprintf(s, buflen - (s - buf), "Coord2(%hd,0,%hd)", p_cmd->Arg1, p_cmd->Time);
+        else
+            snprintf(s, buflen - (s - buf), "Coord2(%hd,%hd,%hd)", p_cmd->Arg1, p_cmd->Arg2, p_cmd->Time);
+        s += strlen(s);
+        nparams++;
+    }
+    else if ((p_cdef->Flags & CmDF_ReqRange1) != 0) {
+        if (nparams) { snprintf(s, buflen - (s - buf), ", "); s += strlen(s); }
+        snprintf(s, buflen - (s - buf), "Range(%hd)", p_cmd->Arg1);
+        s += strlen(s);
+        nparams++;
+    }
+    else if (((p_cdef->Flags & CmDF_ReqArg1) != 0) || (p_cmd->Arg1 != 0)) {
+        if (nparams) { snprintf(s, buflen - (s - buf), ", "); s += strlen(s); }
+        snprintf(s, buflen - (s - buf), "Arg1(%hd)", p_cmd->Arg1);
+        s += strlen(s);
+        nparams++;
+    }
+
+    if (((p_cdef->Flags & CmDF_ReqCoord2) != 0) && ((p_cdef->Flags & CmDF_ReqCountT) == 0)) {
+        // Skip printing Arg2 since we've alredy used it for Coord2
+    }
+    else if ((p_cdef->Flags & CmDF_ReqCountT) != 0) {
+        if (nparams) { snprintf(s, buflen - (s - buf), ", "); s += strlen(s); }
+        snprintf(s, buflen - (s - buf), "CountT(%hd)", p_cmd->Arg2);
+        s += strlen(s);
+        nparams++;
+    }
+    else if (p_cmd->Arg2 != 0) {
+        if (nparams) { snprintf(s, buflen - (s - buf), ", "); s += strlen(s); }
+        snprintf(s, buflen - (s - buf), "Arg2(%hd)", p_cmd->Arg2);
         s += strlen(s);
         nparams++;
     }
 
     if (((p_cdef->Flags & CmDF_ReqMyThing) != 0) ||
       (p_cmd->MyThing != 0)) {
-        if (nparams) { sprintf(s, ", "); s += strlen(s); }
-        sprintf(s, "MyThing(%hd)", p_cmd->MyThing);
+        if (nparams) { snprintf(s, buflen - (s - buf), ", "); s += strlen(s); }
+        snprintf(s, buflen - (s - buf), "MyThing(%hd)", p_cmd->MyThing);
         s += strlen(s);
         nparams++;
     }
 
     if (((p_cdef->Flags & CmDF_ReqParent) != 0) ||
       (p_cmd->Parent != 0)) {
-        if (nparams) { sprintf(s, ", "); s += strlen(s); }
-        sprintf(s, "Parent(%hd)", p_cmd->Parent);
+        if (nparams) { snprintf(s, buflen - (s - buf), ", "); s += strlen(s); }
+        snprintf(s, buflen - (s - buf), "Parent(%hd)", p_cmd->Parent);
+        s += strlen(s);
+        nparams++;
+    }
+
+    if ((p_cdef->Flags & CmDF_ReqCoord2) != 0) {
+        // Skip printing Time since we've alredy used it for Coord2
+    }
+    else if (((p_cdef->Flags & CmDF_ReqTime) != 0) || (p_cmd->Time != 0)) {
+        if (nparams) { snprintf(s, buflen - (s - buf), ", "); s += strlen(s); }
+        snprintf(s, buflen - (s - buf), "Time(%hd)", p_cmd->Time);
         s += strlen(s);
         nparams++;
     }
 
     {
-        if (nparams) { sprintf(s, ", "); s += strlen(s); }
-        sprintf(s, "Time(%hd)", p_cmd->Time);
-        s += strlen(s);
-        nparams++;
-    }
-
-    {
-        if (nparams) { sprintf(s, ", "); s += strlen(s); }
-        sprintf(s, "Flags(0x%02lX)", p_cmd->Flags);
+        if (nparams) { snprintf(s, buflen - (s - buf), ", "); s += strlen(s); }
+        snprintf(s, buflen - (s - buf), "Flags(0x%02lX)", p_cmd->Flags);
         s += strlen(s);
         nparams++;
     }
 
     if ((p_cmd->field_1C != 0) || (p_cmd->field_1E != 0)) {
-        if (nparams) { sprintf(s, ", "); s += strlen(s); }
-        sprintf(s, "Padding(%hd,%hd)", p_cmd->field_1C, p_cmd->field_1E);
+        if (nparams) { snprintf(s, buflen - (s - buf), ", "); s += strlen(s); }
+        snprintf(s, buflen - (s - buf), "Padding(%hd,%hd)", p_cmd->field_1C, p_cmd->field_1E);
         s += strlen(s);
         nparams++;
     }
@@ -356,17 +421,60 @@ TbBool is_command_any_until(struct Command *p_cmd)
     return true;
 }
 
+void init_commands(void)
+{
+    next_command = 1;
+}
+
+ushort get_new_command(void)
+{
+    struct Command *p_cmd;
+    ushort cmd;
+
+    for (cmd = 1; cmd < next_command; cmd++)
+    {
+        p_cmd = &game_commands[cmd];
+        if (game_commands[cmd].Type == PCmd_NONE)
+        {
+            p_cmd->Type = PCmd_STAY;
+            p_cmd->Next = 0;
+            return cmd;
+        }
+    }
+    p_cmd = &game_commands[cmd];
+    next_command++;
+    p_cmd->Type = PCmd_STAY;
+    p_cmd->Next = 0;
+    return cmd;
+}
+
+short find_station_platform(short x, short z)
+{
+    struct Thing *p_station;
+    ThingIdx station;
+
+    station = search_for_station(x, z);
+    if (station <= 0) {
+        LOGWARN("No train station found at Coord(%hd,%hd)", x, z);
+        return 0;
+    }
+    p_station = &things[station];
+    return search_object_for_qface(p_station->U.UObject.Object, 4, 2, 0);
+}
+
 #define MAP_BORDER_MARGIN 32
 
 /** Fixes parameters within a command.
  *
+ * @param cmd Index of the Command instance to fix.
+ * @param deep Perform deep/aggresive fixing.
  * @return Gives 2 if a parameter was updated, 1 if no update was neccessary, 0 if update failed.
  */
-ubyte fix_thing_command_indexes(ushort cmd)
+ubyte fix_thing_command_indexes(ushort cmd, TbBool deep)
 {
     struct Command *p_cmd;
     struct CommandDef *p_cdef;
-    short thing;
+    ThingIdx thing;
     ubyte ret;
 
     p_cmd = &game_commands[cmd];
@@ -375,7 +483,7 @@ ubyte fix_thing_command_indexes(ushort cmd)
     ret = 1;
     if ((p_cdef->Flags & CmDF_ReqGroup) != 0)
     {
-        if ((p_cmd->OtherThing < 0) || (p_cmd->OtherThing >= PEOPLE_GROUPS_COUNT)) {
+        if ((p_cmd->OtherThing < 0) || (p_cmd->OtherThing >= PEOPLE_GROUPS_LIMIT)) {
             LOGERR("Cmd%hu = %s Group(%hd) out of range",
               cmd, p_cdef->CmdName, p_cmd->OtherThing);
             p_cmd->OtherThing = 0;
@@ -384,28 +492,14 @@ ubyte fix_thing_command_indexes(ushort cmd)
     }
     else if ((p_cdef->Flags & CmDF_ReqStationCoord) != 0)
     {
-        struct Thing *p_secthing;
-        short secthing;
-        secthing = search_for_station(p_cmd->X, p_cmd->Z);
-        p_secthing = &things[secthing];
-        thing = search_object_for_qface(p_secthing->U.UPerson.ComHead, 4u, 2u, 0);
-        if (thing == 0) {
-            LOGSYNC("Cmd%hu = %s target station not found based on Coord(%hd,%hd); using train index",
-              cmd, p_cdef->CmdName, p_cmd->X, p_cmd->Z);
-            thing = search_things_for_index(p_cmd->OtherThing);
-            if (thing <= 0) {
-                thing = 0;
-            } else {
-                struct Thing *p_thing = &things[thing];
-                if (p_thing->Type != TT_VEHICLE)
-                    thing = 0;
-            }
-        }
-        if (thing != 0) {
-            p_cmd->OtherThing = thing;
+        short face;
+        face = find_station_platform(p_cmd->X, p_cmd->Z);
+        if (face != 0) {
+            p_cmd->OtherThing = face;
             if (ret) ret = 2;
         } else {
-            LOGERR("Cmd%hu = %s target train not found", p_cdef->CmdName, cmd);
+            LOGERR("Cmd%hu = %s matching platform face on target station not found based on Coord(%hd,%hd)",
+              cmd, p_cdef->CmdName, p_cmd->X, p_cmd->Z);
             p_cmd->OtherThing = 0;
             ret = 0;
         }
@@ -462,17 +556,49 @@ ubyte fix_thing_command_indexes(ushort cmd)
     }
     else if ((p_cdef->Flags & CmDF_ReqVehicleCoord) != 0)
     {
-        thing = 0; // TODO no function to search for vehicle based on coords
+        thing = 0;
+        if (thing == 0 && deep) {
+            // vehicle coords in original maps are often outdated, like vehicles were moved after adding
+            // the command; to avoid linking wrong vehicles, use this only for deep fixing
+            thing = search_for_vehicle(p_cmd->X, p_cmd->Z);
+            if (thing == 0) {
+                LOGSYNC("Cmd%hu = %s target vehicle not found based on Coord(%hd,%hd); using vehicle index",
+                  cmd, p_cdef->CmdName, p_cmd->X, p_cmd->Z);
+            }
+        }
         if (thing == 0) {
-            LOGNO("Cmd%hu = %s target vehicle not found based on Coord(%hd,%hd); using vehicle index",
-              cmd, p_cdef->CmdName, p_cmd->X, p_cmd->Z);
             thing = search_things_for_index(p_cmd->OtherThing);
+            if (thing < 0) {
+                struct SimpleThing *p_sthing = &sthings[thing];
+                if (p_sthing->Type == SmTT_STATIC) {
+                    LOGWARN("Cmd%hu = %s target vehicle %hd is a static; jumping to parent",
+                      cmd, p_cdef->CmdName, thing);
+                    thing = p_sthing->Parent;
+                }
+            }
             if (thing <= 0) {
                 thing = 0;
             } else {
                 struct Thing *p_thing = &things[thing];
                 if (p_thing->Type != TT_VEHICLE)
                     thing = 0;
+            }
+        }
+        if (thing == 0 && deep) {
+            // Mechas consist of two things, and vehicle index often point to a wrong one; so try previous
+            // vehicke index if the exact one fails. Only while deep fixing, as it greatly affect gameplay
+            // when mechas rather than being empty have enemy drivers.
+            thing = search_things_for_index(p_cmd->OtherThing - 1);
+            if (thing <= 0) {
+                thing = 0;
+            } else {
+                struct Thing *p_thing = &things[thing];
+                if (p_thing->Type != TT_VEHICLE)
+                    thing = 0;
+            }
+            if (thing != 0) {
+                LOGWARN("Cmd%hu = %s target vehicle found using vehicle index previous to %hd",
+                  cmd, p_cdef->CmdName, p_cmd->OtherThing);
             }
         }
         if (thing != 0) {
@@ -487,7 +613,8 @@ ubyte fix_thing_command_indexes(ushort cmd)
     }
     else if ((p_cdef->Flags & CmDF_ReqThingCoord) != 0)
     {
-        thing = 0; // TODO no function to search for thing based on coords
+        // using this is not expected; use more specific search cases, which allow for type checking
+        thing = 0; // no function to search for any thing type based on coords
         if (thing == 0) {
             LOGNO("Cmd%hu = %s target thing not found based on Coord(%hd,%hd); using thing index",
               cmd, p_cdef->CmdName, p_cmd->X, p_cmd->Z);
@@ -564,10 +691,15 @@ ubyte fix_thing_command_indexes(ushort cmd)
     }
     else if ((p_cdef->Flags & CmDF_ReqOtherThing) != 0)
     {
-        thing = 0; // TODO no function to search for thing based on coords
+        // If this flag is set directly, the thing can't be searched for using coordinates
+        // This is used when coordinates have different function for the command.
+        // This flag also indicated we do not really know what type of thing is expected;
+        // when we understand all thing types used in commands, this case is expected to
+        // become unused
+        thing = 0;
         if (thing == 0) {
-            LOGNO("Cmd%hu = %s target thing not found based on Coord(%hd,%hd); using thing index",
-              cmd, p_cdef->CmdName, p_cmd->X, p_cmd->Z);
+            LOGNO("Cmd%hu = %s target thing can only be found using thing index",
+              cmd, p_cdef->CmdName);
             thing = search_things_for_index(p_cmd->OtherThing);
         }
         if (thing != 0) {
@@ -610,7 +742,7 @@ ubyte fix_thing_command_indexes(ushort cmd)
     }
 
     if (((p_cdef->Flags & CmDF_ReqCoord2) != 0) && (((p_cdef->Flags & CmDF_ReqRange1) == 0) ||
-        (((p_cdef->Flags & CmDF_ReqRange1) != 0) && ((p_cmd->Flags & PCmdF_Unkn0010) != 0))))
+        (((p_cdef->Flags & CmDF_ReqRange1) != 0) && ((p_cmd->Flags & PCmdF_AreaIsRect) != 0))))
     {
         if ((p_cmd->Arg1 < MAP_BORDER_MARGIN) || (p_cmd->Arg1 > 32767 - MAP_BORDER_MARGIN)) {
             LOGERR("Cmd%hu = %s target coord X/Arg1 of (%d,%d) out of range",
@@ -638,7 +770,7 @@ ubyte fix_thing_command_indexes(ushort cmd)
         }
     } else
     if (((p_cdef->Flags & CmDF_ReqRange1) != 0) && (((p_cdef->Flags & CmDF_ReqCoord2) == 0) ||
-        (((p_cdef->Flags & CmDF_ReqCoord2) != 0) && ((p_cmd->Flags & PCmdF_Unkn0010) == 0))))
+        (((p_cdef->Flags & CmDF_ReqCoord2) != 0) && ((p_cmd->Flags & PCmdF_AreaIsRect) == 0))))
     {
         if ((p_cmd->Arg1 < 1) || (p_cmd->Arg1 > 32767 - MAP_BORDER_MARGIN)) {
             LOGERR("Cmd%hu = %s target Range/Arg1 of %d out of range",
@@ -657,13 +789,13 @@ ubyte fix_thing_command_indexes(ushort cmd)
     return ret;
 }
 
-void fix_thing_commands_indexes(void)
+void fix_thing_commands_indexes(TbBool deep)
 {
     ushort cmd;
 
     for (cmd = 1; cmd < next_command; cmd++)
     {
-        fix_thing_command_indexes(cmd);
+        fix_thing_command_indexes(cmd, deep);
     }
 }
 
@@ -680,13 +812,13 @@ void check_and_fix_commands(void)
         if (p_cmd->Next > next_command)
             p_cmd->Next = 0;
 
-        if ((p_cmd->Flags & PCmdF_Unkn0002) != 0)
+        if ((p_cmd->Flags & PCmdF_RunUntil) != 0)
         {
             struct Command *p_nxcmd;
 
             p_nxcmd = &game_commands[p_cmd->Next];
             if (!is_command_any_until(p_nxcmd)) {
-                p_cmd->Flags &= ~PCmdF_Unkn0002;
+                p_cmd->Flags &= ~PCmdF_RunUntil;
             }
         }
     }
@@ -694,25 +826,24 @@ void check_and_fix_commands(void)
 
 void check_and_fix_thing_commands(void)
 {
-    short thing;
+    struct Thing *p_person;
+    ThingIdx person;
     short i;
     ushort cmd;
 
-    thing = same_type_head[1];
-    for (i = 0; thing != 0; i++)
+    person = get_thing_same_type_head(TT_PERSON, -1);
+    for (i = 0; person > 0; person = p_person->LinkSame, i++)
     {
-        struct Thing *p_thing;
-
-        if (i >= max(STHINGS_LIMIT,THINGS_LIMIT)) {
+        if (i >= THINGS_LIMIT) {
             LOGERR("Infinite loop in same type things list");
             break;
         }
-        p_thing = &things[thing];
+        p_person = &things[person];
 
-        cmd = p_thing->U.UPerson.ComHead;
+        cmd = p_person->U.UPerson.ComHead;
         if (cmd > next_command) {
             cmd = 0;
-            p_thing->U.UPerson.ComHead = cmd;
+            p_person->U.UPerson.ComHead = cmd;
         }
         while (cmd != 0)
         {
@@ -723,12 +854,11 @@ void check_and_fix_thing_commands(void)
             if (0) { // Commands debug code
                 char locbuf[256];
                 snprint_command(locbuf, sizeof(locbuf), cmd);
-                LOGSYNC("Person %hd Command %hu: %s", thing, cmd, locbuf);
+                LOGSYNC("Person %hd Command %hu: %s", person, cmd, locbuf);
             }
 
             cmd = p_cmd->Next;
         }
-        thing = p_thing->LinkSame;
     }
 }
 

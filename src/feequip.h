@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file feequip.h
  *     Header file for feequip.c.
@@ -27,23 +27,40 @@ extern "C" {
 /******************************************************************************/
 #pragma pack(1)
 
+enum DisplayBoxContentTypes {
+  DiBoxCt_ANIM = 0,		/**< Shows animation presentation of the selected item */
+  DiBoxCt_TEXT,			/**< Shows verbose text description the selected item */
+};
+
 struct ScreenShape;
 struct ScreenBoxBase;
 
 #pragma pack()
 /******************************************************************************/
-// TODO for this variable the first weapon is 0 instead of 1
-// to be fixed to define variables in the same way everywhere
-extern sbyte selected_weapon;
+/** Weapon selected in the equipment screen, 0 for none.
+ */
+extern ubyte selected_weapon;
+extern sbyte selected_agent;
+extern ubyte display_box_content;
+extern ubyte mo_weapon;
+extern ubyte refresh_equip_list;
 
-void show_equipment_screen(void);
+ubyte show_equipment_screen(void);
 
 ubyte flashy_draw_draw_equip_agent_name_shape(struct ScreenShape *shape, ubyte gbstate);
 void draw_equip_agent_name_shape(struct ScreenShape *shape, ubyte gbstate);
+void equip_update_for_selected_weapon(void);
 
 void draw_text_property_bk(struct ScreenBoxBase *box, const char *text);
 void draw_text_property_lv(struct ScreenBoxBase *box, const char *text);
+
+void weapon_flic_data_to_screen(void);
+
+/** Draw a background part of a bar of rectangles.
+ */
 void draw_discrete_rects_bar_bk(struct ScreenBoxBase *box, const char *text, TbPixel color);
+/** Draw a foreground part of a bar of rectangles, including the fill level.
+ */
 void draw_discrete_rects_bar_lv(struct ScreenBoxBase *box, int lv, int lv_max, TbPixel *colors);
 
 TbBool mouse_over_agent_panel_shape(struct ScreenShape *shape);
@@ -53,16 +70,31 @@ void draw_agent_panel_shape(struct ScreenShape *shape, ushort spridx, ubyte gbst
 void update_equip_cost_text(void);
 void update_cybmod_cost_text(void);
 
+ubyte do_equip_offer_buy(ubyte click);
+
 void switch_shared_equip_screen_buttons_to_equip(void);
 void switch_equip_offer_to_buy(void);
+void switch_equip_offer_to_sell(void);
 void check_buy_sell_button(void);
 void init_weapon_anim(ubyte weapon);
+void display_box_content_state_switch(void);
 
 void init_equip_screen_boxes(void);
+
+/** Reset players part of equip screen state.
+ *
+ * Resets all parts of equip screen which are set by the player
+ * or related to players game progress.
+ */
+void reset_equip_screen_player_state(void);
+
 void reset_equip_screen_boxes_flags(void);
 void set_flag01_equip_screen_boxes(void);
 
 void init_equip_screen_shapes(void);
+
+TbBool dragged_weapon_can_drop_on_research(void);
+void dragged_weapon_drop_on_research(void);
 
 /******************************************************************************/
 #ifdef __cplusplus

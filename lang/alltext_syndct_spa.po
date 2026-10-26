@@ -1,8 +1,8 @@
 # *****************************************************************************
-#  Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+#  Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 # *****************************************************************************
 #   @file alltext_syndct_spa.po
-#      Menu text for SW Port translation file
+#      Menu text for SyndWarsFX translation file
 #  @par Purpose:
 #      Contains translation of the national text in the game.
 #  @par Comment:
@@ -18,10 +18,10 @@
 # *****************************************************************************
 msgid ""
 msgstr ""
-"Project-Id-Version: Menu text for SW Port\n"
-"Report-Msgid-Bugs-To: https://github.com/swfans/swars/issues\n"
+"Project-Id-Version: Menu text for SyndWarsFX\n"
+"Report-Msgid-Bugs-To: https://github.com/swfans/syndwarsfx/issues\n"
 "POT-Creation-Date: 2023-09-05 11:32+0200\n"
-"PO-Revision-Date: 2023-12-30 12:54+0100\n"
+"PO-Revision-Date: 2025-12-15 22:56+0100\n"
 "Last-Translator: Mefistotelis <mefistotelis@gmail.com>\n"
 "Language-Team: Syndicate Wars Fans <github.com/swfans>\n"
 "Language: es_ES\n"
@@ -129,7 +129,7 @@ msgid ""
 "category of citizens is U-Unguided. U category civilians reported in "
 "violation of behaviour codes within one square kilometre of this substation."
 msgstr ""
-"Se ha informado de un extra¤o mal funcionamiento de los chips de utopia. El "
+"Se ha informado de un extraño mal funcionamiento de los chips de UTOPIA. El "
 "mal funcionamiento consiste en un totalabandono, fallo total del CHIP. La "
 "categoría de los ciudadanos es D: Descontrolados."
 
@@ -688,7 +688,7 @@ msgstr ""
 "que tus agentes. Sin embargo, esto representa la oportunidad de secuestrar "
 "el convoy armado antes de que llegue a su destino."
 
-#: mission.brief.mail5.map9.level1:1 mission.brief.mail16.map40.level1:2
+#: mission.brief.mail5.map9.level1:1
 msgctxt "mission brief tactical information"
 msgid "Dropsite: Singapore IML Link"
 msgstr "Destino: Enlace IML Singapur"
@@ -713,7 +713,7 @@ msgctxt "mission brief tactical information"
 msgid "Target vehicle"
 msgstr "Objetivo vehículo"
 
-#: mission.brief.mail5.map9.level1:6
+#: mission.brief.mail5.map9.level1:6 mission.brief.mail16.map40.level1:2
 msgctxt "mission brief tactical information"
 msgid "Rendezvous point"
 msgstr "Punto de reunión"
@@ -1030,7 +1030,7 @@ msgstr ""
 "utilizan un dispositivo que contiene un circuito sintonizado a la banda de "
 "ondas de UTOPIA. En otras palabras, nuestro enemigo tiene una cosa con un "
 "funcionamiento similar a nuestro Persuasor. En un estudio posterior, nuestro "
-"equipo de I+D espera dise¤arnos un Persuasor más efectivo, el cual debería "
+"equipo de I+D espera diseñarnos un Persuasor más efectivo, el cual debería "
 "funcionar con los fanáticos."
 
 #: mission.brief.mail8a.map1.level15:2 mission.brief.mail8c.map32.level15:2
@@ -1200,10 +1200,10 @@ msgid ""
 "attentions of local police units who are on heightened alert status."
 msgstr ""
 "El centro de seguridad es prácticamente hermético. Puede ser prácticamente "
-"imposible encontrar una entrada. Intentaré seguir la pista de se¤ales de "
+"imposible encontrar una entrada. Intentaré seguir la pista de señales de "
 "identidad de la gente del centro de UTOPIA, para ver si alguien se marcha "
 "por alguna razón. Todo el personal tiene pases de código injertados, así que "
-"tendrás que persuadir a uno de ellos para que te acompa¤e para pasarlas "
+"tendrás que persuadir a uno de ellos para que te acompañe para pasarlas "
 "barreras de seguridad. Ten cuidado y no llames la atención de las unidades "
 "de policía local, ya que se encuentran en estado de alerta."
 
@@ -1268,7 +1268,7 @@ msgid ""
 "London AI has been psych-profiling the message content of an increasing "
 "number of subversive broadcasts from Ko-Paull Vissick. His seminal message, "
 "sent on an open channel, clearly incited the Unguided to rise up, not only "
-"againstthe Syndicate, but also the Church of the New Epoch. Unfortunately, "
+"against the Syndicate, but also the Church of the New Epoch. Unfortunately, "
 "Vissick's invective was littered with prophecies of doom, indicating that "
 "his current state of mind is far from stable. He claimed, for example, that "
 "the Church of the New Epoch would bring about nothing less than Armageddon. "
@@ -1400,8 +1400,8 @@ msgid ""
 msgstr ""
 "Parece que momentos antes de que el Harbinger penetrase en UTOPIA, Vissick "
 "estuvo ocupado en un proyecto secreto de I+D en Reikiavik. El objetivo del "
-"programa era dise¤ar una máquina capaz de amplificar la capacidad cognitiva "
-"humana. Aparentemente, el equipo llegó sólo a la etapa de dise¤o. Realmente "
+"programa era diseñar una máquina capaz de amplificar la capacidad cognitiva "
+"humana. Aparentemente, el equipo llegó sólo a la etapa de diseño. Realmente "
 "construyeron un dispositivo. Sin embargo, los científicos a los que tu "
 "persuadiste, actuaron sólo como técnicos auxiliares del equipo principal del "
 "proyecto y no nos contaron mucho más."
@@ -1588,7 +1588,7 @@ msgstr ""
 "cuántica, genética y alguna trabajo nuevo en campos tan diversos como "
 "mecanismos de fuerza unificada y conocimiento evolutivo. El Codex contiene "
 "tanta ciencia revolucionaria como para mantener cada I.A. de UTOPIA ocupada "
-"durante a¤os. I.A. de Londres está estudiándolo lo mejor que puede."
+"durante años. I.A. de Londres está estudiándolo lo mejor que puede."
 
 #: mission.brief.mail14.par9.c5
 msgctxt "mission brief email paragraph"
@@ -1803,7 +1803,7 @@ msgid ""
 "Honolulu personnel."
 msgstr ""
 "Hawai: Tu misión consiste en proporcionarnos parte de los planes de "
-"seguridad. Es crítico, digamos su confidencia en EuroCorp, que se hará da¤o "
+"seguridad. Es crítico, digamos su confidencia en EuroCorp, que se hará daño "
 "a nadie del personal ejecutivo de I.A. en Hawai."
 
 #: mission.brief.mail16.par6.c5
@@ -2181,7 +2181,7 @@ msgstr ""
 "rodeado el perímetro de la ciudad. Una escalada de ataques parece ser "
 "inminente. Su más probable objetivo es I.A. de Bahrein, el centro del "
 "sistema de control de UTOPIA en Oriente Medio. Si es destruido, la "
-"reconstrucción mundial de EuroCorp podría llevar a¤os."
+"reconstrucción mundial de EuroCorp podría llevar años."
 
 #: mission.brief.mail20.par8.c5
 msgctxt "mission brief email paragraph"

@@ -19,6 +19,10 @@
 /******************************************************************************/
 #include "bfmouse.h"
 
+#if defined(HAVE_CONFIG_H)
+#  include "bfconfig.h"
+#endif
+
 #include "bfscreen.h"
 #include "bfplanar.h"
 
@@ -28,8 +32,8 @@ volatile TbBool lbMouseInstalled = false;
 volatile TbBool lbMouseOffline = false;
 volatile TbBool lbInteruptMouse = false;
 volatile TbBool lbMouseAutoReset = true;
+volatile TbBool lbMouseCapture = false;
 volatile TbMouseToScreen lbMouseToScreen = &MouseToScreen;
-
 
 TbResult mouseControl(TbMouseAction action, struct TbPoint *pos)
 {
@@ -116,14 +120,14 @@ TbResult mouseControl(TbMouseAction action, struct TbPoint *pos)
         }
         break;
     case MActn_WHEELMOVEUP:
-#if defined(ENABLE_MOUSE_WHEEL)
+#if defined(LB_ENABLE_MOUSE_WHEEL)
         lbDisplay.WheelPosition--;
         lbDisplay.WheelMoveUp++;
         lbDisplay.WheelMoveDown = 0;
 #endif
         break;
     case MActn_WHEELMOVEDOWN:
-#if defined(ENABLE_MOUSE_WHEEL)
+#if defined(LB_ENABLE_MOUSE_WHEEL)
         lbDisplay.WheelPosition++;
         lbDisplay.WheelMoveUp = 0;
         lbDisplay.WheelMoveDown++;

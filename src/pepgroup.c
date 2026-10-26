@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file pepgroup.c
  *     People groups support.
@@ -20,13 +20,144 @@
 
 #include "bfutility.h"
 #include "bfmemut.h"
+#include <assert.h>
+
+#include "command.h"
+#include "player.h"
+#include "swlog.h"
 #include "thing.h"
 #include "game.h"
+#include "game_options.h"
 /******************************************************************************/
+
+struct WarFlag war_flags[PEOPLE_GROUPS_LIMIT];
+struct GroupAction group_actions[PEOPLE_GROUPS_LIMIT+1];
+
+/******************************************************************************/
+
+TbBool things_check_same_group(ThingIdx tng1, ThingIdx tng2)
+{
+    struct Thing *p_thing1;
+    struct Thing *p_thing2;
+    short grp1, grp2;
+
+    if (tng1 <= 0) {
+        return false;
+    }
+    if (tng2 <= 0) {
+        return false;
+    }
+    p_thing1 = &things[tng1];
+    p_thing2 = &things[tng2];
+
+    // This function can be called for objects, people, vehicles, mguns and rockets
+    assert(offsetof(struct Thing, U.UObject.EffectiveGroup) == offsetof(struct Thing, U.UPerson.EffectiveGroup));
+    assert(offsetof(struct Thing, U.UObject.EffectiveGroup) == offsetof(struct Thing, U.UVehicle.EffectiveGroup));
+    assert(offsetof(struct Thing, U.UObject.EffectiveGroup) == offsetof(struct Thing, U.UMGun.EffectiveGroup));
+    assert(offsetof(struct Thing, U.UObject.EffectiveGroup) == offsetof(struct Thing, U.UEffect.EffectiveGroup));
+
+    grp1 = p_thing1->U.UObject.EffectiveGroup & 0x7F;
+    grp2 = p_thing2->U.UObject.EffectiveGroup & 0x7F;
+    return groups_equal(grp1, grp2);
+}
+
+TbBool things_check_have_truce_one_way(ThingIdx tng1, ThingIdx tng2)
+{
+    struct Thing *p_thing1;
+    struct Thing *p_thing2;
+    short grp1, grp2;
+
+    if (tng1 <= 0) {
+        return false;
+    }
+    if (tng2 <= 0) {
+        return false;
+    }
+    p_thing1 = &things[tng1];
+    p_thing2 = &things[tng2];
+
+    // This function can be called for objects, people, vehicles, mguns and rockets
+    assert(offsetof(struct Thing, U.UObject.EffectiveGroup) == offsetof(struct Thing, U.UPerson.EffectiveGroup));
+    assert(offsetof(struct Thing, U.UObject.EffectiveGroup) == offsetof(struct Thing, U.UVehicle.EffectiveGroup));
+    assert(offsetof(struct Thing, U.UObject.EffectiveGroup) == offsetof(struct Thing, U.UMGun.EffectiveGroup));
+    assert(offsetof(struct Thing, U.UObject.EffectiveGroup) == offsetof(struct Thing, U.UEffect.EffectiveGroup));
+
+    grp1 = p_thing1->U.UObject.EffectiveGroup & 0x7F;
+    grp2 = p_thing2->U.UObject.EffectiveGroup & 0x7F;
+    return groups_have_truce(grp1, grp2);
+}
+
+TbBool things_check_have_truce_any_way(ThingIdx tng1, ThingIdx tng2)
+{
+    struct Thing *p_thing1;
+    struct Thing *p_thing2;
+    short grp1, grp2;
+
+    if (tng1 <= 0) {
+        return false;
+    }
+    if (tng2 <= 0) {
+        return false;
+    }
+    p_thing1 = &things[tng1];
+    p_thing2 = &things[tng2];
+
+    // This function can be called for objects, people, vehicles, mguns and rockets
+    assert(offsetof(struct Thing, U.UObject.EffectiveGroup) == offsetof(struct Thing, U.UPerson.EffectiveGroup));
+    assert(offsetof(struct Thing, U.UObject.EffectiveGroup) == offsetof(struct Thing, U.UVehicle.EffectiveGroup));
+    assert(offsetof(struct Thing, U.UObject.EffectiveGroup) == offsetof(struct Thing, U.UMGun.EffectiveGroup));
+    assert(offsetof(struct Thing, U.UObject.EffectiveGroup) == offsetof(struct Thing, U.UEffect.EffectiveGroup));
+
+    grp1 = p_thing1->U.UObject.EffectiveGroup & 0x7F;
+    grp2 = p_thing2->U.UObject.EffectiveGroup & 0x7F;
+    return groups_have_truce(grp1, grp2) || groups_have_truce(grp2, grp1);
+}
+
+TbBool thing_group_has_guardians(ThingIdx tng)
+{
+    struct Thing *p_thing;
+    short grp;
+
+    if (tng <= 0) {
+        return false;
+    }
+    p_thing = &things[tng];
+
+    // This function can be called for objects, people, vehicles, mguns and rockets
+    assert(offsetof(struct Thing, U.UObject.EffectiveGroup) == offsetof(struct Thing, U.UPerson.EffectiveGroup));
+    assert(offsetof(struct Thing, U.UObject.EffectiveGroup) == offsetof(struct Thing, U.UVehicle.EffectiveGroup));
+    assert(offsetof(struct Thing, U.UObject.EffectiveGroup) == offsetof(struct Thing, U.UMGun.EffectiveGroup));
+    assert(offsetof(struct Thing, U.UObject.EffectiveGroup) == offsetof(struct Thing, U.UEffect.EffectiveGroup));
+
+    grp = p_thing->U.UObject.EffectiveGroup & 0x7F;
+    return group_has_guardians(grp);
+}
+
+void thing_groups_set_kill_on_sight_one_way(ThingIdx tng1, ThingIdx tng2)
+{
+    struct Thing *p_thing1;
+    struct Thing *p_thing2;
+    short grp1, grp2;
+
+    if (tng1 <= 0) {
+        return;
+    }
+    if (tng2 <= 0) {
+        return;
+    }
+    p_thing1 = &things[tng1];
+    p_thing2 = &things[tng2];
+
+    grp1 = p_thing1->U.UObject.EffectiveGroup & 0x7F;
+    grp2 = p_thing2->U.UObject.EffectiveGroup & 0x7F;
+
+    groups_set_kill_on_sight(grp1, grp2, true);
+}
 
 short find_unused_group_id(TbBool largest)
 {
-    short thing, group;
+    ThingIdx thing;
+    short group;
     ulong used_groups;
     struct Thing *p_thing;
 
@@ -38,14 +169,14 @@ short find_unused_group_id(TbBool largest)
     }
     if (largest)
     {
-        for (group = PEOPLE_GROUPS_COUNT-1; group > 0; group--) {
+        for (group = PEOPLE_GROUPS_LIMIT-1; group > 0; group--) {
             if ((used_groups & (1 << group)) == 0)
                 return group;
         }
     }
     else
     {
-        for (group = 1; group < PEOPLE_GROUPS_COUNT; group++) {
+        for (group = 1; group < PEOPLE_GROUPS_LIMIT; group++) {
             if ((used_groups & (1 << group)) == 0)
                 return group;
         }
@@ -55,7 +186,7 @@ short find_unused_group_id(TbBool largest)
 
 ushort count_people_in_group(ushort group, short subtype)
 {
-    short thing;
+    ThingIdx thing;
     struct Thing *p_thing;
     ushort count;
 
@@ -78,11 +209,17 @@ ushort count_people_in_group(ushort group, short subtype)
     return count;
 }
 
-void thing_group_copy(short pv_group, short nx_group, ubyte allow_kill)
+TbBool groups_equal(short grp1, short grp2)
+{
+    // TODO why are we disallowing outranged groups to be treated as same?
+    return ((grp1 == grp2) && (grp1 < PEOPLE_GROUPS_LIMIT) && (grp2 < PEOPLE_GROUPS_LIMIT));
+}
+
+void groups_copy(short pv_group, short nx_group, ubyte allow_kill)
 {
     int i;
 
-    for (i = 0; i < PEOPLE_GROUPS_COUNT; i++)
+    for (i = 0; i < PEOPLE_GROUPS_LIMIT; i++)
     {
         if (i == pv_group)
         {
@@ -140,4 +277,642 @@ void thing_group_copy(short pv_group, short nx_group, ubyte allow_kill)
     }
 }
 
+TbBool group_has_guardians(short check_grp)
+{
+    check_grp &= PEOPLE_GROUPS_INDEX_MASK;
+    return (war_flags[check_grp].Guardians[0] != 0);
+}
+
+TbBool groups_have_kill_if_weapon_out(short check_grp, short target_grp)
+{
+    check_grp &= PEOPLE_GROUPS_INDEX_MASK;
+    return (war_flags[check_grp].KillIfWeaponOut & (1 << target_grp)) != 0;
+}
+
+TbBool groups_have_kill_if_armed(short check_grp, short target_grp)
+{
+    check_grp &= PEOPLE_GROUPS_INDEX_MASK;
+    return (war_flags[check_grp].KillIfArmed & (1 << target_grp)) != 0;
+}
+
+TbBool groups_have_kill_on_sight(short check_grp, short target_grp)
+{
+    check_grp &= PEOPLE_GROUPS_INDEX_MASK;
+    return (war_flags[check_grp].KillOnSight & (1 << target_grp)) != 0;
+}
+
+void groups_set_kill_on_sight(short mod_grp, short target_grp, TbBool state)
+{
+    mod_grp &= PEOPLE_GROUPS_INDEX_MASK;
+    if (state)
+        war_flags[mod_grp].KillOnSight |= 1 << target_grp;
+    else
+        war_flags[mod_grp].KillOnSight &= ~(1 << target_grp);
+}
+
+TbBool groups_have_truce(short check_grp, short target_grp)
+{
+    check_grp &= PEOPLE_GROUPS_INDEX_MASK;
+    return (war_flags[check_grp].Truce & (1 << target_grp)) != 0;
+}
+
+void groups_set_truce(short mod_grp, short target_grp, TbBool state)
+{
+    mod_grp &= PEOPLE_GROUPS_INDEX_MASK;
+    if (state)
+        war_flags[mod_grp].Truce |= 1 << target_grp;
+    else
+        war_flags[mod_grp].Truce &= ~(1 << target_grp);
+}
+
+int group_to_group_transfer_people(short pv_group, short nx_group, short subtype, int stay_limit, int tran_limit)
+{
+    ThingIdx thing;
+    struct Thing *p_thing;
+    int count;
+
+    count = 0;
+    for (thing = things_used_head; thing != 0; thing = p_thing->LinkChild)
+    {
+        p_thing = &things[thing];
+
+        if (p_thing->Type != TT_PERSON)
+            continue;
+
+        if ((subtype != -1) && (p_thing->SubType != subtype))
+            continue;
+
+        if (stay_limit > 0) {
+            stay_limit--;
+            continue;
+        }
+
+        if (p_thing->U.UPerson.Group == pv_group) {
+            p_thing->U.UPerson.Group = nx_group;
+            count++;
+        }
+        if (p_thing->U.UPerson.EffectiveGroup == pv_group) {
+            p_thing->U.UPerson.EffectiveGroup = nx_group;
+        }
+
+        if (count >= tran_limit)
+            break;
+    }
+    return count;
+}
+
+void thing_group_clear_action(short group)
+{
+    struct GroupAction *p_grpact;
+
+    p_grpact = &group_actions[group];
+    p_grpact->Alive = 0;
+    p_grpact->Dead = 0;
+    p_grpact->Hit = 0;
+    p_grpact->FiredOn = 0;
+    p_grpact->Persuaded = 0;
+    p_grpact->Storming = 0;
+}
+
+void thing_groups_clear_all_actions(void)
+{
+    short group;
+
+    for (group = 0; group < PEOPLE_GROUPS_LIMIT; group++)
+    {
+        thing_group_clear_action(group);
+    }
+}
+
+TbBool all_group_members_destroyed(ushort group)
+{
+    struct Thing *p_thing;
+    ThingIdx thing;
+    short i;
+
+    assert(group < PEOPLE_GROUPS_LIMIT);
+    thing = same_type_head[256 + group];
+    for (i = 0; thing > 0; thing = p_thing->LinkSameGroup, i++)
+    {
+        if (i >= THINGS_LIMIT) {
+            LOGERR("Infinite loop in same group things list");
+            break;
+        }
+        p_thing = &things[thing];
+        if (!thing_is_destroyed(thing))
+            return false;
+    }
+    return true;
+}
+
+TbBool all_group_persuaded(ushort group)
+{
+    struct Thing *p_thing;
+    ThingIdx thing;
+    short i;
+
+    assert(group < PEOPLE_GROUPS_LIMIT);
+    thing = same_type_head[256 + group];
+    for (i = 0; thing > 0; thing = p_thing->LinkSameGroup, i++)
+    {
+        if (i >= THINGS_LIMIT) {
+            LOGERR("Infinite loop in same group things list");
+            break;
+        }
+        p_thing = &things[thing];
+        if (!person_is_persuaded(thing) || ((things[p_thing->Owner].Flag & TngF_PlayerAgent) == 0))
+        {
+            if (!person_is_dead(thing) && !thing_is_destroyed(thing))
+                return false;
+        }
+    }
+    return true;
+}
+
+ubyte all_group_arrived(ushort group, short x, short y, short z, int radius)
+{
+    ubyte ret;
+    asm volatile (
+      "push %5\n"
+      "call ASM_all_group_arrived\n"
+        : "=r" (ret) : "a" (group), "d" (x), "b" (y), "c" (z), "g" (radius));
+    return ret;
+}
+
+TbBool group_has_all_killed_or_persuaded_by_player(ushort group, ushort plyr)
+{
+    struct Thing *p_thing;
+    ThingIdx thing;
+    short i;
+
+    assert(group < PEOPLE_GROUPS_LIMIT);
+    thing = same_type_head[256 + group];
+    for (i = 0; thing > 0; thing = p_thing->LinkSameGroup, i++)
+    {
+        if (i >= THINGS_LIMIT) {
+            LOGERR("Infinite loop in same group things list");
+            break;
+        }
+        p_thing = &things[thing];
+        if (!person_is_persuaded_by_player(thing, plyr))
+        {
+            if (!person_is_dead(thing) && !thing_is_destroyed(thing))
+                return false;
+        }
+    }
+    return true;
+}
+
+TbBool group_has_all_survivors_in_vehicle(ushort group, ThingIdx vehicle)
+{
+    struct Thing *p_thing;
+    ThingIdx thing;
+    short i;
+
+    assert(group < PEOPLE_GROUPS_LIMIT);
+    thing = same_type_head[256 + group];
+    for (i = 0; thing > 0; thing = p_thing->LinkSameGroup, i++)
+    {
+        if (i >= THINGS_LIMIT) {
+            LOGERR("Infinite loop in same group things list");
+            break;
+        }
+        p_thing = &things[thing];
+        if (!person_is_in_vehicle(p_thing, vehicle))
+        {
+            if (!person_is_dead(thing) && !thing_is_destroyed(thing))
+                return false;
+        }
+    }
+    return false;
+}
+
+TbBool group_has_no_less_members_in_vehicle(ushort group, ThingIdx vehicle, ushort amount)
+{
+    struct Thing *p_thing;
+    ThingIdx thing;
+    short i;
+    ushort n;
+
+    assert(group < PEOPLE_GROUPS_LIMIT);
+    n = 0;
+    thing = same_type_head[256 + group];
+    for (i = 0; thing > 0; thing = p_thing->LinkSameGroup, i++)
+    {
+        if (i >= THINGS_LIMIT) {
+            LOGERR("Infinite loop in same group things list");
+            break;
+        }
+        p_thing = &things[thing];
+        if (!person_is_dead(thing) && !thing_is_destroyed(thing))
+        {
+            if (person_is_in_vehicle(p_thing, vehicle))
+                n++;
+        }
+        if (n >= amount)
+            return true;
+    }
+    return false;
+}
+
+TbBool group_has_no_less_members_persuaded_by_player(ushort group, ushort plyr, ushort amount)
+{
+    struct Thing *p_thing;
+    ThingIdx thing;
+    short i;
+    ushort n;
+
+    assert(group < PEOPLE_GROUPS_LIMIT);
+    n = 0;
+    thing = same_type_head[256 + group];
+    for (i = 0; thing > 0; thing = p_thing->LinkSameGroup, i++)
+    {
+        if (i >= THINGS_LIMIT) {
+            LOGERR("Infinite loop in same group things list");
+            break;
+        }
+        p_thing = &things[thing];
+        if (person_is_persuaded_by_player(thing, plyr))
+            n++;
+        if (n >= amount)
+            return true;
+    }
+    return false;
+}
+
+TbBool group_has_no_less_members_killed_or_persuaded_by_player(ushort group, ushort plyr, ushort amount)
+{
+    struct Thing *p_thing;
+    ThingIdx thing;
+    short i;
+    ushort n;
+
+    assert(group < PEOPLE_GROUPS_LIMIT);
+    n = 0;
+    thing = same_type_head[256 + group];
+    for (i = 0; thing > 0; thing = p_thing->LinkSameGroup, i++)
+    {
+        if (i >= THINGS_LIMIT) {
+            LOGERR("Infinite loop in same group things list");
+            break;
+        }
+        p_thing = &things[thing];
+        if (person_is_persuaded_by_player(thing, plyr) ||
+          person_is_dead(thing) || thing_is_destroyed(thing))
+            n++;
+        if (n >= amount)
+            return true;
+    }
+    return false;
+}
+
+TbBool group_has_no_less_members_dead(ushort group, ushort amount)
+{
+    struct Thing *p_thing;
+    ThingIdx thing;
+    short i;
+    ushort n;
+
+    assert(group < PEOPLE_GROUPS_LIMIT);
+    n = 0;
+    thing = same_type_head[256 + group];
+    for (i = 0; thing > 0; thing = p_thing->LinkSameGroup, i++)
+    {
+        if (i >= THINGS_LIMIT) {
+            LOGERR("Infinite loop in same group things list");
+            break;
+        }
+        p_thing = &things[thing];
+        if (person_is_dead(thing) || thing_is_destroyed(thing))
+            n++;
+        if (n >= amount)
+            return true;
+    }
+    return false;
+}
+
+TbBool group_has_no_less_members_near_thing(ThingIdx neartng, ushort group, ushort amount, ushort radius)
+{
+    struct Thing *p_thing;
+    ThingIdx thing;
+    short i;
+    ushort n;
+    short nearX, nearZ;
+
+    if ((neartng == 0) || person_is_dead(neartng) || thing_is_destroyed(neartng))
+        return false;
+    if (neartng <= 0) {
+        struct SimpleThing *p_neartng;
+        p_neartng = &sthings[neartng];
+        nearX = p_neartng->X;
+        nearZ = p_neartng->Z;
+    } else {
+        struct Thing *p_neartng;
+        p_neartng = &things[neartng];
+        nearX = p_neartng->X;
+        nearZ = p_neartng->Z;
+    }
+
+    assert(group < PEOPLE_GROUPS_LIMIT);
+    n = 0;
+    thing = same_type_head[256 + group];
+    for (i = 0; thing > 0; thing = p_thing->LinkSameGroup, i++)
+    {
+        if (i >= THINGS_LIMIT) {
+            LOGERR("Infinite loop in same group things list");
+            break;
+        }
+        p_thing = &things[thing];
+        if (!person_is_dead(thing) && !thing_is_destroyed(thing))
+        {
+            if (thing_is_within_circle(thing, nearX, nearZ, radius << 6))
+                n++;
+        }
+        if (n >= amount)
+            return true;
+    }
+    return false;
+}
+
+TbBool group_has_no_less_members_persuaded_by_person(ushort group, ThingIdx owntng, ushort amount)
+{
+    struct Thing *p_thing;
+    ThingIdx thing;
+    short i;
+    ushort n;
+
+    assert(group < PEOPLE_GROUPS_LIMIT);
+    n = 0;
+    thing = same_type_head[256 + group];
+    for (i = 0; thing > 0; thing = p_thing->LinkSameGroup, i++)
+    {
+        if (i >= THINGS_LIMIT) {
+            LOGERR("Infinite loop in same group things list");
+            break;
+        }
+        p_thing = &things[thing];
+        if (person_is_persuaded_by_person(thing, owntng))
+            n++;
+        if (n >= amount)
+            return true;
+    }
+    return false;
+}
+
+void reset_default_player_agent(PlayerIdx plyr, short plagent, struct Thing *p_agent, short new_type)
+{
+    PlayerInfo *p_player;
+    ubyte grp;
+
+    p_player = &players[plyr];
+
+    p_player->MyAgent[plagent] = p_agent;
+    p_agent->Flag = TngF_PlayerAgent;
+
+    grp = level_def.PlayableGroups[plyr];
+    p_agent->U.UPerson.Group = grp;
+    p_agent->U.UPerson.EffectiveGroup = grp;
+
+    if (plagent > p_player->DoubleMode)
+    {
+        if (in_network_game && p_player->DoubleMode) {
+            p_agent->State = PerSt_DEAD;
+            p_agent->Flag |= TngF_Unkn02000000 | TngF_Destroyed;
+        }
+        p_player->DirectControl[plagent] = 0;
+    }
+    else
+    {
+        p_player->DirectControl[plagent] = p_agent->ThingOffset;
+        p_agent->Flag |= TngF_SelectedAgent;
+        if ((plyr == local_player_no) && (plagent == 0)) {
+            game_set_cam_track_thing_xz(p_agent->ThingOffset);
+        }
+    }
+
+    p_agent->State = PerSt_NONE;
+    { // Why are we tripling the health?
+        uint health;
+        health = 3 * p_agent->Health;
+        if (health > PERSON_MAX_HEALTH_LIMIT)
+            health = PERSON_MAX_HEALTH_LIMIT;
+        p_agent->Health = health;
+        p_agent->U.UPerson.MaxHealth = health;
+    }
+    p_agent->U.UPerson.Mood = 0;
+    p_agent->U.UPerson.ComHead = 0;
+    p_agent->U.UPerson.Target2 = 0;
+    p_agent->PTarget = NULL;
+    p_agent->U.UPerson.ComCur = (plyr << 2) + plagent;
+    p_agent->OldTarget = 0;
+
+    {
+        p_agent->U.UPerson.WeaponsCarried = p_player->Weapons[plagent] | (1 << (WEP_ENERGYSHLD-1));
+        p_agent->U.UPerson.UMod = p_player->Mods[plagent];
+        p_agent->U.UPerson.CurrentWeapon = WEP_NULL;
+    }
+    if (in_network_game)
+        do_weapon_quantities_net_to_player(p_agent);
+    else
+        player_agent_set_weapon_quantities_max(p_agent);
+
+    switch (new_type)
+    {
+    case 0:
+        p_agent->SubType = SubTT_PERS_AGENT;
+        reset_person_frame(p_agent);
+        break;
+    case 1:
+        p_agent->SubType = SubTT_PERS_ZEALOT;
+        reset_person_frame(p_agent);
+        break;
+    case 2:
+        p_agent->SubType = SubTT_PERS_PUNK_M;
+        reset_person_frame(p_agent);
+        break;
+    default:
+        break;
+    }
+    switch_person_anim_mode(p_agent, 0);
+}
+
+void reset_group_member_player_agent(PlayerIdx plyr, ushort plagent, ushort high_tier, struct Thing *p_agent, short new_type)
+{
+    PlayerInfo *p_player;
+
+    p_player = &players[plyr];
+
+    p_player->MyAgent[plagent] = p_agent;
+    p_agent->Flag |= TngF_PlayerAgent;
+
+    if (plagent > p_player->DoubleMode)
+    {
+        if (in_network_game && p_player->DoubleMode) {
+            p_agent->State = PerSt_DEAD;
+            p_agent->Flag |= TngF_Unkn02000000 | TngF_Destroyed;
+        }
+        p_player->DirectControl[plagent] = 0;
+    }
+    else
+    {
+        p_player->DirectControl[plagent] = p_agent->ThingOffset;
+        p_agent->Flag |= TngF_SelectedAgent;
+        if ((plyr == local_player_no) && (plagent == 0)) {
+            game_set_cam_track_thing_xz(p_agent->ThingOffset);
+        }
+    }
+
+    if (in_network_game)
+        set_person_stats_type(p_agent, SubTT_PERS_AGENT);
+
+    if (ingame.GameMode != GamM_Unkn2)
+    {
+        if ((p_agent->SubType == SubTT_PERS_AGENT) || (p_agent->SubType == SubTT_PERS_ZEALOT))
+        {
+            p_agent->U.UPerson.WeaponsCarried = p_player->Weapons[high_tier] | (1 << (WEP_ENERGYSHLD-1));
+            p_agent->U.UPerson.UMod.Mods = p_player->Mods[high_tier].Mods;
+        }
+        p_agent->U.UPerson.CurrentWeapon = 0;
+    }
+
+    person_init_preplay_command(p_agent);
+
+    // Player agents can go with default loadout for the level, but usually we want them to
+    // use either the equipment selected by the player (either local one or from the net).
+    // Setting command to player control is required to properly update weapons
+    p_agent->U.UPerson.ComCur = (plyr << 2) + plagent;
+    if (ingame.GameMode == GamM_Unkn3)
+        player_agent_set_weapon_quantities_proper(p_agent);
+    else
+        player_agent_set_weapon_quantities_max(p_agent);
+
+    // Using any commands other than preplay on player agents requires explicit marking
+    // in form of use of EXECUTE_COMS.
+    if ((p_agent->U.UPerson.ComHead != 0) &&
+        (game_commands[p_agent->U.UPerson.ComHead].Type == PCmd_EXECUTE_COMS))
+    {
+        // Now we can re-set current command to the real command
+        p_agent->U.UPerson.ComCur = p_agent->U.UPerson.ComHead;
+        person_start_executing_commands(p_agent);
+    }
+    else
+    {
+        p_agent->U.UPerson.ComCur = (plyr << 2) + plagent;
+        p_agent->U.UPerson.ComHead = 0;
+    }
+
+    {
+        short cor_x, cor_z;
+        get_thing_position_mapcoords(&cor_x, NULL, &cor_z, p_agent->ThingOffset);
+        netgame_agent_pos_x[plyr][plagent] = cor_x;
+        netgame_agent_pos_z[plyr][plagent] = cor_z;
+    }
+    p_agent->State = PerSt_NONE;
+    { // Why are we tripling the health?
+        uint health;
+        health = 3 * p_agent->Health;
+        if (health > PERSON_MAX_HEALTH_LIMIT)
+            health = PERSON_MAX_HEALTH_LIMIT;
+        p_agent->Health = health;
+        p_agent->U.UPerson.MaxHealth = health;
+    }
+
+    switch (new_type)
+    {
+    case 0:
+        p_agent->SubType = SubTT_PERS_AGENT;
+        reset_person_frame(p_agent);
+        break;
+    case 1:
+        p_agent->SubType = SubTT_PERS_ZEALOT;
+        reset_person_frame(p_agent);
+        break;
+    case 2:
+        p_agent->SubType = SubTT_PERS_PUNK_M;
+        reset_person_frame(p_agent);
+        break;
+    }
+    p_agent->U.UPerson.FrameId.Version[0] = 0;
+    if (p_agent->U.UPerson.CurrentWeapon == 0)
+    {
+        switch_person_anim_mode(p_agent, ANIM_PERS_IDLE);
+    }
+}
+
+ushort make_group_into_players(ushort group, ushort plyr, ushort max_agent, short new_type)
+{
+    struct Thing *p_person;
+    ushort plagent, high_tier;
+    ulong n;
+
+    p_person = NULL;
+    plagent = 0;
+    high_tier = 0;
+    for (n = things_used_head; n != 0; n = p_person->LinkChild)
+    {
+        p_person = &things[n];
+        if ((p_person->U.UPerson.Group != group) || (p_person->Type != TT_PERSON))
+            continue;
+
+        reset_group_member_player_agent(plyr, plagent, high_tier, p_person, new_type);
+
+        if ((p_person->SubType == SubTT_PERS_AGENT) || (p_person->SubType == SubTT_PERS_ZEALOT))
+            high_tier++;
+
+        if (++plagent == max_agent)
+            break;
+    }
+    // At this point, plagent is a count of filled agents
+    n = plagent;
+    // Fill the rest of agents array, to avoid using leftovers
+    for (; plagent < AGENTS_SQUAD_MAX_COUNT; plagent++)
+        players[plyr].MyAgent[plagent] = &things[0];
+
+    return n;
+}
+
+void unkn_truce_groups_sub1(void)
+{
+    ubyte playable[40];
+    ubyte pla_grp_count[5];
+    ushort plyr;
+    ushort grp1, grp2;
+    ushort k, m;
+    ushort j;
+
+    LbMemorySet(playable, 0, sizeof(playable));
+    LbMemorySet(pla_grp_count, 0, sizeof(pla_grp_count));
+
+    for (plyr = 0; plyr < PLAYERS_LIMIT; plyr++)
+    {
+        if (((1 << plyr) & ingame.InNetGame_UNSURE) == 0)
+            continue;
+
+        j = net_player_teams[plyr];
+        k = pla_grp_count[j];
+        playable[8 * j + k] = level_def.PlayableGroups[plyr];
+        pla_grp_count[j]++;
+    }
+
+    for (j = 1; j < 5; j++)
+    {
+        for (k = 0; k < pla_grp_count[j]; k++)
+        {
+            for (m = 0; m < pla_grp_count[j]; m++)
+            {
+                if (m == k)
+                    continue;
+
+                grp1 = playable[8 * j + k];
+                grp2 = playable[8 * j + m];
+
+                war_flags[grp1].Truce |= (1 << grp2);
+                war_flags[grp1].KillOnSight &= ~(1 << grp2);
+                war_flags[grp1].KillIfArmed &= ~(1 << grp2);
+                war_flags[grp1].KillIfWeaponOut &= ~(1 << grp2);
+                LOGSYNC("group %d truced with group %d", grp1, grp2);
+            }
+        }
+    }
+}
 /******************************************************************************/

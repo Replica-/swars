@@ -58,7 +58,11 @@ struct Triangulation {
 /******************************************************************************/
 /** Whether the triangulation states were initialized.
  */
-extern int triangulation_initied; // = 0;
+extern int triangulation_initied;
+
+/** Initializes (clears) all triangulations.
+ */
+void triangulation_initialize(void);
 
 /** Triangulation states, active one and extras available for activation.
  */
@@ -67,6 +71,8 @@ extern struct Triangulation triangulation[TRIANGULATIONS_COUNT];
 /** Index of selected triangulation state.
  */
 extern int selected_triangulation_no; // = -1;
+
+void triangulation_select(int trglno);
 
 /******************************************************************************/
 #ifdef __cplusplus

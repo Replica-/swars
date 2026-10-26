@@ -6,14 +6,25 @@
 #include "bffile.h"
 #include "bfini.h"
 #include "bfscreen.h"
+#include "bfmouse.h"
 #include "bflog.h"
-#include "swlog.h"
-#include "bflib_joyst.h"
+#include "bfjoyst.h"
+
+#include "campaign.h"
 #include "display.h"
 #include "guitext.h"
 #include "game.h"
 #include "game_data.h"
+#include "game_options.h"
+#include "game_save.h"
+#include "keyboard.h"
+#include "lvfiles.h"
+#include "lvobjctv.h"
 #include "network.h"
+#include "packet.h"
+#include "swlog.h"
+#include "thing.h"
+#include "tngcolisn.h"
 #include "util.h"
 
 #if defined WIN32 && defined main
@@ -37,6 +48,7 @@ enum ConfigCmd {
     ConfCmd_ResMenu,
     ConfCmd_ResFMVVidHi,
     ConfCmd_ResFMVidLo,
+    ConfCmd_MouseCapture,
 };
 
 const struct TbNamedEnum conf_file_cmnds[] = {
@@ -55,6 +67,7 @@ const struct TbNamedEnum conf_file_cmnds[] = {
   {"ResMenu",	ConfCmd_ResMenu},
   {"ResFMVVidHi",ConfCmd_ResFMVVidHi},
   {"ResFMVidLo",ConfCmd_ResFMVidLo},
+  {"MouseCapture",ConfCmd_MouseCapture},
   {NULL,		0},
 };
 
@@ -62,11 +75,27 @@ const struct TbNamedEnum conf_file_disk_inst_lev[] = {
   {"Min", 1},
   {"Max", 2},
   {NULL,  0},
-  };
+};
+
+enum MouseCaptureMode {
+    MCapt_Never = 1,
+    MCapt_Always,
+    MCapt_FullScreen,
+};
+
+const struct TbNamedEnum conf_file_mouse_capture[] = {
+  {"Never",      MCapt_Never},
+  {"Always",     MCapt_Always},
+  {"FullScreen", MCapt_FullScreen},
+  {NULL,         0},
+};
+
+/** Mouse pointer capture mode, set in config file.
+ */
+ubyte conf_mouse_capture = MCapt_FullScreen;
 
 TbBool cmdln_fullscreen = true;
 TbBool cmdln_lores_stretch = true;
-extern TbBool level_deep_fix;
 
 static void
 print_help (const char *argv0)
@@ -79,7 +108,11 @@ print_help (const char *argv0)
 "                -C        Test scenario 100?\n"
 "                -D        Direct keyboard mode; queries kb rather than use\n"
 "                          events/interrupts\n"
-"                -E <num>  Joystick config\n"
+"                -d <str>  Activate debug functions; t - things debug HUD,\n"
+"                          o - objectives debug HUD, c - collision debug HUD\n"
+"                          v - navigation perf HUD\n"
+"                -E <num>  Enable Joystick support from external driver, using\n"
+"                          given IRQ for communication (DOS only)\n"
 "                -F        Re-compute and re-save `tables.dat` colour tables\n"
 "                          file, using `fade.dat` as input\n"
 "                -g        Enter normal gameplay mode; to be used when playing\n"
@@ -88,6 +121,9 @@ print_help (const char *argv0)
 "  --help        -h        Display the help message\n"
 "                -I <num>  Multiplayer connect through IPX using given IPX\n"
 "                          network address\n"
+"                -l <str>  Activate additional logging; s - thing states and\n"
+"                          commands; p - player actions and packets; w - weapon\n"
+"                          shooting and projectiles\n"
 "                -m <n>,<n> Load campaign with given index, from which load\n"
 "                          mission with given index in single map mode\n"
 "                -N        Sets a flag which is never used. Debug feature?\n"
@@ -111,14 +147,50 @@ print_help (const char *argv0)
   argv0);
 }
 
-TbBool test_gpoly(void);
+static TbBool setup_log(void)
+{
+    const char *rel_kind;
+
+#  ifdef DEBUG
+    rel_kind = "debug";
+#  else
+    rel_kind = "standard";
+#  endif
+
+#if !defined(PACKAGE_NAME)
+# error PACKAGE_NAME is not defined, config.h needs to be included
+#endif
+
+    printf(PACKAGE_NAME" ver "VERSION" (%s release)\n"
+        "The original by Bullfrog\n"
+        "Ported by Unavowed and Gynvael Coldwind.\n"
+        "Expanded by other fans, signed in commits.\n"
+        "Web site: https://github.com/swfans/syndwarsfx/\n",
+        rel_kind);
+
+
+    if (LbErrorLogSetup(NULL, NULL, Lb_ERROR_LOG_NEW) != Lb_SUCCESS) {
+        printf("Execution log setup failed\n");
+        return false;
+    }
+
+    LbSyncLog("Application: "PACKAGE" ver "VERSION" (%s release)\n", rel_kind);
+
+    return true;
+}
+
+static void reset_log(void)
+{
+    LbSyncLog("Application: "PACKAGE" ver "VERSION" closing\n");
+    LbErrorLogReset();
+}
 
 // To be moved to its own file when there are more tests
 static void tests_execute(void)
 {
     // TODO prpare tests
-    if (!test_gpoly())
-        exit(51);
+    //if (!test_gpoly())
+    //    exit(51);
     exit(0);
 }
 
@@ -142,7 +214,7 @@ static TbBool process_options(int *argc, char ***argv)
     argv0 = (*argv)[0];
     index = 0;
 
-    while ((val = getopt_long (*argc, *argv, "ABCDE:FgHhI:Lm:Np:qrSs:Ttu:Ww", options, &index)) >= 0)
+    while ((val = getopt_long (*argc, *argv, "ABCDd:E:FgHhI:Ll:m:p:qrSs:Ttu:Ww", options, &index)) >= 0)
     {
         LOGDBG("Command line option: '%c'", val);
         switch (val)
@@ -164,10 +236,33 @@ static TbBool process_options(int *argc, char ***argv)
             keyboard_mode_direct = 1;
             break;
 
+        case 'd':
+            for (tmpint = 0; optarg[tmpint] != '\0'; tmpint++)
+            {
+                switch (optarg[tmpint])
+                {
+                case 't':
+                    debug_hud_things = true;
+                    break;
+                case 'o':
+                    byte_1C844F = 1;
+                    break;
+                case 'c':
+                    debug_hud_collision = 1;
+                    break;
+                case 'v':
+                    ingame.Flags |= GamF_NaviPerfInfo;
+                    break;
+                default:
+                    LOGERR("Invalid value after '-d' parameter. Unexpected char '%c'.", optarg[tmpint]);
+                    return false;
+                }
+            }
+            break;
+
         case 'E':
             tmpint = atoi(optarg);
-            if ( JoySetInterrupt(tmpint) != -1 )
-              unkn01_maskarr[17] = 17;
+            joy_ext_driver_irq_init(tmpint);
             break;
 
         case 'F':
@@ -198,6 +293,27 @@ static TbBool process_options(int *argc, char ***argv)
             level_deep_fix = true;
             break;
 
+        case 'l':
+            for (tmpint = 0; optarg[tmpint] != '\0'; tmpint++)
+            {
+                switch (optarg[tmpint])
+                {
+                case 'p':
+                    debug_log_things |= 0x02;
+                    break;
+                case 's':
+                    debug_log_things |= 0x01;
+                    break;
+                case 'w':
+                    debug_log_things |= 0x04;
+                    break;
+                default:
+                    LOGERR("Invalid value after '-l' parameter. Unexpected char '%c'.", optarg[tmpint]);
+                    return false;
+                }
+            }
+            break;
+
         case 'm':
             is_single_game = 1;
             if (sscanf(optarg, "%hhu,%d", &background_type, &tmpint) != 2)
@@ -210,10 +326,6 @@ static TbBool process_options(int *argc, char ***argv)
             ingame.CurrentMission = tmpint;
             ingame.UserFlags |= UsrF_Cheats;
             LOGDBG("Campaign %d mission index %d", (int)background_type, (int)ingame.CurrentMission);
-            break;
-
-        case 'N':
-            cmdln_param_n = 1;
             break;
 
         case 'p':
@@ -355,8 +467,7 @@ void read_conf_file(void)
                 CONFWRNLOG("Couldn't recognize \"%s\" command parameter.", COMMAND_TEXT(cmd_num));
                 break;
             }
-            // FIXME implementing original error - 'Intro' sets wrong option
-            game_dirs[DirPlace_Sound].use_cd = (i != 2);
+            game_dirs[DirPlace_Intro].use_cd = (i != 2);
             break;
         case ConfCmd_Anims:
             i = LbIniValueGetNamedEnum(&parser, conf_file_disk_inst_lev);
@@ -364,8 +475,7 @@ void read_conf_file(void)
                 CONFWRNLOG("Couldn't recognize \"%s\" command parameter.", COMMAND_TEXT(cmd_num));
                 break;
             }
-            // FIXME implementing original error - 'Anims' sets wrong option
-            game_dirs[7].use_cd = (i != 2);
+            game_dirs[DirPlace_Equip].use_cd = (i != 2);
             break;
         case ConfCmd_Maps:
             i = LbIniValueGetNamedEnum(&parser, conf_file_disk_inst_lev);
@@ -389,8 +499,7 @@ void read_conf_file(void)
                 CONFWRNLOG("Couldn't recognize \"%s\" command parameter.", COMMAND_TEXT(cmd_num));
                 break;
             }
-            // FIXME implementing original error - 'Sound' sets wrong option
-            game_dirs[DirPlace_Equip].use_cd = (i != 2);
+            game_dirs[DirPlace_Sound].use_cd = (i != 2);
             break;
         case ConfCmd_DOS:
             i = LbIniValueGetNamedEnum(&parser, conf_file_disk_inst_lev);
@@ -435,6 +544,15 @@ void read_conf_file(void)
                 break;
             }
             break;
+        case ConfCmd_MouseCapture:
+            i = LbIniValueGetNamedEnum(&parser, conf_file_mouse_capture);
+            if (i <= 0) {
+                CONFWRNLOG("Couldn't recognize \"%s\" command parameter.", COMMAND_TEXT(cmd_num));
+                break;
+            }
+            conf_mouse_capture = i;
+            CONFDBGLOG("Mouse capture '%s'", LbNamedEnumGetName(conf_file_mouse_capture, i));
+            break;
         case 0: // comment
             break;
         case -1: // end of buffer
@@ -460,19 +578,11 @@ main (int argc, char **argv)
     ingame.GameMode = GamM_None;
     ingame.LowerMemoryUse = 0;
     ingame.Flags = 0;
-    if (LbErrorLogSetup(NULL, NULL, Lb_ERROR_LOG_NEW) != Lb_SUCCESS)
-            printf("Execution log setup failed\n");
-    /* Gravis Grip joystick driver initialization */
-    joy_driver_init();
+    setup_log();
+    JoyDriverInit();
 
     if (!process_options(&argc, &argv))
         return 1;
-
-    printf("Syndicate Wars Port "VERSION"\n"
-        "The original by Bullfrog\n"
-        "Ported by Unavowed <unavowed@vexillium.org> "
-        "and Gynvael Coldwind <gynvael@vexillium.org>\n"
-        "Web site: http://swars.vexillium.org/\n");
 
     fixup_options();
     adjust_memory_use();
@@ -481,12 +591,17 @@ main (int argc, char **argv)
         return 1;
 
     read_conf_file();
+    setup_language_file_names();
 
     display_set_full_screen(cmdln_fullscreen);
+    LbMouseChangeCapture((conf_mouse_capture == MCapt_Always) ||
+      (conf_mouse_capture == MCapt_FullScreen && cmdln_fullscreen));
     display_set_lowres_stretch(cmdln_lores_stretch);
 
+    set_default_user_settings();
     read_strings_file();
-    game_setup();
+    if (!game_setup())
+        return 1;
 
     game_process();
 
@@ -494,8 +609,8 @@ main (int argc, char **argv)
     if ( in_network_game ) {
         LbNetworkReset();
     }
-    joy_driver_shutdown();
-    LbErrorLogReset();
+    JoyDriverShutdown();
+    reset_log();
     LbMemoryReset();
     game_quit();
     // the above function never returns

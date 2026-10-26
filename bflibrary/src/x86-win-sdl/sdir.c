@@ -54,7 +54,9 @@ TbResult LbDirectoryCreate(const char *path)
 TbResult LbDirectoryMake(const char *path, TbBool recursive)
 {
     char buffer[FILENAME_MAX];
+#if LB_FILENAME_TRANSFORM
     char fname[FILENAME_MAX];
+#endif
     char *p;
     size_t len;
     struct stat st;
@@ -64,16 +66,21 @@ TbResult LbDirectoryMake(const char *path, TbBool recursive)
 #endif
     int num_levels = 0;
 
+#if LB_FILENAME_TRANSFORM
     // We need to transform the path here - if we did it later,
     // then we would skip base directories in recursion.
     // Also, the function expects file name, not path - make one
-    if (lbFileNameTransform != NULL) {
+    if (lbFileNameTransform != NULL)
+    {
         strncpy(fname, path, FILENAME_MAX-2);
         strcat(fname, "/a");
         lbFileNameTransform(buffer, fname);
         len = strlen(buffer) - 2;
         buffer[len] = '\0';
-    } else {
+    }
+    else
+#endif
+    {
         len = snprintf(buffer, sizeof(buffer), "%s", path);
     }
 

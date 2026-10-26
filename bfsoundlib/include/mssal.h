@@ -22,6 +22,12 @@
 #ifndef AIL2OAL_MSSAL_H_
 #define AIL2OAL_MSSAL_H_
 
+#include "bsndconf.h"
+
+#if !defined(LBS_PACKAGE)
+#  error This library requires correct inclusion of config header
+#endif
+
 #include <stdint.h>
 #include <strings.h>
 
@@ -237,11 +243,14 @@ enum AILMIDIMetaEvents {
 enum AILMIDIControlMsgs {
     MDI_CTR_GM_BANK_MSB      = 0,
     MDI_CTR_MODULATION       = 1,
+    /** Set Data Entry Most Significant Byte for a previously selected RPN or
+      NRPN. Usually used to set Pitch Bend Range. */
     MDI_CTR_DATA_MSB         = 6,
- /** Scale volume according to sequence's current volume setting
-   and overall driver master volume */
+    /** Scale volume according to sequence's current volume setting
+      and overall driver master volume */
     MDI_CTR_PART_VOLUME      = 7,
     MDI_CTR_PANPOT           = 10,
+    /** Change expression (volume) of a specific MIDI channel */
     MDI_CTR_EXPRESSION       = 11,
     MDI_CTR_DATA_LSB         = 38, // not set everywhere - unsure why
     MDI_CTR_SUSTAIN          = 64,
@@ -252,6 +261,7 @@ enum AILMIDIControlMsgs {
     MDI_CTR_SYSEX_BYTE       = 105,
     /** Control bender range by first sending RPN 0 0. */
     MDI_CTR_PB_RANGE         = 106,
+    /** Mute given MIDI channel, by ignoring any messages to turn notes on */
     MDI_CTR_CHAN_MUTE        = 107,
     /** Override value of next controller event with value from user
       callback function. */
@@ -320,6 +330,56 @@ enum SndDigSampleFormatFlags {
 #define DIG_F_MULTICHANNEL_8   (DIG_F_MULTICHANNEL_MASK)
 #define DIG_F_STEREO_16        (DIG_F_STEREO_MASK|DIG_F_16BITS_MASK)
 #define DIG_F_MULTICHANNEL_16  (DIG_F_MULTICHANNEL_MASK|DIG_F_16BITS_MASK)
+
+
+/** Usage of fields in SNDSAMPLE.system_data[] array - general.
+ */
+enum SndDigSampleSystemDataUse {
+    SmpSD_EOD_CALLBACK = 0, /**< Application end-of-data callback; can be NULL */
+    SmpSD_RELEASE      = 6, /**< Release on termination enable; releases sample handle upon termination if >0 */
+    SmpSD_TEMP         = 7, /**< Temporary storage location for general use */
+};
+
+/** Usage of fields in SNDSAMPLE.system_data[] array - valid for VOC only.
+ */
+enum SndDigSampleSystemDataUseVOC {
+    SmpSD_VOC_BLK_PTR  = 1, /**< Pointer to current block */
+    SmpSD_VOC_REP_BLK  = 2, /**< Pointer to beginning of repeat loop block */
+    SmpSD_VOC_N_REPS   = 3, /**< # of iterations left in repeat loop */
+    SmpSD_VOC_MRKR     = 4, /**< Marker to search for, or -1 if all */
+    SmpSD_VOC_MRKR_FND = 5, /**< Desired marker found if 1, else 0 */
+};
+
+/** Usage of fields in SNDSAMPLE.system_data[] array - valid for OpenAL only.
+ */
+enum SndDigSampleSystemDataUseOAL {
+#if !defined(LBS_ENABLE_STRUCTS_EXPAND)
+    SmpSD_OAL_BUFS_USE = 4,
+    SmpSD_OAL_SOURCE   = 5,
+#else
+    SmpSD_OAL_BUFS_USE = 8, /**< Amount of already used buffers */
+    SmpSD_OAL_SOURCE   = 9, /**< OpenAL Source created for the sequence */
+#endif
+};
+
+/** Usage of fields in SNDSEQUENCE.system_data[] array - valid for OpenAL only.
+ */
+enum SndSequenceSystemDataUseOAL {
+#if !defined(LBS_ENABLE_STRUCTS_EXPAND)
+    SeqSD_OAL_BUFS_USE = 4,
+    SeqSD_OAL_SOURCE   = 5,
+#else
+    SeqSD_OAL_BUFS_USE = 8, /**< Amount of already used buffers */
+    SeqSD_OAL_SOURCE   = 9, /**< OpenAL Source created for the sequence */
+#endif
+};
+
+/** Usage of fields in MDI_DRIVER.system_data[] array.
+ */
+enum MdiDriverSystemDataUse {
+    MdiSD_WAVE_SYNTH   = 0, /**< Reference to the WAVE_SYNTH structure */
+    MdiSD_SAMPLE_RATE  = 1, /**< Sampling rate used for playback by the MIDI diver */
+};
 
 /** Handle to timer.
  *
@@ -475,26 +535,30 @@ struct MDI_DRIVER {
  * Originally named `_SAMPLE`. This less generic name helps when analyzing old code.
  */
 struct SNDSAMPLE {
-  DIG_DRIVER *driver;                        /**< offs=0x00 Driver for playback */
-  uint32_t status;                           /**< offs=0x04 SNDSMP_ flags: _FREE, _DONE, _PLAYING */
-  void *start[2];                            /**< offs=0x08 Sample buffer address (W) */
-  uint32_t len[2];                           /**< offs=0x10 Sample buffer size in bytes (W) */
-  uint32_t pos[2];                           /**< offs=0x18 Index to next byte (R/W) */
-  uint32_t done[2];                          /**< offs=0x20 Nonzero if buffer with len=0 sent by app */
-  int32_t current_buffer;                    /**< offs=0x28 Buffer # active (0/1) */
-  int32_t last_buffer;                       /**< offs=0x2C Last active buffer (for double-buffering) */
-  int32_t loop_count;                        /**< offs=0x30 0-inf, 1-1 */
-  int32_t format;                            /**< offs=0x34 DIG_F format (8/16 bits, mono/stereo) */
-  uint32_t flags;                            /**< offs=0x38 DIG_PCM_SIGN / DIG_PCM_ORDER (stereo only) */
-  int32_t playback_rate;                     /**< offs=0x3C Playback rate in hertz */
-  int32_t volume;                            /**< offs=0x40 Sample volume 0-127 */
-  int32_t pan;                               /**< offs=0x44 Mono panpot/stereo balance (0=L ... 127=R) */
-  int32_t vol_scale[2][256];                 /**< offs=0x48 [left/mono=0,right=1][256] channel volume */
-  AILSAMPLECB SOB;                           /**< offs=0x848 Start-of-block callback function */
-  AILSAMPLECB EOB;                           /**< offs=0x84C End-of-buffer callback function */
-  AILSAMPLECB EOS;                           /**< offs=0x850 End-of-sample callback function */
-  uintptr_t user_data[8];                    /**< offs=0x854 Miscellaneous user data */
-  uintptr_t system_data[8];                  /**< offs=0x874 Miscellaneous system data */
+    DIG_DRIVER *driver;                      /**< offs=0x00 Driver for playback */
+    uint32_t status;                         /**< offs=0x04 SNDSMP_ flags: _FREE, _DONE, _PLAYING */
+    void *start[2];                          /**< offs=0x08 Sample buffer address (W) */
+    uint32_t len[2];                         /**< offs=0x10 Sample buffer size in bytes (W) */
+    uint32_t pos[2];                         /**< offs=0x18 Index to next byte (R/W) */
+    uint32_t done[2];                        /**< offs=0x20 Nonzero if buffer with len=0 sent by app */
+    int32_t current_buffer;                  /**< offs=0x28 Buffer # active (0/1) */
+    int32_t last_buffer;                     /**< offs=0x2C Last active buffer (for double-buffering) */
+    int32_t loop_count;                      /**< offs=0x30 0-inf, 1-1 */
+    int32_t format;                          /**< offs=0x34 DIG_F format (8/16 bits, mono/stereo) */
+    uint32_t flags;                          /**< offs=0x38 DIG_PCM_SIGN / DIG_PCM_ORDER (stereo only) */
+    int32_t playback_rate;                   /**< offs=0x3C Playback rate in hertz */
+    int32_t volume;                          /**< offs=0x40 Sample volume 0-127 */
+    int32_t pan;                             /**< offs=0x44 Mono panpot/stereo balance (0=L ... 127=R) */
+    int32_t vol_scale[2][256];               /**< offs=0x48 [left/mono=0,right=1][256] channel volume */
+    AILSAMPLECB SOB;                         /**< offs=0x848 Start-of-block callback function */
+    AILSAMPLECB EOB;                         /**< offs=0x84C End-of-buffer callback function */
+    AILSAMPLECB EOS;                         /**< offs=0x850 End-of-sample callback function */
+    uintptr_t user_data[8];                  /**< offs=0x854 Miscellaneous user data */
+#if !defined(LBS_ENABLE_STRUCTS_EXPAND)
+    uintptr_t system_data[8];                /**< offs=0x874 Miscellaneous system data */
+#else
+    uintptr_t system_data[12];               /**< Miscellaneous system data */
+#endif
 };
 
 struct AILSOUNDINFO {
@@ -578,7 +642,11 @@ struct SNDSEQUENCE {
     int32_t note_num[32];                    /**< offset=1496 */
     int32_t note_time[32];                   /**< offset=1624 */
     uintptr_t user_data[8];                  /**< offset=1752 */
-    uintptr_t system_data[8];                /**< offset=1784 */
+#if !defined(LBS_ENABLE_STRUCTS_EXPAND)
+    uintptr_t system_data[8];                /**< offset=1784 Miscellaneous system data */
+#else
+    uintptr_t system_data[12];               /**< Miscellaneous system data */
+#endif
 };
 
 /** Standard MSS Vendor Device Interface driver header.
@@ -610,8 +678,15 @@ struct VDI_CALL {
   int16_t AX;
   int16_t BX;
   int16_t CX;
-  int16_t DX;
-  int16_t SI;
+  union {
+    struct {
+      int16_t DX;
+      int16_t SI;
+    };
+    /** Some commands are transferring a pointer over DX:DI.
+     * This definition makes it possible regardless of architecture. */
+    uintptr_t pDXSI;
+  };
   int16_t DI;
 };
 

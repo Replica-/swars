@@ -66,6 +66,15 @@ TrPointId point_new(void)
     return pt;
 }
 
+void point_clear(TrPointId pt)
+{
+    struct TrPoint *p_point;
+
+    p_point = &triangulation[0].Points[pt];
+    p_point->x = 0;
+    p_point->y = POINT_UNALLOCATED_MARK;
+}
+
 void point_dispose(TrPointId pt)
 {
     struct TrPoint *p_point;
@@ -81,6 +90,16 @@ void point_dispose(TrPointId pt)
     assert(sizeof(TrCoord) >= sizeof(TrPointId));
     p_point->x = last_pt;
     triangulation[0].count_Points--;
+}
+
+TbBool point_is_allocated(TrPointId pt)
+{
+    struct TrPoint *p_point;
+
+    if (pt < 0)
+        return false;
+    p_point = &triangulation[0].Points[pt];
+    return (p_point->y != POINT_UNALLOCATED_MARK);
 }
 
 TrPointId point_set_new_or_reuse(TrCoord pt_x, TrCoord pt_y)
@@ -111,6 +130,20 @@ TbBool point_equals(TrPointId pt, TrCoord pt_x, TrCoord pt_y)
         return false;
     p_point = &triangulation[0].Points[pt];
     return ((p_point->x == pt_x) && (p_point->y == pt_y));
+}
+
+TbBool points_equal(TrPointId pt1, TrPointId pt2)
+{
+    struct TrPoint *p_point1;
+    struct TrPoint *p_point2;
+
+    if ((pt1 < 0) || (pt2 < 0))
+        return false;
+    if (pt1 == pt2)
+        return true;
+    p_point1 = &triangulation[0].Points[pt1];
+    p_point2 = &triangulation[0].Points[pt2];
+    return ((p_point1->x == p_point2->x) && (p_point1->y == p_point2->y));
 }
 
 TbBool point_within_rect_coords(TrPointId pt, TrCoord x1, TrCoord y1, TrCoord x2, TrCoord y2)

@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file lvobjctv.h
  *     Header file for lvobjctv.c.
@@ -21,6 +21,7 @@
 
 #include "bftypes.h"
 #include "bffile.h"
+#include "game_bstype.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,6 +31,16 @@ extern "C" {
 
 #define MISSION_NETSCAN_OBV_COUNT 1000
 #define NETSCAN_OBJECTIVES_MAX_COUNT 10
+#define NETSCAN_OBJECTIVE_POINTS 5
+
+enum ObjectiveStatuses {
+    ObvStatu_UNDECIDED = 0,
+    ObvStatu_COMPLETED,
+    ObvStatu_FAILED,
+};
+
+/* Temporary value for MissionStatus, as it does not use ObvStatu_FAILED as it should */
+#define ObvStatu_MissTmp_FAILED -1
 
 /* deprecated - when callbacks are defined within objectv_defs[],
  * there will be no need to reference specific objective.
@@ -75,6 +86,8 @@ enum GameObjectiveFlags {
     GObjF_CANT_MET = 0x02,
 };
 
+struct Thing;
+
 struct Objective { // sizeof=32
     ushort Next;
     ubyte Map;
@@ -102,8 +115,8 @@ struct NetscanObjective { // sizeof = 20
   ubyte AnimNo;
   ushort CreditReward;
   ubyte TextLines;
-  ubyte X[5];
-  ubyte Z[5];
+  ubyte X[NETSCAN_OBJECTIVE_POINTS];
+  ubyte Z[NETSCAN_OBJECTIVE_POINTS];
   ubyte brobjfld_12;
   ubyte brobjfld_13;
 };
@@ -111,9 +124,13 @@ struct NetscanObjective { // sizeof = 20
 #pragma pack()
 /******************************************************************************/
 extern struct Objective *game_used_objectives;
-extern ushort next_used_objective; // = 1;
+extern ushort next_used_objective;
+
 extern struct Objective *game_objectives;
 extern ushort next_objective;
+
+extern const char *scrollinfo_text;
+extern ubyte byte_1C844F;
 
 extern struct NetscanObjective mission_netscan_objectives[MISSION_NETSCAN_OBV_COUNT];
 extern ushort next_mission_netscan_objective;
@@ -140,6 +157,33 @@ TbBool objective_target_is_item_to_area(struct Objective *p_objectv);
 TbBool objective_target_is_object(struct Objective *p_objectv);
 TbBool objective_target_is_any_thing(struct Objective *p_objectv);
 
+short test_objective(ushort objectv, ushort show_obj);
+ubyte group_not_seen(ushort group);
+
+/** Checks if given thing is within circle defined by parameters.
+ * @param thing Thing index to check position.
+ * @param x Target circle center X coord.
+ * @param y Target circle center Y coord.
+ * @param z Target circle center Z coord.
+ * @param radius_sq Squared target circle radius.
+ */
+TbBool thing_arrived_at_obj_radius(ThingIdx thing, int x, int y, int z, int radius_sq);
+
+/** Checks if given thing is within 2D rectangle defined by parameters.
+ * @param thing Thing index to check position.
+ * @param x1 Target rectangle point 1 X coord.
+ * @param z1 Target rectangle point 1 Z coord.
+ * @param x2 Target rectangle point 2 X coord.
+ * @param z2 Target rectangle point 2 Z coord.
+ */
+TbBool thing_arrived_at_obj_square2(ThingIdx thing, int x1, int z1, int x2, int z2);
+
+ubyte all_group_arrived_square(ushort group, short x, short z, short x2, int z2);
+ubyte mem_group_arrived_square2(struct Thing *p_person, ushort group, short x, short z,
+  int x2, int z2, int count);
+ubyte mem_group_arrived(ushort group, short x, short y, short z,
+  int radius, int count);
+
 /** Fixes parameters within objectives.
  *
  * @return Gives 2 if a parameter was updated, 1 if no update was neccessary, 0 if update failed.
@@ -155,6 +199,14 @@ int parse_next_netscan_objective(const char *buf, long buflen, long nsobv);
 int load_netscan_objectives_bin(struct NetscanObjective *nsobv_arr, ubyte mapno, ubyte level);
 void load_netscan_objectives(ubyte mapno, ubyte level);
 TbResult load_objectives_text(void);
+TbBool screen_objective_text_set_failed(void);
+
+/** Prepares objective text. Can also draw objective data and additional info directly on 3D scene.
+ *
+ * @param objectv Index of the target objective.
+ * @param flag Resets objective drawind if 1, otherwise draws the objective.
+ */
+void draw_objective(ushort objectv, ubyte flag);
 
 void snprint_objective(char *buf, ulong buflen, struct Objective *p_objectv, ushort objectv);
 /******************************************************************************/

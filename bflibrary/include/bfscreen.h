@@ -70,13 +70,25 @@ typedef enum ScreenMode TbScreenMode;
 typedef struct TbSprite TbSprite;
 
 enum TbDrawFlags {
+    /** while drawing sprites, flip them horizontally (left-to-right) */
     Lb_SPRITE_FLIP_HORIZ   = 0x0001,
+    /** while drawing sprites, flip them vertically (top-to-bottom) */
     Lb_SPRITE_FLIP_VERTIC  = 0x0002,
+    /** while drawing sprites, use transparency with sprite data in
+     * upper part of the color mixing array */
     Lb_SPRITE_TRANSPAR4    = 0x0004,
+    /** while drawing sprites, use transparency with sprite data in
+     * lower part of the color mixing array; order of colors only matters
+     * if color ghosting table is non-symmtrical (uses mix ratio other than 50%) */
     Lb_SPRITE_TRANSPAR8    = 0x0008,
+    /** while drawing sprites and shapes, draw the outline shape only */
     Lb_SPRITE_OUTLINE      = 0x0010,
+    /** while drawing text, horizontally align to left of provided coordinates */
     Lb_TEXT_HALIGN_LEFT    = 0x0020,
+    /** while drawing text or sprites, ignore original colors and use DrawColour
+     * instead */
     Lb_TEXT_ONE_COLOR      = 0x0040,
+    /** while drawing text, horizontally align to right of provided coordinates */
     Lb_TEXT_HALIGN_RIGHT   = 0x0080,
     Lb_TEXT_HALIGN_CENTER  = 0x0100,
     Lb_TEXT_HALIGN_JUSTIFY = 0x0200,
@@ -198,7 +210,8 @@ struct DisplayStruct { // sizeof=118
      * as mode in setting, or lower res when playing a movie. */
     ushort ScreenMode; // offset=100
 
-    /** VESA set-up flag, used only with VBE video modes. */
+    /** VESA set-up flag, set when screen is accessible in pages;
+     * used only with VBE video modes. */
     ubyte VesaIsSetUp; // offset=102
     /** Press mouse left button happened, Mouse coords recorded. */
     ubyte LeftButton; // offset=103
@@ -226,16 +239,16 @@ struct DisplayStruct { // sizeof=118
     /** Currently active colour palette.
      *  LbPaletteGet() should be used to retrieve a copy of the palette. */
     ubyte *Palette; // offset=114
-#if defined(ENABLE_MOUSE_WHEEL)
+#if defined(LB_ENABLE_MOUSE_WHEEL)
     short WheelPosition;
     ushort WheelMoveUp;
     ushort WheelMoveDown;
 #endif
-#if defined(ENABLE_MOUSE_MOVE_RATIO)
+#if defined(LB_ENABLE_MOUSE_MOVE_RATIO)
     short MouseMoveRatioX;
     short MouseMoveRatioY;
 #endif
-#if defined(ENABLE_SHADOW_COLOUR)
+#if defined(LB_ENABLE_SHADOW_COLOUR)
     /** Colour index used for drawing shadow. */
     uchar ShadowColour;
 #endif
@@ -511,6 +524,12 @@ TbResult LbScreenFindVideoModes(void);
  */
 TbResult LbScreenSwap(void);
 
+/** Places working screen buffer to the physical screen, then fills working
+ * screen with colour.
+ *
+ * See LbScreenSwap() for detailed description. The only difference here is that
+ * after the work screen contaent was used, it is filled with given colour.
+ */
 TbResult LbScreenSwapClear(TbPixel colour);
 
 /** Updates a rectangle of working screen and places it to the physical screen.

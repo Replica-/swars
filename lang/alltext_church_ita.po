@@ -1,8 +1,8 @@
 # *****************************************************************************
-#  Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+#  Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 # *****************************************************************************
 #   @file alltext_church_ita.po
-#      Menu text for SW Port translation file
+#      Menu text for SyndWarsFX translation file
 #  @par Purpose:
 #      Contains translation of the national text in the game.
 #  @par Comment:
@@ -18,10 +18,10 @@
 # *****************************************************************************
 msgid ""
 msgstr ""
-"Project-Id-Version: Menu text for SW Port\n"
-"Report-Msgid-Bugs-To: https://github.com/swfans/swars/issues\n"
+"Project-Id-Version: Menu text for SyndWarsFX\n"
+"Report-Msgid-Bugs-To: https://github.com/swfans/syndwarsfx/issues\n"
 "POT-Creation-Date: 2023-09-05 11:30+0200\n"
-"PO-Revision-Date: 2023-12-30 13:52+0100\n"
+"PO-Revision-Date: 2025-12-15 22:02+0100\n"
 "Last-Translator: Mefistotelis <mefistotelis@gmail.com>\n"
 "Language-Team: Syndicate Wars Fans <github.com/swfans>\n"
 "Language: it_IT\n"
@@ -126,6 +126,7 @@ msgstr "Sia tu benedetto."
 #: mission.brief.mail21.par6.c4 mission.brief.mail22.par7.c4
 #: mission.brief.mail23.par5.c4 mission.brief.mail24.par5.c4
 #: mission.brief.mail25.par5.c4 mission.brief.mail31.par7.c4
+#: mission.brief.mail32.par4.c4
 msgctxt "mission brief email sender"
 msgid "Virgil"
 msgstr "Virgil"
@@ -158,6 +159,7 @@ msgstr ""
 #: mission.brief.mail21.par10.c1 mission.brief.mail22.par9.c1
 #: mission.brief.mail23.par7.c1 mission.brief.mail24.par7.c1
 #: mission.brief.mail25.par8.c1 mission.brief.mail31.par10.c1
+#: mission.brief.mail32.par6.c1
 msgctxt "mission brief book quote"
 msgid "- The Book of Cataclysm."
 msgstr "- Il Libro del Cataclisma."
@@ -1027,6 +1029,7 @@ msgstr ""
 "Allarme satellite: rilevata chiave di identificazione tipo agente EuroCorp, "
 "tracciati instabili"
 
+#. This mission name is a reference to one of previous games developed by Bullfrog.
 #: mission.title:44
 msgctxt "mission title"
 msgid "Powermonger"
@@ -1595,7 +1598,7 @@ msgid ""
 msgstr ""
 "La nostra figlia della Nuova Epoca, Mirabelle Lucy De Saxo, ha eseguito un "
 "atterraggio di fortuna nel territorio dei Non Guidati, vicino alla sua base "
-"di Citt… del Capo. I tuoi accoliti devono affrettarsi al suo fianco. Deve "
+"di Città del Capo. I tuoi accoliti devono affrettarsi al suo fianco. Deve "
 "vivere per portare a compimento il suo destino di essere la prima a "
 "percorrere il cammino verso la salvezza."
 
@@ -2072,7 +2075,7 @@ msgid ""
 "Town sanctuary we gave her, and which we now take away."
 msgstr ""
 "Elimina Mirabelle Lucy De Saxo immediatamente. La troverai al santuario di "
-"Citt… del Capo che le abbiamo affidato e che ora le togliamo."
+"Città del Capo che le abbiamo affidato e che ora le togliamo."
 
 #: mission.brief.mail22.par3.c5
 msgctxt "mission brief email paragraph"
@@ -2229,7 +2232,7 @@ msgstr "Zona di atterraggio: collegamento IML di Adelaide"
 
 #: mission.brief.mail24.map6.level3:2
 msgctxt "mission brief tactical information"
-msgid "The compound holding Brother Ix"
+msgid "The compound holding Brother IX"
 msgstr "Fortezza dove viene tenuto Fratello IX"
 
 #: mission.brief.mail24.map6.level3:3
@@ -2339,8 +2342,8 @@ msgstr "Splendore, Altruista Uno."
 msgctxt "mission brief email orders"
 msgid "Demolish a UTOPIA ground station and wipe out its security garrison."
 msgstr ""
-"Demolisci una stazione di terra di UTOPIA e spazza via la sua guarnigione di"
-" sicurezza."
+"Demolisci una stazione di terra di UTOPIA e spazza via la sua guarnigione di "
+"sicurezza."
 
 #: mission.brief.mail31.par3.c5
 msgctxt "mission brief email paragraph"
@@ -2359,8 +2362,8 @@ msgid ""
 msgstr ""
 "La presenza di EuroCorp è stata ridotta a una stazione di terra di UTOPIA "
 "con la sua guarnigione di sicurezza. Intanto i tuoi fratelli e sorelle si "
-"stanno raccogliendo sull'altra sponda del fiume, preparandosi ad eseguire il"
-" grande sacrificio."
+"stanno raccogliendo sull'altra sponda del fiume, preparandosi ad eseguire il "
+"grande sacrificio."
 
 #: mission.brief.mail31.par5.c5
 msgctxt "mission brief email paragraph"
@@ -2417,6 +2420,58 @@ msgstr ""
 #: mission.brief.mail31.map3.level10:6
 msgctxt "mission brief tactical information"
 msgid "Local police have recently escorted armoured cars to the city vault"
+msgstr ""
+
+#: mission.title:110
+msgctxt "mission title"
+msgid "Unrest"
+msgstr ""
+
+#: mission.brief.mail32.par1.h
+msgctxt "mission brief email header"
+msgid "Apostle of the New Epoch."
+msgstr ""
+
+#: mission.brief.mail32.par2.c2
+msgctxt "mission brief email orders"
+msgid ""
+"There is a task you must perform for us. The Unguided are foolish enough to "
+"think they can use our belief against us. Our sources have told us that a "
+"contingent of punks have taken civilians hostage. Your team will be sent in "
+"against them."
+msgstr ""
+
+#: mission.brief.mail32.par3.c5
+msgctxt "mission brief email paragraph"
+msgid ""
+"We have the element of surprise. The Unguided expect us to rescue the "
+"hostages. All you must do is destroy the Unguided causing this irritation. "
+"Do not worry about the public held to ransom. They are not Churchmembers and "
+"mean nothing. Just stop the Unguided in whichever way you choose. Make sure "
+"it is permanent."
+msgstr ""
+
+#: mission.brief.mail32.par5.c1
+msgctxt "mission brief book quote"
+msgid ""
+"When tact is required, use brute force. When force is required, use greater "
+"force. When the greatest force is required, use your head. Surprise is "
+"everything."
+msgstr ""
+
+#: mission.brief.mail32.map10.level2:1
+msgctxt "mission brief tactical information"
+msgid "Landing Ground: Phoenix Temple"
+msgstr "Zona di atterraggio: Tempio della Fenice"
+
+#: mission.brief.mail32.map10.level2:2
+msgctxt "mission brief tactical information"
+msgid "Unguided hostage takers"
+msgstr "Sequestratori dei Non Guidati"
+
+#: mission.brief.mail32.map10.level2:3
+msgctxt "mission brief tactical information"
+msgid "Sanctuary: Phoenix Temple"
 msgstr ""
 
 #: message.win:1
@@ -2580,7 +2635,7 @@ msgstr ""
 "Questi enormi lanciafiamme sono il loro primo assaggio dell'inferno. Non "
 "hanno certo la portata delle armi a energia e neppure di quelle cinetiche, "
 "ma hanno impieghi specifici, come contro la folla. I lanciafiamme ispirano "
-"inoltre il terrore e la sottomissione che desideriamo. "
+"inoltre il terrore e la sottomissione che desideriamo."
 
 #: weapons.H2HTASER.description
 msgctxt "weapons description - disrupter"

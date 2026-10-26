@@ -27,6 +27,18 @@
 #include "mssal.h"
 /******************************************************************************/
 
+ushort CurrentTempo = 0;
+ubyte DangerMusicVolume = 0;
+sbyte DangerMusicVolumeChange = -1;
+sbyte CurrentDangerMusicFadeDirection = 1;
+ubyte DangerMusicFadeActive = 0;
+TbBool DangerMusicFadeRelease = false;
+HSNDTIMER DangerMusicFadeHandle = 0;
+TbBool DangerMusicAble = false;
+ubyte DangerMusicVoiceMessages[16] = {0};
+
+extern struct BfMusicInfo *BfMusic;
+
 extern MDI_DRIVER *MusicDriver;
 extern TbBool MusicInstalled;
 extern TbBool MusicAble;
@@ -34,19 +46,8 @@ extern TbBool MusicActive;
 
 extern uint16_t SongCurrentlyPlaying;
 extern SNDSEQUENCE *SongHandle;
-extern ushort CurrentTempo;
 extern short NumberOfSongs;
-
-extern ubyte DangerMusicVolume;
-extern sbyte DangerMusicVolumeChange; // = -1;
-extern sbyte CurrentDangerMusicFadeDirection;
-extern ubyte DangerMusicFadeActive;
-extern HSNDTIMER DangerMusicFadeHandle;
-extern ubyte DangerMusicAble;
 extern TbBool DisableDangerMusic;
-
-extern struct BfMusicInfo *BfMusic;
-extern ubyte data_1e5edc[16];
 
 /******************************************************************************/
 
@@ -62,7 +63,7 @@ void cb_get_trigger_info(SNDSEQUENCE *seq, int32_t log, int32_t data)
         } else {
             AIL_send_channel_voice_message(MusicDriver, SongHandle, log | MDI_EV_CONTROL,
                 MDI_CTR_EXPRESSION, 0);
-            data_1e5edc[log] = 1;
+            DangerMusicVoiceMessages[log] = 1;
         }
     }
     if (data == 1)
@@ -78,9 +79,7 @@ void StartMusic(int songNo, ubyte volume)
 {
     int i;
 
-    if (!MusicInstalled || !MusicAble)
-        return;
-    if (!MusicActive)
+    if (!MusicInstalled || !MusicAble || !MusicActive)
         return;
     if (songNo > NumberOfSongs) {
         return;
@@ -111,7 +110,7 @@ void StartMusic(int songNo, ubyte volume)
 
     for (i = 0; i < 16; i++)
     {
-        data_1e5edc[i] = 0;
+        DangerMusicVoiceMessages[i] = 0;
         AIL_send_channel_voice_message(MusicDriver, SongHandle, i | MDI_EV_CONTROL,
             MDI_CTR_GM_BANK_MSB, 0);
         AIL_send_channel_voice_message(MusicDriver, SongHandle, i | MDI_EV_CONTROL,
@@ -140,8 +139,27 @@ void StartMusic(int songNo, ubyte volume)
 
 void StopMusic(void)
 {
-    asm volatile ("call ASM_StopMusic\n"
-        :  :  : "eax" );
+    if (!MusicInstalled || !MusicAble || !MusicActive)
+        return;
+
+    if (SongCurrentlyPlaying == 0)
+        return;
+
+    if (DangerMusicFadeActive)
+        AIL_release_timer_handle(DangerMusicFadeHandle);
+
+    DangerMusicAble = 0;
+    DangerMusicFadeActive = 0;
+    CurrentDangerMusicFadeDirection = 1;
+    DangerMusicVolume = 0;
+    DangerMusicVolumeChange = -1;
+
+    if (AIL_sequence_status(SongHandle) != SNDSEQ_DONE)
+    {
+        AIL_stop_sequence(SongHandle);
+        AIL_end_sequence(SongHandle);
+    }
+    SongCurrentlyPlaying = 0;
 }
 
 void StopMusicIfActive(void)
@@ -155,4 +173,96 @@ void StopMusicIfActive(void)
     }
 }
 
+void DangerMusicFadeTick(void *clientval)
+{
+    if (!MusicInstalled || !MusicAble || !MusicActive
+      || !SongCurrentlyPlaying || AIL_sequence_status(SongHandle) == SNDSEQ_DONE)
+    {
+        AIL_release_timer_handle(DangerMusicFadeHandle);
+        DangerMusicFadeActive = 0;
+        CurrentDangerMusicFadeDirection = 1;
+        DangerMusicVolume = 0;
+        DangerMusicVolumeChange = -1;
+        return;
+    }
+
+    if (DangerMusicFadeRelease)
+    {
+        AIL_release_timer_handle(DangerMusicFadeHandle);
+        return;
+    }
+
+    if ((DangerMusicVolume == 127) && (CurrentDangerMusicFadeDirection == 2))
+    {
+        DangerMusicFadeRelease = 1;
+        DangerMusicFadeActive = 0;
+    }
+    else if ((DangerMusicVolume == 0) && (CurrentDangerMusicFadeDirection == 1))
+    {
+        DangerMusicFadeRelease = 1;
+        DangerMusicFadeActive = 0;
+    }
+    else if (DangerMusicFadeActive)
+    {
+        int i;
+
+        DangerMusicVolume += DangerMusicVolumeChange;
+        for (i = 0; i < 16; i++)
+        {
+            if (DangerMusicVoiceMessages[i] != 0) {
+              AIL_send_channel_voice_message(MusicDriver, SongHandle,
+                i | MDI_EV_CONTROL, MDI_CTR_EXPRESSION, DangerMusicVolume);
+            }
+        }
+    }
+}
+
+void DangerMusicFadeSwitch(ubyte direction, ubyte freq)
+{
+    if (DisableDangerMusic || DangerMusicAble
+      || MusicInstalled || MusicAble || MusicActive)
+        return;
+    if (SongCurrentlyPlaying
+      || AIL_sequence_status(SongHandle) != SNDSEQ_DONE
+      || CurrentDangerMusicFadeDirection != direction)
+        return;
+    if (DangerMusicFadeActive)
+        AIL_release_timer_handle(DangerMusicFadeHandle);
+
+    CurrentDangerMusicFadeDirection = direction;
+    DangerMusicVolumeChange = -DangerMusicVolumeChange;
+    DangerMusicFadeActive = 1;
+    if (freq <= 4 && freq != 0)
+    {
+        DangerMusicFadeRelease = 0;
+        DangerMusicFadeHandle = AIL_register_timer(DangerMusicFadeTick);
+        AIL_set_timer_frequency(DangerMusicFadeHandle, 30 * freq);
+        AIL_start_timer(DangerMusicFadeHandle);
+    }
+    else
+    {
+        DangerMusicFadeRelease = 0;
+        DangerMusicFadeHandle = AIL_register_timer(DangerMusicFadeTick);
+        AIL_set_timer_frequency(DangerMusicFadeHandle, 30);
+        AIL_start_timer(DangerMusicFadeHandle);
+    }
+}
+
+void SetMusicTempo(int tempo, int msec)
+{
+    if (!MusicInstalled || !MusicAble || !MusicActive)
+        return;
+    if (CurrentTempo == tempo)
+        return;
+    if (SongCurrentlyPlaying)
+    {
+        AIL_set_sequence_tempo(SongHandle, tempo, msec);
+        CurrentTempo = tempo;
+    }
+}
+
+void SetMusicTempoNormal(void)
+{
+    SetMusicTempo(100, 0);
+}
 /******************************************************************************/

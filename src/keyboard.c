@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Free implementation of Bullfrog's Syndicate Wars strategy game.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file keyboard.c
  *     Buffered handler for keystrokes.
@@ -21,36 +21,355 @@
 #include <stdint.h>
 
 #include "keyboard.h"
+
+#include "bfmemut.h"
 #include "bfkeybd.h"
+#include "bfjoyst.h"
+#include <stdio.h>
+
+#include "display.h"
 #include "game.h"
+#include "game_data.h"
+#include "game_speed.h"
+#include "guitext.h"
+#include "swlog.h"
+
+/******************************************************************************/
 
 #define KEYBOARD_BUFFER_SIZE 16
+#define GAMEKEY_JOY_BUTTONS_MAX 4
 
 #pragma pack(1)
 
-ushort kbkeys[GKey_KEYS_COUNT] = {
-    KC_UNASSIGNED, KC_LCONTROL, KC_LALT, KC_DELETE,
-    KC_PGDOWN, KC_TAB, KC_RCONTROL, KC_OEM_102,
-    KC_UP, KC_DOWN, KC_LEFT, KC_RIGHT,
-    KC_HOME, KC_END, KC_D, KC_Z,
-    KC_INSERT, KC_PGUP, KC_P, KC_K,
-    KC_1, KC_2, KC_3, KC_4,
-};
+ushort kbkeys[GKey_KEYS_COUNT];
 
-ushort jskeys[GKey_KEYS_COUNT] = {
-    0, 1, 2, 0x10,
-    0x20, 4, 8, 0,
-    0, 0, 0, 0,
-    0, 0, 0x0F, 0,
-    0, 0, 0, 0,
-    0, 0, 0, 0,
-};
+JoyButtonSet jskeys[GKey_KEYS_COUNT];
+ubyte ctl_joystick_type = JTyp_NONE;
 
 ulong buffered_keys[KEYBOARD_BUFFER_SIZE];
 ulong buffered_keys_read_index;
 ulong buffered_keys_write_index;
 
+ubyte keyboard_mode_direct = 0;
+
+ubyte joy_types_available[] = {
+  0, 0, 0, 0, 0, 5, 6, 0,
+  0, 9, 0, 0,12,13, 0, 0,
+  0, 0,18,19, 0, 0, 0, 0,
+  24, 0, 0, 0
+};
+
 #pragma pack()
+
+ubyte is_key_pressed(TbKeyCode key, TbKeyMods kmodif)
+{
+    if ((kmodif == KMod_NONE) && (lbShift != KMod_NONE))
+        return 0;
+    if ((kmodif == KMod_DONTCARE) || (kmodif & lbShift) == kmodif)
+        return lbKeyOn[key];
+    return 0;
+}
+
+void clear_key_pressed(TbKeyCode key)
+{
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wtype-limits"
+    if (key >= sizeof(lbKeyOn)/sizeof(lbKeyOn[0]))
+        return;
+#pragma GCC diagnostic pop
+    lbKeyOn[key] = 0;
+    if (key == lbInkey) {
+        lbInkey = KC_UNASSIGNED;
+        lbExtendedKeyPress = 0;
+    }
+}
+
+void simulate_key_press(TbKeyCode key)
+{
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wtype-limits"
+    if (key >= sizeof(lbKeyOn)/sizeof(lbKeyOn[0]))
+        return;
+#pragma GCC diagnostic pop
+    if (key == KC_UNASSIGNED)
+        return;
+    lbKeyOn[key] = 1;
+    if (lbInkey == KC_UNASSIGNED) {
+        lbInkey = key;
+    }
+}
+
+ubyte is_joy_pressed(JoyButtonSet jkeys, ubyte channel)
+{
+    return (jkeys && jkeys == joy.Buttons[channel]);
+}
+
+ubyte is_joy_pressed_any(ubyte channel)
+{
+    return (joy.Buttons[channel] != 0);
+}
+
+JoyButtonSet get_joy_pressed_key(ubyte channel)
+{
+    uint jbtn_pressed;
+    ushort jbtn, buttons_num, pressed_count;
+    JoyButtonSet jskey_flags;
+
+    jskey_flags = 0;
+    buttons_num = joy.NumberOfButtons[channel];
+    jbtn_pressed = joy.Buttons[channel];
+    pressed_count = 0;
+    for (jbtn = 0; jbtn < buttons_num; jbtn++)
+    {
+          if (pressed_count >= GAMEKEY_JOY_BUTTONS_MAX)
+              break;
+          if ((jbtn_pressed & (1 << jbtn)) != 0) {
+              jskey_flags |= (1 << jbtn);
+              pressed_count++;
+          }
+    }
+    return jskey_flags;
+}
+
+void clear_joy_pressed(JoyButtonSet jkeys, ubyte channel)
+{
+    if (channel >= MAX_JOYSTICK_COUNT)
+        return;
+    joy.Buttons[channel] &= ~jkeys;
+}
+
+void sprint_joy_key(char *ostr, int buttons_num, JoyButtonSet jkeys)
+{
+    int tx_len;
+    ushort jbtn, pressed_count;
+
+    tx_len = 0;
+    pressed_count = 0;
+    for (jbtn = 0; jbtn < buttons_num; jbtn++)
+    {
+        if (pressed_count >= GAMEKEY_JOY_BUTTONS_MAX)
+            break;
+        if (((1 << jbtn) & jkeys) != 0)
+        {
+            if (tx_len > 0)
+                ostr[tx_len++] = '+';
+            const char *label = JoyGetButtonLabel(jbtn);
+            while (*label && tx_len < 50) {
+                ostr[tx_len++] = *label++;
+            }
+            ++pressed_count;
+        }
+    }
+    ostr[tx_len] = '\0';
+}
+
+TbKeyMods get_gamekey_modifier(GameKey gkey)
+{
+    TbKeyMods kmodif;
+
+    switch (gkey)
+    {
+    case GKey_SELF_DESTRUCT:
+        kmodif = KMod_ALT;
+        break;
+    case GKey_TRANS_OBJ_SURF_COL:
+    case GKey_TRANS_OBJ_LINE_COL:
+    case GKey_GAMESPEED_INC:
+    case GKey_GAMESPEED_DEC:
+        kmodif = KMod_CONTROL;
+        break;
+    case GKey_CAMERA_PERSPECTV:
+        kmodif = KMod_NONE;
+        break;
+#ifdef MORE_GAME_KEYS
+    case GKey_VIEW_PAN_L:
+    case GKey_VIEW_PAN_R:
+        kmodif = KMod_SHIFT;
+        break;
+#endif
+    default:
+        kmodif = KMod_DONTCARE;
+        break;
+    }
+    return kmodif;
+}
+
+ubyte is_gamekey_kbd_pressed(GameKey gkey)
+{
+    TbKeyCode kkey;
+    TbKeyMods kmodif;
+
+    kkey = kbkeys[gkey];
+    kmodif = get_gamekey_modifier(gkey);
+
+    return is_key_pressed(kkey, kmodif);
+}
+
+ubyte is_gamekey_joy_pressed(GameKey gkey, ubyte channel)
+{
+    JoyButtonSet jkeys;
+
+    jkeys = jskeys[gkey];
+
+    return is_joy_pressed(jkeys, channel);
+}
+
+ubyte is_gamekey_pressed(GameKey gkey)
+{
+    return is_gamekey_kbd_pressed(gkey) || is_gamekey_joy_pressed(gkey, 0);
+}
+
+void clear_gamekey_kbd_pressed(GameKey gkey)
+{
+    TbKeyCode kkey;
+
+    kkey = kbkeys[gkey];
+    clear_key_pressed(kkey);
+}
+
+void clear_gamekey_joy_pressed(GameKey gkey, ubyte channel)
+{
+    JoyButtonSet jkeys;
+
+    jkeys = jskeys[gkey];
+    clear_joy_pressed(jkeys, channel);
+}
+
+void clear_gamekey_pressed(GameKey gkey)
+{
+    if (is_gamekey_kbd_pressed(gkey))
+    {
+        clear_gamekey_kbd_pressed(gkey);
+    }
+    else
+    {
+        clear_gamekey_joy_pressed(gkey, 0);
+    }
+}
+
+/** Update hard-coded keys, either to const values or to values which depend on other keys.
+ */
+static void reset_hardcoded_kbd_gamekeys(void)
+{
+#ifdef MORE_GAME_KEYS
+    kbkeys[GKey_VIEW_PAN_L] = kbkeys[GKey_LEFT];
+    kbkeys[GKey_VIEW_PAN_R] = kbkeys[GKey_RIGHT];
+#endif
+}
+
+void set_gamekey_kbd(GameKey gkey, TbKeyCode key)
+{
+    kbkeys[gkey] = key;
+    reset_hardcoded_kbd_gamekeys();
+}
+
+void set_gamekey_joy(GameKey gkey, JoyButtonSet jkey)
+{
+    jskeys[gkey] = jkey;
+}
+
+ubyte switch_keycode_to_name_code_on_national_keyboard(ubyte keyno)
+{
+    ubyte rkey;
+    rkey = keyno;
+    switch (language_3str[0])
+    {
+    case 'g':
+        // Y and Z keys reversed
+        if (keyno == KC_Y)
+        {
+          rkey = KC_Z;
+        }
+        else if (keyno == KC_Z)
+        {
+          rkey = KC_Y;
+        }
+        break;
+    case 'f':
+        if (keyno == KC_SEMICOLON)
+        {
+          rkey = KC_M;
+        }
+        else if (keyno == KC_Z)
+        {
+          rkey = KC_W;
+        }
+        else if (keyno == KC_M)
+        {
+          rkey = KC_COMMA;
+        }
+        else if (keyno == KC_COMMA)
+        {
+          rkey = KC_SEMICOLON;
+        }
+        else if (keyno == KC_A)
+        {
+          rkey = KC_Q;
+        }
+        else if (keyno == KC_W)
+        {
+          rkey = KC_Z;
+        }
+        else if (keyno == KC_Q)
+        {
+          rkey = KC_A;
+        }
+        break;
+    default:
+        break;
+    }
+    return rkey;
+}
+
+void sprint_gamekey_combination_kbd(char *ostr, GameKey gkey)
+{
+    ushort keyno;
+    TbKeyMods kmodif;
+
+    keyno = kbkeys[gkey];
+    kmodif = get_gamekey_modifier(gkey);
+    if (keyno == KC_UNASSIGNED)
+    {
+        ostr[0] = '\0';
+        return;
+    }
+
+    if (lbKeyNames[keyno] == NULL)
+    {
+        sprintf(ostr, "FOO %d", (int)keyno);
+        return;
+    }
+
+    keyno = switch_keycode_to_name_code_on_national_keyboard(keyno);
+
+    switch (kmodif)
+    {
+    case KMod_SHIFT:
+        sprintf(ostr, "SHFT+%s", lbKeyNames[keyno]);
+        break;
+    case KMod_CONTROL:
+        sprintf(ostr, "CTRL+%s", lbKeyNames[keyno]);
+        break;
+    case KMod_ALT:
+        sprintf(ostr, "ALT+%s", lbKeyNames[keyno]);
+        break;
+    default:
+        sprintf(ostr, "%s", lbKeyNames[keyno]);
+        break;
+    }
+}
+
+void sprint_gamekey_combination_joy(char *ostr, GameKey gkey)
+{
+    if ((gkey >= GKey_UP) && (gkey <= GKey_RIGHT))
+    {
+        strncpy(ostr, gui_strings[GSTR_SYS_GAME_KEYS + 7 + (gkey - GKey_UP)], 50);
+    }
+    else
+    {
+        sprint_joy_key(ostr, joy.NumberOfButtons[0], jskeys[gkey]);
+    }
+}
 
 static void add_key_to_buffer(ubyte key)
 {
@@ -89,15 +408,6 @@ TbResult handle_custom_key_press(TbKeyAction action, TbKeyCode code)
     if (action != KActn_KEYDOWN)
         return false;
 
-    if (lbKeyOn[KC_RCONTROL] || lbKeyOn[KC_LCONTROL])
-    {
-        if (code == KC_Q)
-        {
-            game_quit();
-            return Lb_SUCCESS;
-        }
-    }
-
     return Lb_OK;
 }
 
@@ -116,4 +426,191 @@ void init_buffered_keys(void)
 {
     LbKeyboardCustomHandler(KEventBufferedKeysUpdate);
 }
+
+TbBool user_read_value(char *buf, ubyte len, ubyte type)
+{
+    TbBool ret;
+    asm volatile (
+      "call ASM_user_read_value\n"
+        : "=r" (ret) : "a" (buf), "d" (len), "b" (type));
+    return ret;
+}
+
+void input(void)
+{
+    uint16_t n;
+
+    n = lbShift;
+    if (lbKeyOn[KC_LSHIFT] || lbKeyOn[KC_RSHIFT])
+        n |= KMod_SHIFT;
+    else
+        n &= ~KMod_SHIFT;
+    if (lbKeyOn[KC_LCONTROL] || lbKeyOn[KC_RCONTROL])
+        n |= KMod_CONTROL;
+    else
+        n &= ~KMod_CONTROL;
+    if (lbKeyOn[KC_RALT] || lbKeyOn[KC_LALT])
+        n |= KMod_ALT;
+    else
+        n &= ~KMod_ALT;
+    lbShift = n;
+}
+
+void set_default_game_keys(void)
+{
+    LbMemorySet(jskeys, 0, sizeof(jskeys));
+#if defined(DOS)||defined(GO32)
+    jskeys[GKey_VIEW_SPIN_L] = 0x40;
+    jskeys[GKey_VIEW_SPIN_R] = 0x80;
+    jskeys[GKey_FIRE] = 0x01;
+    jskeys[GKey_GOTO_POINT] = 0x08;
+    jskeys[GKey_DROP_WEAPON] = 0x10;
+    ctl_joystick_type = JTyp_GRAVIS_GRIP;
+#else
+    jskeys[GKey_VIEW_SPIN_L]   = 1 << CONTROLLER_BUTTON_RIGHT_THUMB_RIGHT;
+    jskeys[GKey_VIEW_SPIN_R]   = 1 << CONTROLLER_BUTTON_RIGHT_THUMB_LEFT;
+    jskeys[GKey_FIRE]          = 1 << CONTROLLER_BUTTON_A;
+    jskeys[GKey_CHANGE_MD_WP]  = 1 << CONTROLLER_BUTTON_B;
+    jskeys[GKey_CHANGE_AGENT]  = 1 << CONTROLLER_BUTTON_X;
+    jskeys[GKey_SELF_DESTRUCT] = (1 << CONTROLLER_BUTTON_A | 1 << CONTROLLER_BUTTON_B | 1 << CONTROLLER_BUTTON_X | 1 << CONTROLLER_BUTTON_Y);
+    jskeys[GKey_GROUP]         = 1 << CONTROLLER_BUTTON_BACK;
+    jskeys[GKey_GOTO_POINT]    = 1 << CONTROLLER_BUTTON_Y;
+    jskeys[GKey_DROP_WEAPON]   = (1 << CONTROLLER_BUTTON_A | 1 << CONTROLLER_BUTTON_DPAD_LEFT);
+    jskeys[GKey_SEL_AGENT_1] = (1 << CONTROLLER_BUTTON_LEFTSHOULDER | 1 << CONTROLLER_BUTTON_DPAD_UP);
+    jskeys[GKey_SEL_AGENT_2] = (1 << CONTROLLER_BUTTON_LEFTSHOULDER | 1 << CONTROLLER_BUTTON_DPAD_DOWN);
+    jskeys[GKey_SEL_AGENT_4] = (1 << CONTROLLER_BUTTON_LEFTSHOULDER | 1 << CONTROLLER_BUTTON_DPAD_RIGHT);
+    jskeys[GKey_SEL_AGENT_3] = (1 << CONTROLLER_BUTTON_LEFTSHOULDER | 1 << CONTROLLER_BUTTON_DPAD_LEFT);
+    jskeys[GKey_PAUSE] = 1 << CONTROLLER_BUTTON_START;
+    ctl_joystick_type = JTyp_EXT_DRIVER;
+#endif
+
+    LbMemorySet(kbkeys, 0, sizeof(kbkeys));
+    kbkeys[GKey_NONE] = KC_UNASSIGNED;
+    kbkeys[GKey_VIEW_SPIN_L] = KC_DELETE;
+    kbkeys[GKey_VIEW_SPIN_R] = KC_PGDOWN;
+    kbkeys[GKey_FIRE] = KC_LCONTROL;
+    kbkeys[GKey_CHANGE_MD_WP] = KC_LALT;
+    kbkeys[GKey_CHANGE_AGENT] = KC_TAB;
+    kbkeys[GKey_UP] = KC_UP;
+    kbkeys[GKey_DOWN] = KC_DOWN;
+    kbkeys[GKey_GOTO_POINT] = KC_RCONTROL;
+    kbkeys[GKey_GROUP] = KC_OEM_102;
+    kbkeys[GKey_LEFT] = KC_LEFT;
+    kbkeys[GKey_ZOOM_OUT] = KC_HOME;
+    kbkeys[GKey_SELF_DESTRUCT] = KC_D;
+    kbkeys[GKey_RIGHT] = KC_RIGHT;
+    kbkeys[GKey_ZOOM_IN] = KC_END;
+    kbkeys[GKey_DROP_WEAPON] = KC_Z;
+    kbkeys[GKey_PAUSE] = KC_P;
+    kbkeys[GKey_VIEW_TILT_U] = KC_INSERT;
+    kbkeys[GKey_KEY_CONTROL] = KC_K;
+    kbkeys[GKey_VIEW_TILT_D] = KC_PGUP;
+    kbkeys[GKey_SEL_AGENT_1] = KC_1;
+    kbkeys[GKey_SEL_AGENT_2] = KC_2;
+    kbkeys[GKey_SEL_AGENT_4] = KC_4;
+    kbkeys[GKey_SEL_AGENT_3] = KC_3;
+    kbkeys[GKey_TRANS_OBJECTS] = KC_B;
+    kbkeys[GKey_SCANNER_PULSE] = KC_S;
+    kbkeys[GKey_CAMERA_PERSPECTV] = KC_F;
+    kbkeys[GKey_TRANS_OBJ_SURF_COL] = KC_J;
+    kbkeys[GKey_TRANS_OBJ_LINE_COL] = KC_H;
+    kbkeys[GKey_SCANNR_BRIGH_INC] = KC_NUMPAD6;
+    kbkeys[GKey_SCANNR_BRIGH_DEC] = KC_NUMPAD4;
+    kbkeys[GKey_DANGR_TRACK] = KC_NUMPAD0;
+    kbkeys[GKey_MUSIC_TRACK] = KC_NUMPAD5;
+    kbkeys[GKey_SOUND_VOL_INC] = KC_NUMPAD7;
+    kbkeys[GKey_SOUND_VOL_DEC] = KC_NUMPAD1;
+    kbkeys[GKey_DANGR_VOL_INC] = KC_NUMPAD8;
+    kbkeys[GKey_DANGR_VOL_DEC] = KC_NUMPAD2;
+    kbkeys[GKey_MUSIC_VOL_INC] = KC_NUMPAD9;
+    kbkeys[GKey_MUSIC_VOL_DEC] = KC_NUMPAD3;
+    kbkeys[GKey_MISSN_RESTART] = KC_R;
+    kbkeys[GKey_GAMESPEED_INC] = KC_ADD;
+    kbkeys[GKey_GAMESPEED_DEC] = KC_SUBTRACT;
+    kbkeys[GKey_SCREENSHOT] = KC_M;
+    kbkeys[GKey_SEL_WEP_1] = KC_5;
+    kbkeys[GKey_SEL_WEP_2] = KC_6;
+    kbkeys[GKey_SEL_WEP_3] = KC_7;
+    kbkeys[GKey_SEL_WEP_4] = KC_8;
+    kbkeys[GKey_SEL_WEP_5] = KC_9;
+    kbkeys[GKey_SEL_WEP_6] = KC_0;
+    kbkeys[GKey_USE_MEDIKIT] = KC_UNASSIGNED;
+    kbkeys[GKey_SUPERSHIELD] = KC_UNASSIGNED;
+    kbkeys[GKey_VIEW_THERMAL] = KC_UNASSIGNED;
+    reset_hardcoded_kbd_gamekeys();
+}
+
+TbResult joy_ext_driver_irq_init(int irqno)
+{
+    TbResult ret;
+
+    ret = JoySetInterrupt(irqno);
+    if (ret != Lb_FAIL)
+        joy_types_available[JTyp_EXT_DRIVER] = JTyp_EXT_DRIVER;
+    else
+        LOGERR("Joystick with external driver failed setup at IRQ %d", irqno);
+    return ret;
+}
+
+TbKeyCode screen_wait_seconds_or_until_continue_key(int sec)
+{
+    int i;
+    TbKeyCode key;
+
+    clear_key_pressed(KC_SPACE);
+    clear_key_pressed(KC_ESCAPE);
+    clear_key_pressed(KC_RETURN);
+
+    key = KC_UNASSIGNED;
+    for (i = sec*game_num_fps; i != 0; i--)
+    {
+        if (is_key_pressed(KC_SPACE, KMod_DONTCARE)) {
+            key = KC_SPACE;
+            break;
+        }
+        if (is_key_pressed(KC_ESCAPE, KMod_DONTCARE)) {
+            key = KC_ESCAPE;
+            break;
+        }
+        if (is_key_pressed(KC_RETURN, KMod_DONTCARE)) {
+            key = KC_RETURN;
+            break;
+        }
+
+        swap_wscreen();
+        game_update();
+    }
+    clear_key_pressed(key);
+
+    return key;
+}
+
+TbKeyCode screen_wait_seconds_or_until_yesno_key(int sec)
+{
+    int i;
+    TbKeyCode key;
+
+    clear_key_pressed(KC_Y);
+    clear_key_pressed(KC_N);
+
+    key = KC_UNASSIGNED;
+    for (i = sec*game_num_fps; i != 0; i--)
+    {
+        if (is_key_pressed(KC_Y, KMod_DONTCARE)) {
+            key = KC_Y;
+            break;
+        }
+        if (is_key_pressed(KC_N, KMod_DONTCARE)) {
+            key = KC_N;
+            break;
+        }
+
+        swap_wscreen();
+        game_update();
+    }
+    clear_key_pressed(key);
+
+    return key;
+}
+
 /******************************************************************************/

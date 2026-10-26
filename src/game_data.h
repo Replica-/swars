@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port - open-source reimplementation of SW.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file game_data.h
  *     Header file for game_data.c.
@@ -19,7 +19,7 @@
 #ifndef GAME_DATA_H
 #define GAME_DATA_H
 
-#include "bflib_basics.h"
+#include "bftypes.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,13 +27,18 @@ extern "C" {
 /******************************************************************************/
 
 enum DirPlacement {
-    DirPlace_Data = 0,
-    DirPlace_QData,
-    DirPlace_Maps,
-    DirPlace_Levels,
-    DirPlace_Intro,
-    DirPlace_Sound,
-    DirPlace_Equip,
+    DirPlace_Data = 0,	/**< Normal data directory; files for which read speed can be low */
+    DirPlace_QData,		/**< Quick data dir; files expected to be accessible without much delay */
+    DirPlace_Maps,		/**< Map files storage directory */
+    DirPlace_Levels,	/**< Level files storage directory */
+    DirPlace_Intro,		/**< Directory with game intro animations */
+    DirPlace_Sound,		/**< Directory with sound banks and sound driver config */
+    DirPlace_Equip,		/**< Normal data directory for equip/mods frontend screen */
+    DirPlace_QEquip,	/**< Quick data directory for equip/mods  frontend screen */
+    DirPlace_LangData,	/**< Directory with language-specific data */
+    DirPlace_Config,	/**< Directory with configuration files which can be altred by user */
+    DirPlace_Savegame,	/**< Saved games directory; needs write access */
+    DirPlace_Scrnshots,	/**< Screenshots and movies directory; needs write access */
     DirPlace_None,
 };
 
@@ -56,19 +61,46 @@ typedef struct {
 
 #pragma pack()
 
-extern PathInfo game_dirs[8];
+extern PathInfo game_dirs[];
 extern char cd_drive[52];
 extern char language_3str[4];
 
 extern MemSystem mem_game[];
 
+/** Scratch memory, reused for different purposes in different parts of the game.
+ */
+extern void *scratch_malloc_mem;
+extern u32 scratch_malloc_size;
+
+extern void *engine_mem_alloc_ptr;
+extern u32 engine_mem_alloc_size;
+
+extern ubyte *spare_map_buffer;
+
 /******************************************************************************/
 
+/** Returns absolute path to user files directory for the application.
+ */
 const char *GetDirectoryUser(void);
+
+/** Returns path (absolute or relative) to HDD-stored files for the application.
+ */
 const char *GetDirectoryHdd(void);
+
+/** Returns absolute path to CD-stored files for the application.
+ */
 const char *GetDirectoryCd(void);
 
+/** Prepares global base paths and sets up path transformation on file open.
+ *
+ * After this call, any files to be opened can use "/" as separator and
+ * relative paths within the game folder.
+ */
 void setup_file_names(void);
+
+/** Final part of setup_file_names(), called after language is set.
+ */
+void setup_language_file_names(void);
 
 int get_highest_used_packet_record_no(int campgn, int missi);
 void get_packet_record_fname(char *fname, int campgn, int missi, int file_no);
@@ -76,8 +108,10 @@ void get_user_settings_fname(char *fname, const char *name);
 void get_saved_game_fname(char *fname, ushort slot);
 
 void adjust_memory_use(void);
-void init_memory(MemSystem *mem_table);
-long get_memory_ptr_allocated_count(void **mgptr);
+TbResult init_memory(MemSystem *mem_table);
+int get_memory_ptr_allocated_count(void **mgptr);
+TbResult propagate_memory_sizes(void);
+void init_things_memory_with_user_heap(void);
 
 /******************************************************************************/
 #ifdef __cplusplus

@@ -30,20 +30,24 @@
 #include "aildebug.h"
 #include "memfile.h"
 #include "mssal.h"
+#include "snderr.h"
 /******************************************************************************/
 
-extern uint8_t ssnd_active;
-extern TbFileHandle adpcm_handle;
-extern long adpcm_file_open;
-extern SNDSAMPLE *sample_handle;
-extern uint8_t *ssnd_buffer[2];
-extern uint8_t *adpcm_source_buffer;
-extern int16_t *mixer_buffer;
-extern TbFileHandle sample_file;
-extern uint8_t mixed_file_open;
+TbBool ssnd_active = true;
+TbFileHandle adpcm_handle = INVALID_FILE;
+long adpcm_file_open = 0;
+SNDSAMPLE *sample_handle = NULL;
+uint8_t *ssnd_buffer[2];
+uint8_t *adpcm_source_buffer = NULL;
+int16_t *mixer_buffer = NULL;
+TbFileHandle sample_file = INVALID_FILE;
+TbBool mixed_file_open = false;
 
-extern TbBool StreamedSoundAble;
+TbBool StreamedSoundAble = false;
 
+extern TbBool SoundInstalled;
+extern TbBool SoundAble;
+extern DIG_DRIVER *SoundDriver;
 /******************************************************************************/
 
 void close_adpcm_file(void)
@@ -93,10 +97,6 @@ void free_buffers(void)
 
 void InitStreamedSound(void)
 {
-#if 1
-    asm volatile ("call ASM_InitStreamedSound\n"
-        :  :  : "eax" );
-#else
     if (!SoundInstalled || !SoundAble || StreamedSoundAble)
         return;
 
@@ -108,9 +108,7 @@ void InitStreamedSound(void)
     if (!allocate_buffers())
     {
         free_buffers();
-        sprintf(SoundProgressMessage,
-            "BF100 - Cannot allocate buffers for streamed sound\n");
-        SoundProgressLog(SoundProgressMessage);
+        SNDLOGFAIL("Streamed sound", "cannot allocate buffers");
         return;
     }
 
@@ -118,13 +116,10 @@ void InitStreamedSound(void)
     if (!sample_handle)
     {
         free_buffers();
-        sprintf(SoundProgressMessage,
-            "BF100 - Cannot allocate handle for streamed sound\n");
-        SoundProgressLog(SoundProgressMessage);
+        SNDLOGFAIL("Streamed sound", "cannot allocate handle");
         return;
     }
     StreamedSoundAble = true;
-#endif
 }
 
 void SwitchOffStreamedSound(void)
@@ -143,7 +138,7 @@ void SwitchOffStreamedSound(void)
         adpcm_file_open = 0;
     }
     if (mixed_file_open)
-        mixed_file_open = 0;
+        mixed_file_open = false;
     ssnd_active = false;
 }
 

@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file scandraw.h
  *     Header file for scandraw.c.
@@ -20,6 +20,7 @@
 #define SCANDRAW_H
 
 #include "bftypes.h"
+#include "game_bstype.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,13 +28,33 @@ extern "C" {
 /******************************************************************************/
 #pragma pack(1)
 
+enum ScannerColours {
+    ScnClr_Text = 0,
+    ScnClr_Roadway,
+    ScnClr_LiquidDk,
+    ScnClr_Outline,
+    ScnClr_Frame,
+};
 
 #pragma pack()
 /******************************************************************************/
-void unkn_draw_transformed_point(short x, short y, long ptX, long ptY, long ptZ, ubyte colour);
-void draw_objective_point(long x, long y, short thing, short a4, ubyte colour);
-void func_711F4(short a1, short a2, short a3, short a4, ubyte colour);
+extern ubyte SCANNER_colour[5];
+extern ubyte net_player_colours[8];
+extern TbPixel SCANNER_people_colours[15];
 
+void SCANNER_set_center_point(int cor_x, int cor_z, int anglexz);
+void SCANNER_shift_center_point(int dt_cor_x, int dt_cor_z);
+
+void draw_mapcoord_to_scrcoord_line(short scr_x, short scr_y,
+  int cor_x, int cor_y_m8, int cor_z, TbPixel colour);
+void draw_objective_point(long x, long y, ThingIdx thing, short a4, ubyte colour);
+void draw_map_flat_circle(short cor_x, short cor_y_m8, short cor_z,
+  short radius, TbPixel colour);
+void draw_map_flat_rect(short cor_x, short cor_y_m8, short cor_z,
+  short size_x, short size_z, TbPixel colour);
+
+void SCANNER_fe_draw_solid(void);
+void SCANNER_draw_new_transparent(void);
 /******************************************************************************/
 #ifdef __cplusplus
 }

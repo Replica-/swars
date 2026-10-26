@@ -32,8 +32,8 @@ enum TbSSurfaceBlitFlags {
     SSBlt_NONE = 0x00,
     SSBlt_FLAG1 = 0x01,
     SSBlt_FLAG2 = 0x02,
-    SSBlt_FLAG4 = 0x04,
-    SSBlt_FLAG8 = 0x08,
+    SSBlt_TRANSPRN = 0x04,	/*< Blit minding transparency colour. */
+    SSBlt_TO_SCREEN = 0x08,	/*< Blit to screen; leave unset to blit from screen. */
     SSBlt_FLAG10 = 0x10,
 };
 
@@ -88,6 +88,22 @@ TbResult LbScreenSurfaceRelease(struct SSurface *surf);
  */
 TbResult LbScreenSurfaceBlit(struct SSurface *surf, ulong x, ulong y,
     struct TbRect *rect, ulong blflags);
+
+/** Blits between rectangular area of screen and of given surface.
+ *
+ *  Scales the pixel data to match destination area.
+ *  Performs validation and clipping before copying image data.
+ *  The blit function should not be called on a locked surface.
+ *
+ * @param surf Surface to blit from (or to blit onto, depending on flags).
+ * @param scrn_rect Coordinates of rectangular screen area to start blitting to (or from, see flags).
+ * @param surf_rect Coordinates of rectangular area within the given surface.
+ * @param blflags Flags selecting type and direction of blitting.
+ *
+ * @return Gives Lb_SUCCESS if blitting was performed correctly.
+ */
+TbResult LbScreenSurfaceBlitScaled(struct SSurface *surf, struct TbRect *scrn_rect,
+    struct TbRect *surf_rect, ulong blflags);
 
 /** Locks the surface, allowing direct access to its pixel data buffer.
  */

@@ -108,6 +108,12 @@ TbResult LbPaletteDataFillBlack(ubyte *palette);
  */
 TbResult LbPaletteDataFillWhite(ubyte *palette);
 
+/** Write all 256 entries of indexed colour video palette with default VGA values.
+ *
+ * The palette is always written here as 64-level.
+ */
+TbResult LbPaletteDataFillDefVGA(ubyte *palette);
+
 /** Get colour distance by computing squares of coordinates.
  */
 long LbColourDistanceLinearSq(ubyte r1, ubyte g1, ubyte b1,

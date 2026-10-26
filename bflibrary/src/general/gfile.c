@@ -30,8 +30,9 @@
 
 long LbFileLengthRnc(const char *fname)
 {
+    long flength;
     TbFileHandle handle = LbFileOpen(fname, Lb_FILE_MODE_READ_ONLY);
-    if ( handle == -1 )
+    if (handle == INVALID_FILE)
         return -1;
     LOGDBG("%s: file opened", fname);
     unsigned char buffer[RNC_HEADER_LEN+1];
@@ -41,7 +42,6 @@ long LbFileLengthRnc(const char *fname)
         LbFileClose(handle);
         return -1;
     }
-    long flength;
     if (blong(buffer+0) == RNC_SIGNATURE)
     {
         flength = blong(buffer+4);
@@ -58,13 +58,13 @@ long LbFileLengthRnc(const char *fname)
 long LbFileLoadAt(const char *fname, void *buffer)
 {
     long filelength = LbFileLengthRnc(fname);
-    TbFileHandle handle = -1;
+    TbFileHandle handle = INVALID_FILE;
     if (filelength != -1)
     {
         handle = LbFileOpen(fname, Lb_FILE_MODE_READ_ONLY);
     }
     int read_status = -1;
-    if (handle != -1)
+    if (handle != INVALID_FILE)
     {
         read_status = LbFileRead(handle, buffer, filelength);
         LbFileClose(handle);
@@ -96,7 +96,7 @@ long LbFileSaveAt(const char *fname, const void *buffer, ulong len)
     int result;
 
     handle = LbFileOpen(fname, Lb_FILE_MODE_NEW);
-    if ( handle == -1 )
+    if (handle == INVALID_FILE)
         return -1;
     result = LbFileWrite(handle,buffer,len);
     LbFileClose(handle);
@@ -134,6 +134,8 @@ long LbFileStringSearch(TbFileHandle handle, const char *sstr, ubyte *buf, ulong
     prevpos = LbFilePosition(handle);
     if (prevpos == (long)Lb_FAIL)
         return -1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
     if (flags & 0x02) {
         locbuf[0] = '\x0a';
         strncpy(&locbuf[1], sstr, sslen);
@@ -141,6 +143,7 @@ long LbFileStringSearch(TbFileHandle handle, const char *sstr, ubyte *buf, ulong
     } else {
         strncpy(locbuf, sstr, sslen);
     }
+#pragma GCC diagnostic pop
     locbuf[sslen] = '\x00';
 
     cmpflag = (flags & 0x01) != 0;

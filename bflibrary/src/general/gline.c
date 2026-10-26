@@ -5,7 +5,7 @@
 /** @file gline.c
  *     Implementation of related functions.
  * @par Purpose:
- *     Unknown.
+ *     Drawing lines.
  * @par Comment:
  *     None.
  * @author   Tomasz Lis
@@ -21,7 +21,8 @@
 #include "bfline.h"
 #include "bfscreen.h"
 
-static void draw_b_line(long x1, long y1, long x2, long y2, TbPixel colour)
+//static - temporarly public, as it is used in ASM
+void draw_b_line(long x1, long y1, long x2, long y2, TbPixel colour)
 {
   long apx = 2 * abs(x2 - x1);
   long spx;

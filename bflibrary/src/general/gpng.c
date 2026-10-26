@@ -2,10 +2,10 @@
 // Bullfrog Engine Emulation Library - for use to remake classic games like
 // Syndicate Wars, Magic Carpet, Genewars or Dungeon Keeper.
 /******************************************************************************/
-/** @file giff.c
- *     Implementation of Interchange File Format image format read/write.
+/** @file gpng.c
+ *     Implementation of Portable Network Graphics image format read/write.
  * @par Purpose:
- *     Unknown.
+ *     Ability to save and load images to/from screen buffers.
  * @par Comment:
  *     None.
  * @author   Tomasz Lis
@@ -20,7 +20,6 @@
 #include "bfpng.h"
 
 #include <stdio.h>
-#include <stdint.h>
 #include <string.h>
 #include <errno.h>
 #include <png.h>
@@ -99,9 +98,12 @@ TbResult LbPngRead(FILE *img_fh, ubyte *out_buffer,
     if ((color_type == PNG_COLOR_TYPE_PALETTE) && (bit_depth <= 8)) {
         // If the file uses colour palette, get it
         png_colorp palette;
+        u32 ret;
         int num;
 
-        png_get_PLTE(png, info, &palette, &num);
+        ret = png_get_PLTE(png, info, &palette, &num);
+        if (ret != PNG_INFO_PLTE)
+            goto err;
         palette_from_png(pal, palette, num);
     } else {
         // Other file formats are not supported
@@ -148,9 +150,19 @@ err: // handle error and cleanup heap allocation
 TbResult LbPngLoad(const char *fname, TbPixel *out_buffer,
   ulong *width, ulong *height, ubyte *pal)
 {
+#if LB_FILENAME_TRANSFORM
+    char real_fname[FILENAME_MAX];
+#endif
     FILE *img_fh;
     TbResult ret;
 
+#if LB_FILENAME_TRANSFORM
+    if (lbFileNameTransform != NULL)
+    {
+        lbFileNameTransform(real_fname, fname);
+        fname = real_fname;
+    }
+#endif
     img_fh = fopen(fname, "rb");
     if (!img_fh) {
         LOGERR("%s: cannot open: %s", fname, strerror(errno));
@@ -236,6 +248,9 @@ TbResult LbPngSave(const char *fname, const TbPixel *inp_buffer,
   ulong width, ulong height, const ubyte *pal, TbBool force_fname)
 {
     char full_fname[FILENAME_MAX];
+#if LB_FILENAME_TRANSFORM
+    char real_fname[FILENAME_MAX];
+#endif
     FILE *img_fh;
     TbResult ret;
 
@@ -244,7 +259,18 @@ TbResult LbPngSave(const char *fname, const TbPixel *inp_buffer,
     } else {
         LbPrepareImageFilename(full_fname, fname, "png");
     }
-    img_fh = fopen(full_fname, "wb");
+#if LB_FILENAME_TRANSFORM
+    if (lbFileNameTransform != NULL)
+    {
+        lbFileNameTransform(real_fname, full_fname);
+        fname = real_fname;
+    }
+    else
+#endif
+    {
+        fname = full_fname;
+    }
+    img_fh = fopen(fname, "wb");
     if (!img_fh) {
         LOGERR("%s: cannot open: %s", full_fname, strerror(errno));
         return 0;

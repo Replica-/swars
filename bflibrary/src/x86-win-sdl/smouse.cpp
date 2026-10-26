@@ -21,6 +21,10 @@
 #include <SDL/SDL.h>
 #include "bfmouse.h"
 
+#if defined(HAVE_CONFIG_H)
+#  include "bfconfig.h"
+#endif
+
 #include "mshandler.hpp"
 #include "bfscreen.h"
 #include "bfsprite.h"
@@ -115,17 +119,33 @@ TbResult LbMouseChangeSprite(const struct TbSprite *pointer_spr)
 
 TbResult LbMouseChangeMoveRatio(long ratio_x, long ratio_y)
 {
-    if ((ratio_x < -8192) || (ratio_x > 8192) || (ratio_x == 0))
+    if ((ratio_x < -32 * NORMAL_MOUSE_MOVE_RATIO) ||
+      (ratio_x > 32 * NORMAL_MOUSE_MOVE_RATIO) || (ratio_x == 0))
         return Lb_FAIL;
-    if ((ratio_y < -8192) || (ratio_y > 8192) || (ratio_y == 0))
+    if ((ratio_y < -32 * NORMAL_MOUSE_MOVE_RATIO) ||
+      (ratio_y > 32 * NORMAL_MOUSE_MOVE_RATIO) || (ratio_y == 0))
         return Lb_FAIL;
 
     LOGSYNC("new ratio %ldx%ld", ratio_x, ratio_y);
 
-#if defined(ENABLE_MOUSE_MOVE_RATIO)
+#if defined(LB_ENABLE_MOUSE_MOVE_RATIO)
     lbDisplay.MouseMoveRatioX = ratio_x;
     lbDisplay.MouseMoveRatioY = ratio_y;
 #endif
+
+    return Lb_SUCCESS;
+}
+
+TbResult LbMouseChangeCapture(TbBool enable)
+{
+    LOGSYNC("mouse capture %s", enable ? "on" : "off");
+
+    lbMouseCapture = enable;
+
+    if (!lbScreenInitialised)
+        return Lb_SUCCESS;
+
+    SDL_WM_GrabInput(enable ? SDL_GRAB_ON : SDL_GRAB_OFF);
 
     return Lb_SUCCESS;
 }
@@ -251,21 +271,28 @@ TbResult LbMouseOnMove(struct TbPoint pos)
 
 void MouseToScreen(struct TbPoint *pos)
 {
-    // Static variables for storing last mouse coordinated; needed
+    // Static variables for storing last mouse coordinates; needed
     // because lbDisplay.MMouseX/MMouseY coords are scaled
     static long mx = 0;
     static long my = 0;
     struct TbRect clip;
     struct TbPoint orig;
+
+    if (!pointerHandler.GetMouseWindow(&clip))
+        return;
+
     if (lbMouseAutoReset)
     {
-      if (!pointerHandler.GetMouseWindow(&clip))
-          return;
       orig.x = pos->x;
       orig.y = pos->y;
-#if defined(ENABLE_MOUSE_MOVE_RATIO)
-      pos->x = mx + ((pos->x - mx) * (long)lbDisplay.MouseMoveRatioX)/256;
-      pos->y = mx + ((pos->y - my) * (long)lbDisplay.MouseMoveRatioY)/256;
+#if defined(LB_ENABLE_MOUSE_MOVE_RATIO)
+      pos->x = lbDisplay.MMouseX + ((pos->x - mx) *
+        (long)lbDisplay.MouseMoveRatioX) / NORMAL_MOUSE_MOVE_RATIO;
+      pos->y = lbDisplay.MMouseY + ((pos->y - my) *
+        (long)lbDisplay.MouseMoveRatioY) / NORMAL_MOUSE_MOVE_RATIO;
+#else
+      pos->x = lbDisplay.MMouseX + (pos->x - mx);
+      pos->y = lbDisplay.MMouseY + (pos->y - my);
 #endif
       mx = orig.x;
       my = orig.y;
@@ -282,20 +309,26 @@ void MouseToScreen(struct TbPoint *pos)
     {
       orig.x = pos->x;
       orig.y = pos->y;
-#if defined(ENABLE_MOUSE_MOVE_RATIO)
-      pos->x = mx + ((pos->x - mx) * (long)lbDisplay.MouseMoveRatioX)/256;
-      pos->y = mx + ((pos->y - my) * (long)lbDisplay.MouseMoveRatioY)/256;
+#if defined(LB_ENABLE_MOUSE_MOVE_RATIO)
+      pos->x = mx + ((pos->x - mx) *
+        (long)lbDisplay.MouseMoveRatioX) / NORMAL_MOUSE_MOVE_RATIO;
+      pos->y = my + ((pos->y - my) *
+        (long)lbDisplay.MouseMoveRatioY) / NORMAL_MOUSE_MOVE_RATIO;
 #endif
       mx = orig.x;
       my = orig.y;
     }
 
-    if (lbScreenSurfaceDimensions.Width != lbDisplay.GraphicsScreenWidth)
-        pos->x = (pos->x * lbDisplay.GraphicsScreenWidth) /
-            lbScreenSurfaceDimensions.Width;
-    if (lbScreenSurfaceDimensions.Height != lbDisplay.GraphicsScreenHeight)
-        pos->y = (pos->y * lbDisplay.GraphicsScreenHeight) /
-            lbScreenSurfaceDimensions.Height;
+    // Allow the custom set mouse clip window to extend move range beyond graphics screen
+    if (clip.right < lbDisplay.GraphicsScreenWidth)
+        clip.right = lbDisplay.GraphicsScreenWidth;
+    if (clip.bottom < lbDisplay.GraphicsScreenHeight)
+        clip.bottom = lbDisplay.GraphicsScreenHeight;
+    if (lbScreenSurfaceDimensions.Width != clip.right)
+        pos->x = (pos->x * clip.right) / lbScreenSurfaceDimensions.Width;
+    if (lbScreenSurfaceDimensions.Height != clip.bottom)
+        pos->y = (pos->y * clip.bottom) / lbScreenSurfaceDimensions.Height;
+
     LOGNO("before (%ld,%ld) after (%ld,%ld)", orig.x, orig.y, pos->x, pos->y);
 }
 

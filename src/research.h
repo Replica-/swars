@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file research.h
  *     Header file for research.c.
@@ -20,6 +20,8 @@
 #define RESEARCH_H
 
 #include "bftypes.h"
+
+#include "game_bstype.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,21 +55,31 @@ struct ResearchInfo
 /******************************************************************************/
 extern struct ResearchInfo research;
 extern char scientist_lost_reason[60];
+extern short daily_scientist_death_chance_permil;
+extern short scientists_per_group;
+extern short weapon_donate_research_incr_permil;
+extern short research_progress_rtc_minutes;
 
-void load_scientist_lost_reason(ushort reason_no);
+void load_scientist_lost_reason(ushort reason_no, ubyte *scratch_buf);
 
 int research_daily_progress_for_type(ubyte rstype);
 int research_unkn_func_004(ushort percent_per_day, int expect_funding, int real_funding);
+void research_unkn_func_003(void);
 
-TbBool is_research_weapon_completed(ushort wtype);
-TbBool is_research_weapon_allowed(ushort wtype);
-void research_weapon_allow(ushort wtype);
-void research_weapon_complete(ushort wtype);
+TbBool is_research_weapon_completed(WeaponType wtype);
+TbBool is_research_weapon_allowed(WeaponType wtype);
+void research_weapon_allow(WeaponType wtype);
+void research_weapon_complete(WeaponType wtype);
 void research_weapon_flags_allow(ulong wpflags);
 
 TbBool is_research_cymod_completed(ushort mtype);
 TbBool is_research_cymod_allowed(ushort mtype);
+void research_cymod_allow(ushort mtype);
 void research_cymod_complete(ushort mtype);
+
+/** Initializes the research data for a new game.
+ */
+void srm_reset_research(void);
 /******************************************************************************/
 #ifdef __cplusplus
 }

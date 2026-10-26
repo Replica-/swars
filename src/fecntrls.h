@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file fecntrls.h
  *     Header file for fecntrls.c.
@@ -27,14 +27,21 @@ extern "C" {
 /******************************************************************************/
 #pragma pack(1)
 
-
 #pragma pack()
 /******************************************************************************/
+extern ubyte net_unkn_pos_02;
 
 void init_controls_screen_boxes(void);
 void reset_controls_screen_boxes_flags(void);
+ubyte show_options_controls_screen(void);
 void set_flag01_controls_screen_boxes(void);
-void clear_someflags_controls_screen_boxes(void);
+void skip_flashy_draw_controls_screen_boxes(void);
+
+/** Returns whether the game is currently defining a key in controls screen.
+ *
+ * Most of control buttons should be disabled during control key definition.
+ */
+TbBool is_defining_control_key(void);
 
 /******************************************************************************/
 #ifdef __cplusplus

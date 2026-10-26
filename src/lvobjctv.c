@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file lvobjctv.c
  *     Routines for level objectives handling.
@@ -25,16 +25,27 @@
 #include "bfmemory.h"
 #include "bfmemut.h"
 #include "bfini.h"
-#include "bfkeybd.h"
+
+#include "engincolour.h"
+#include "huddrwlstm.h"
+
+#include "bigmap.h"
 #include "campaign.h"
 #include "drawtext.h"
+#include "hud_draw.h"
+#include "keyboard.h"
+#include "lvfiles.h"
 #include "thing.h"
+#include "thing_search.h"
 #include "pepgroup.h"
 #include "player.h"
 #include "scanner.h"
 #include "scandraw.h"
-#include "display.h"
 #include "game.h"
+#include "game_data.h"
+#include "game_options.h"
+#include "game_speed.h"
+#include "vehicle.h"
 #include "wadfile.h"
 #include "swlog.h"
 /******************************************************************************/
@@ -110,7 +121,8 @@ struct ObjectiveDef objectv_defs[] = {
     {"GAME_OBJ_PERSUADE_ALL_G", "PERSUADE ALL GANG", ObDF_ReqGroup|ObDF_IsAcquire },
     /* Require specified amount of game turns to pass. */
     {"GAME_OBJ_TIME",		"TIMER",			ObDF_ReqCount },
-    /* Require specified carried item to change owner to a person belonging to local player. */
+    /* Require specified carried item to change owner to a person belonging to local player.
+     * If the item is a weapon, it should be unique for the level. */
     {"GAME_OBJ_GET_ITEM",	"COLLECT ITEM",		ObDF_ReqItem|ObDF_IsAlly },
     /* Unreachable. Require specified item to be used? */
     {"GAME_OBJ_USE_ITEM",	"USE ITEM",			ObDF_ReqItem|ObDF_IsAlly },
@@ -141,7 +153,8 @@ struct ObjectiveDef objectv_defs[] = {
     {"GAME_OBJ_V_ARRIVES",	"DRIVE TO LOCATION",ObDF_ReqVehicle|ObDF_ReqCoord|ObDF_ReqRadius },
     /* Require given thing to have DESTROYED flag set. */
     {"GAME_OBJ_DESTROY_V", "DESTROY VEHICLE",   ObDF_ReqVehicle },
-    /* Require the target person to be within given radius around given coordinates. */
+    /* Require the target item to be within given radius around given coordinates, either dropped or carried.
+     * If the item is a weapon, it should be unique for the level. */
     {"GAME_OBJ_ITEM_ARRIVES", "BRING TO LOCATION",	ObDF_ReqItem|ObDF_ReqCoord|ObDF_ReqRadius },
     {NULL,					NULL,				ObDF_None },
 };
@@ -185,6 +198,7 @@ enum ObjectiveConfigParam {
     ObvP_Count,
     ObvP_UniqueID,
     ObvP_Coord,
+    ObvP_CoordY, /**< Field only for usage verification, no corresponding text param */
     ObvP_Radius,
     ObvP_Amount,
     ObvP_SecGroup,
@@ -236,14 +250,21 @@ const struct TbNamedEnum missions_conf_netscan_objctv_params[] = {
 #define OBJECTIVE_TEXT_MAX 300
 
 struct NetscanObjective mission_netscan_objectives[MISSION_NETSCAN_OBV_COUNT];
-ushort next_mission_netscan_objective;
+ushort next_mission_netscan_objective = 1;
 
-extern ulong dword_1C8460;
-extern ulong dword_1C8464;
-extern short draw_objectv_x;
-extern short draw_objectv_y;
-extern const char *scroll_text;
-extern ubyte byte_1C844F;
+struct NetscanObjective netscan_objectives[NETSCAN_OBJECTIVES_MAX_COUNT];
+ubyte netscan_objectives_count;
+
+struct Objective *game_used_objectives = NULL;
+ushort next_used_objective = 1;
+
+struct Objective *game_objectives = NULL;
+ushort next_objective = 1;
+
+u32 dword_1C8460 = 0;
+u32 dword_1C8464 = 0;
+short draw_objectv_x;
+short draw_objectv_y;
 
 char *objective_text[OBJECTIVE_TEXT_MAX];
 
@@ -260,8 +281,8 @@ int add_used_objective(long mapno, long levelno)
     p_objectv->Type = 0;
     p_objectv->Pri = 0;
     p_objectv->Map = mapno;
-    p_objectv->Level = (levelno - 1) % 15 + 1;
-    p_objectv->Status = 0;
+    p_objectv->Level = LEVEL_NUM_STRAIN(levelno);
+    p_objectv->Status = ObvStatu_UNDECIDED;
 
     return objectv;
 }
@@ -390,13 +411,20 @@ TbBool objective_target_is_any_thing(struct Objective *p_objectv)
 
 void draw_objective_group_whole_on_engine_scene(ushort group)
 {
-    short thing;
     struct Thing *p_thing;
+    ThingIdx thing;
+    short i;
     ubyte colk;
 
+    assert(group < PEOPLE_GROUPS_LIMIT);
     colk = dword_1C8460 & 7;
-    for (thing = same_type_head[256 + group]; thing != 0; thing = p_thing->LinkSameGroup)
+    thing = same_type_head[256 + group];
+    for (i = 0; thing > 0; thing = p_thing->LinkSameGroup, i++)
     {
+        if (i >= THINGS_LIMIT) {
+            LOGERR("Infinite loop in same group things list");
+            break;
+        }
         p_thing = &things[thing];
         draw_objective_point(draw_objectv_x - 10, draw_objectv_y, thing, 0, colour_lookup[colk]);
     }
@@ -404,15 +432,22 @@ void draw_objective_group_whole_on_engine_scene(ushort group)
 
 void draw_objective_group_non_flag2_on_engine_scene(ushort group)
 {
-    short thing;
     struct Thing *p_thing;
+    ThingIdx thing;
+    short i;
     ubyte colk;
 
+    assert(group < PEOPLE_GROUPS_LIMIT);
     colk = dword_1C8460 & 7;
-    for (thing = same_type_head[256 + group]; thing != 0; thing = p_thing->LinkSameGroup)
+    thing = same_type_head[256 + group];
+    for (i = 0; thing > 0; thing = p_thing->LinkSameGroup, i++)
     {
+        if (i >= THINGS_LIMIT) {
+            LOGERR("Infinite loop in same group things list");
+            break;
+        }
         p_thing = &things[thing];
-        if ((p_thing->Flag & TngF_Unkn0002) == 0) {
+        if ((p_thing->Flag & TngF_Destroyed) == 0) {
             draw_objective_point(draw_objectv_x - 10, draw_objectv_y, thing, 0, colour_lookup[colk]);
         }
     }
@@ -420,13 +455,20 @@ void draw_objective_group_non_flag2_on_engine_scene(ushort group)
 
 void draw_objective_group_non_pers_on_engine_scene(ushort group)
 {
-    short thing;
     struct Thing *p_thing;
+    ThingIdx thing;
+    short i;
     ubyte colk;
 
+    assert(group < PEOPLE_GROUPS_LIMIT);
     colk = dword_1C8460 & 7;
-    for (thing = same_type_head[256 + group]; thing != 0; thing = p_thing->LinkSameGroup)
+    thing = same_type_head[256 + group];
+    for (i = 0; thing > 0; thing = p_thing->LinkSameGroup, i++)
     {
+        if (i >= THINGS_LIMIT) {
+            LOGERR("Infinite loop in same group things list");
+            break;
+        }
         p_thing = &things[thing];
         if ((p_thing->Flag & TngF_Persuaded) == 0) {
             draw_objective_point(draw_objectv_x - 10, draw_objectv_y, thing, 0, colour_lookup[colk]);
@@ -436,19 +478,26 @@ void draw_objective_group_non_pers_on_engine_scene(ushort group)
 
 void draw_objective_group_not_own_by_plyr_on_engine_scene(ushort group, ushort plyr)
 {
-    short plyagent, plygroup;
-    short thing;
     struct Thing *p_thing;
+    short plyagent, plygroup;
+    ThingIdx thing;
+    short i;
     ubyte colk;
 
+    assert(group < PEOPLE_GROUPS_LIMIT);
     colk = dword_1C8460 & 7;
     plyagent = players[plyr].DirectControl[0];
     plygroup = things[plyagent].U.UPerson.Group;
-    for (thing = same_type_head[256 + group]; thing != 0; thing = p_thing->LinkSameGroup)
+    thing = same_type_head[256 + group];
+    for (i = 0; thing > 0; thing = p_thing->LinkSameGroup, i++)
     {
+        if (i >= THINGS_LIMIT) {
+            LOGERR("Infinite loop in same group things list");
+            break;
+        }
         p_thing = &things[thing];
         if (((p_thing->Flag & TngF_Persuaded) == 0) || things[p_thing->Owner].U.UPerson.Group != plygroup) {
-            if ((p_thing->Flag & TngF_Unkn0002) == 0)
+            if ((p_thing->Flag & TngF_Destroyed) == 0)
                 draw_objective_point(draw_objectv_x - 10, draw_objectv_y, thing, 0, colour_lookup[colk]);
         }
     }
@@ -456,16 +505,23 @@ void draw_objective_group_not_own_by_plyr_on_engine_scene(ushort group, ushort p
 
 void draw_objective_group_not_own_by_pers_on_engine_scene(ushort group, short owntng)
 {
-    short thing;
     struct Thing *p_thing;
+    ThingIdx thing;
+    short i;
     ubyte colk;
 
+    assert(group < PEOPLE_GROUPS_LIMIT);
     colk = dword_1C8460 & 7;
-    for (thing = same_type_head[256 + group]; thing != 0; thing = p_thing->LinkSameGroup)
+    thing = same_type_head[256 + group];
+    for (i = 0; thing > 0; thing = p_thing->LinkSameGroup, i++)
     {
+        if (i >= THINGS_LIMIT) {
+            LOGERR("Infinite loop in same group things list");
+            break;
+        }
         p_thing = &things[thing];
         if (((p_thing->Flag & TngF_Persuaded) == 0) && (p_thing->Owner != owntng)) {
-            if ((p_thing->Flag & TngF_Unkn0002) == 0)
+            if ((p_thing->Flag & TngF_Destroyed) == 0)
                 draw_objective_point(draw_objectv_x - 10, draw_objectv_y, thing, 0, colour_lookup[colk]);
         }
     }
@@ -474,7 +530,8 @@ void draw_objective_group_not_own_by_pers_on_engine_scene(ushort group, short ow
 void draw_objective_dirctly_on_engine_scene(ushort objectv)
 {
     struct Objective *p_objectv;
-    short thing, group;
+    ThingIdx thing;
+    short group;
     ubyte colk;
 
     p_objectv = &game_used_objectives[objectv];
@@ -535,8 +592,9 @@ void draw_objective_dirctly_on_engine_scene(ushort objectv)
     case GAME_OBJ_MEM_G_ARRIVES:
     case GAME_OBJ_ALL_G_ARRIVES:
         // Arrival place
-        func_711F4(p_objectv->X, p_objectv->Y, p_objectv->Z, p_objectv->Radius << 6, colour_lookup[2]);
-        unkn_draw_transformed_point(draw_objectv_x - 10, draw_objectv_y,
+        enlist_hud_draw_mapcoord_flat_circle(p_objectv->X, p_objectv->Y, p_objectv->Z,
+          p_objectv->Radius << 6, 0, 1, colour_lookup[ColLU_RED]);
+        draw_mapcoord_to_scrcoord_line(draw_objectv_x - 10, draw_objectv_y,
           p_objectv->X, p_objectv->Y, p_objectv->Z, colour_lookup[colk]);
         break;
     case GAME_OBJ_P_ARRIVES:
@@ -546,8 +604,9 @@ void draw_objective_dirctly_on_engine_scene(ushort objectv)
         thing = p_objectv->Thing;
         draw_objective_point(draw_objectv_x - 10, draw_objectv_y, thing, 0, colour_lookup[colk]);
         // Arrival place
-        func_711F4(p_objectv->X, p_objectv->Y, p_objectv->Z, p_objectv->Radius << 6, colour_lookup[2]);
-        unkn_draw_transformed_point(draw_objectv_x - 10, draw_objectv_y,
+        enlist_hud_draw_mapcoord_flat_circle(p_objectv->X, p_objectv->Y, p_objectv->Z,
+          p_objectv->Radius << 6, 0, 1, colour_lookup[ColLU_RED]);
+        draw_mapcoord_to_scrcoord_line(draw_objectv_x - 10, draw_objectv_y,
           p_objectv->X, p_objectv->Y, p_objectv->Z, colour_lookup[colk]);
         break;
     case GAME_OBJ_PERSUADE_P:
@@ -557,33 +616,8 @@ void draw_objective_dirctly_on_engine_scene(ushort objectv)
     }
 }
 
-/** Prepares objective text. Can also draw objective data and additional info directly on 3D scene.
- */
 void draw_objective(ushort objectv, ubyte flag)
 {
-#if 0
-    struct Objective *p_objectv;
-    ushort bkpType;
-    // workaround due to scanner not understanding new objectives
-    p_objectv = &game_used_objectives[objectv];
-    bkpType = p_objectv->Type;
-    switch (bkpType)
-    {
-    case GAME_OBJ_MEM_G_USE_V:
-        p_objectv->Type = GAME_OBJ_ALL_G_USE_V;
-        break;
-    case GAME_OBJ_V_ARRIVES:
-    case GAME_OBJ_ITEM_ARRIVES:
-        p_objectv->Type = GAME_OBJ_P_ARRIVES;
-        break;
-    case GAME_OBJ_DESTROY_V:
-        p_objectv->Type = GAME_OBJ_P_DEAD;
-        break;
-    }
-    asm volatile ("call ASM_draw_objective\n"
-        : : "a" (objectv), "d" (flag));
-    p_objectv->Type = bkpType;
-#else
     struct Objective *p_objectv;
     struct ObjectiveDef *p_odef;
     ubyte colk;
@@ -606,12 +640,12 @@ void draw_objective(ushort objectv, ubyte flag)
     if (!byte_1C844F)
     {
         if ((p_objectv->Flags & GObjF_HIDDEN) != 0)
-            scroll_text = "-";
+            scrollinfo_text = "-";
         else if (p_objectv->ObjText != 0) {
             assert(p_objectv->ObjText < OBJECTIVE_TEXT_MAX);
-            scroll_text = objective_text[p_objectv->ObjText];
+            scrollinfo_text = objective_text[p_objectv->ObjText];
         } else {
-            scroll_text = p_odef->DefText;
+            scrollinfo_text = p_odef->DefText;
         }
         ++dword_1C8464;
     }
@@ -621,14 +655,14 @@ void draw_objective(ushort objectv, ubyte flag)
         short group;
 
         group = p_objectv->Thing;
-        if (group >= PEOPLE_GROUPS_COUNT) group = 0;
+        if (group >= PEOPLE_GROUPS_LIMIT) group = 0;
         sprintf(locstr, "[%d] %20s t %d id %d", group_actions[group].Alive,
           p_odef->CmdName, p_objectv->Thing, p_objectv->UniqueID);
         if (gameturn & 4)
             colk = dword_1C8460 & 7;
         else
             colk = 1;
-        draw_text(2 * draw_objectv_x, 2 * draw_objectv_y, locstr, colour_lookup[colk]);
+        draw_simple_text(draw_objectv_x, draw_objectv_y, locstr, colour_lookup[colk]);
     }
 
     if (byte_1C844F) {
@@ -636,43 +670,30 @@ void draw_objective(ushort objectv, ubyte flag)
     }
     draw_objectv_y += 8;
     dword_1C8460++;
-#endif
 }
 
-TbBool thing_arrived_at_obj(short thing, struct Objective *p_objectv)
+TbBool screen_objective_text_set_failed(void)
 {
-#if 0
-    ubyte ret;
-    asm volatile ("call ASM_thing_arrived_at_obj\n"
-        : "=r" (ret) : "a" (thing), "d" (p_objectv));
-    return ret;
-#endif
+    if (ingame.fld_unkCB5 > 0) {
+        scrollinfo_text = objective_text[ingame.fld_unkCB5];
+        return true;
+    }
+    return false;
+}
+
+/** Crude version of thing_arrived_at_objectv(), deprecated.
+ */
+TbBool thing_arrived_at_obj(ThingIdx thing, struct Objective *p_objectv)
+{
     return thing_is_within_circle(thing, p_objectv->X, p_objectv->Z, p_objectv->Radius << 6);
 }
 
-TbBool thing_is_destroyed(short thing)
-{
-    struct Thing *p_thing;
-    p_thing = &things[thing];
-    return ((p_thing->Flag & TngF_Unkn0002) != 0);
-}
-
-TbBool person_is_dead(short thing)
-{
-    struct Thing *p_thing;
-
-    if (thing <= 0)
-        return false;
-
-    p_thing = &things[thing];
-
-    if (p_thing->Type != TT_PERSON)
-        return false;
-
-    return (p_thing->State == PerSt_DEAD);
-}
-
-TbBool thing_arrived_at_objectv(short thing, struct Objective *p_objectv)
+/** Returns whether given thing has arrived at given objective position.
+ *
+ * @param thing Thing index (of any type) to to check.
+ * @param p_objectv Pointer to the objective which XYZ coords and radius will be checked.
+ */
+TbBool thing_arrived_at_objectv(ThingIdx thing, struct Objective *p_objectv)
 {
     if (thing == 0)
         return false;
@@ -681,7 +702,13 @@ TbBool thing_arrived_at_objectv(short thing, struct Objective *p_objectv)
     return thing_is_within_circle(thing, p_objectv->X, p_objectv->Z, p_objectv->Radius << 6);
 }
 
-TbBool item_arrived_at_objectv(short thing, ushort weapon, struct Objective *p_objectv)
+/** Returns whether given item (which may be weapon) has arrived at given objective position.
+ *
+ * @param thing Thing index for the item to check.
+ * @param wtype Weapon type, in case it was picked up and therfore is no longer at expected Thing index.
+ * @param p_objectv Pointer to the objective which XYZ coords and radius will be checked.
+ */
+TbBool item_arrived_at_objectv(ThingIdx thing, WeaponType wtype, struct Objective *p_objectv)
 {
     struct SimpleThing *p_sthing;
 
@@ -692,15 +719,19 @@ TbBool item_arrived_at_objectv(short thing, ushort weapon, struct Objective *p_o
 
     if ((p_sthing->Type == SmTT_DROPPED_ITEM) || (p_sthing->Type == SmTT_CARRIED_ITEM))
     {
-        if (!thing_is_destroyed(thing))
+        // Make sure the dropped thing exists, and was not reused for a different dropped item
+        if (!thing_is_destroyed(thing) && (p_sthing->U.UWeapon.WeaponType == wtype))
+            // Note that having two identical items in game (ie. two same weapons) could lead to
+            // the 2nd one accidentally dropping into thing slot from the first, and locking out
+            // this objective; make sure there is only one such item on a level to avoid that
             return thing_is_within_circle(thing, p_objectv->X, p_objectv->Z, p_objectv->Radius << 6);
     }
     // If the target is no longer a correct thing, then it is now either carried weapon or
     // a different dropped weapon (dropping it created another thing)
-    thing = find_dropped_weapon_within_circle(p_objectv->X, p_objectv->Z, p_objectv->Radius << 6, weapon);
+    thing = find_dropped_weapon_within_circle(p_objectv->X, p_objectv->Z, p_objectv->Radius << 6, wtype);
     if (thing != 0)
         return true;
-    thing = find_person_carrying_weapon_within_circle(p_objectv->X, p_objectv->Z, p_objectv->Radius << 6, weapon);
+    thing = find_person_carrying_weapon_within_circle(p_objectv->X, p_objectv->Z, p_objectv->Radius << 6, wtype);
     return (thing != 0);
 }
 
@@ -714,7 +745,7 @@ TbBool item_arrived_at_objectv(short thing, ushort weapon, struct Objective *p_o
  * exact same weapon instance, but that should not matter in most practical
  * uses of the objective.
  */
-TbBool item_is_carried_by_player(short thing, ushort weapon, ushort plyr)
+TbBool item_is_carried_by_player(ThingIdx thing, WeaponType wtype, ushort plyr)
 {
     struct SimpleThing *p_sthing;
     short plyagent, plygroup;
@@ -729,7 +760,7 @@ TbBool item_is_carried_by_player(short thing, ushort weapon, ushort plyr)
     p_player = &players[plyr];
 
     if ((p_sthing->Type == SmTT_DROPPED_ITEM) &&
-      (p_sthing->U.UWeapon.WeaponType == weapon))
+      (p_sthing->U.UWeapon.WeaponType == wtype))
         return false;
 
     plyagent = p_player->DirectControl[0];
@@ -741,162 +772,182 @@ TbBool item_is_carried_by_player(short thing, ushort weapon, ushort plyr)
         return (p_person->U.UPerson.Group == plygroup);
     }
 
-    for (i = 0; i < 4; i++)
+    for (i = 0; i < AGENTS_SQUAD_MAX_COUNT; i++)
     {
         struct Thing *p_agent;
+
         p_agent = p_player->MyAgent[i];
-        if (p_agent == NULL) continue;
-        if (person_carries_weapon(p_agent, weapon))
+        if (p_agent->Type != TT_PERSON) continue;
+        if (person_carries_weapon(p_agent, wtype))
             return true;
     }
     return false;
 }
 
-ubyte all_group_arrived(ushort group, short x, short y, short z, int radius)
+ubyte group_not_seen(ushort group)
+{
+    ubyte ret;
+    asm volatile (
+      "call ASM_group_not_seen\n"
+        : "=r" (ret) : "a" (group));
+    return ret;
+}
+
+TbBool thing_arrived_at_obj_radius(ThingIdx thing, int x, int y, int z, int radius_sq)
+{
+#if 0
+    ubyte ret;
+    asm volatile (
+      "push %5\n"
+      "call ASM_thing_arrived_at_obj_radius\n"
+        : "=r" (ret) : "a" (thing), "d" (x), "b" (y), "c" (z), "g" (radius_sq));
+    return ret;
+#endif
+    int dist_x, dist_z;
+
+    if (thing >= 0)
+    {
+        struct Thing *p_thing;
+        p_thing = &things[thing];
+        dist_x = (p_thing->X >> 8) - x;
+        dist_z = (p_thing->Z >> 8) - z;
+    }
+    else
+    {
+        struct SimpleThing *p_sthing;
+        p_sthing = &sthings[thing];
+        dist_x = (p_sthing->X >> 8) - x;
+        dist_z = (p_sthing->Z >> 8) - z;
+    }
+    return dist_x * dist_x + dist_z * dist_z < radius_sq;
+}
+
+TbBool thing_arrived_at_obj_square2(ThingIdx thing, int x1, int z1, int x2, int z2)
+{
+    short cor_x, cor_z;
+
+    get_thing_position_mapcoords(&cor_x, NULL, &cor_z, thing);
+
+    if ((cor_x > x1) && (cor_x < x2))
+    {
+        if ((cor_z > z1) && (cor_z < z2))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+ubyte all_group_arrived_square(ushort group, short x, short z, short x2, int z2)
 {
     ubyte ret;
     asm volatile (
       "push %5\n"
-      "call ASM_all_group_arrived\n"
-        : "=r" (ret) : "a" (group), "d" (x), "b" (y), "c" (z), "g" (radius));
+      "call ASM_all_group_arrived_square\n"
+        : "=r" (ret) : "a" (group), "d" (x), "b" (z), "c" (x2), "g" (z2));
     return ret;
 }
 
-TbBool all_group_persuaded(ushort group)
+ubyte mem_group_arrived_square2(struct Thing *p_person, ushort group, short x, short z,
+  int x2, int z2, int count)
 {
-    short thing;
-    struct Thing *p_thing;
+    ubyte ret;
+    // Pushed through a register holding them: a "g" operand may be placed
+    // relative to the stack pointer, which each push moves.
+    int stkargs[3];
 
-    thing = same_type_head[256 + group];
-    for (; thing > 0; thing = p_thing->LinkSameGroup)
+    stkargs[0] = (int)(intptr_t)x2;
+    stkargs[1] = (int)(intptr_t)z2;
+    stkargs[2] = (int)(intptr_t)count;
+
+    asm volatile (
+      "push 8(%5)\n"
+      "push 4(%5)\n"
+      "push 0(%5)\n"
+      "call ASM_mem_group_arrived_square2\n"
+        : "=r" (ret)
+        : "a" (p_person), "d" (group), "b" (x), "c" (z), "S" (stkargs)
+        : "cc", "memory");
+    return ret;
+}
+
+ubyte mem_group_arrived(ushort group, short cor_x, short cor_y, short cor_z,
+  int radius, int count)
+{
+#if 0
+    ubyte ret;
+    // Pushed through a register holding them: a "g" operand may be placed
+    // relative to the stack pointer, which each push moves.
+    int stkargs[2];
+
+    stkargs[0] = (int)(intptr_t)radius;
+    stkargs[1] = (int)(intptr_t)count;
+
+    asm volatile (
+      "push 4(%5)\n"
+      "push 0(%5)\n"
+      "call ASM_mem_group_arrived\n"
+        : "=r" (ret)
+        : "a" (group), "d" (cor_x), "b" (cor_y), "c" (cor_z), "S" (stkargs)
+        : "cc", "memory");
+    return ret;
+#endif
+    struct Thing *p_thing;
+    ThingIdx thing;
+    PlayerIdx plyr;
+    int m;
+    int dist_sq;
+
+    m = 0;
+    dist_sq = (radius * radius) << 12;
+    if (!in_network_game || (group != 0))
     {
+        for (thing = same_type_head[256 + group]; thing != 0; thing = p_thing->LinkSameGroup)
+        {
             p_thing = &things[thing];
-            if (!person_is_persuaded(thing) || ((things[p_thing->Owner].Flag & 0x2000) == 0))
-            {
-                if (!person_is_dead(thing) && !thing_is_destroyed(thing))
-                    return false;
+            if (ingame.DisplayMode == DpM_UNKN_3B) {
+                enlist_hud_draw_line_from_thing_to_mapcoord(thing,
+                  cor_x, cor_y, cor_z, 0, ColLU_WHITE);
             }
+            if ((p_thing->Flag & TngF_Destroyed) == 0) {
+                if (thing_arrived_at_obj_radius(thing, cor_x, cor_y, cor_z, dist_sq)) {
+                    m++;
+                }
+            }
+            if (m >= count)
+                return 1;
+        }
+        return 0;
     }
-    return true;
-}
 
-TbBool group_all_killed_or_persuaded_by_player(ushort group, ushort plyr)
-{
-    short thing;
-    struct Thing *p_thing;
-
-    thing = same_type_head[256 + group];
-    for (; thing > 0; thing = p_thing->LinkSameGroup)
+    for (plyr = 0; plyr < 8; plyr++)
     {
-        p_thing = &things[thing];
-        if (!person_is_persuaded_by_player(thing, plyr))
+        ushort grp;
+
+        if ( ((1 << plyr) & ingame.InNetGame_UNSURE) == 0)
+            continue;
+        grp = level_def.PlayableGroups[plyr];
+
+        for (thing = same_type_head[256 + grp]; thing != 0; thing = p_thing->LinkSameGroup)
         {
-            if (!person_is_dead(thing) && !thing_is_destroyed(thing))
-                return false;
+            p_thing = &things[thing];
+            if (ingame.DisplayMode == DpM_UNKN_3B) {
+                enlist_hud_draw_line_from_thing_to_mapcoord(thing,
+                  cor_x, cor_y, cor_z, 0, ColLU_WHITE);
+            }
+            if ((p_thing->Flag & TngF_Destroyed) == 0) {
+                if (thing_arrived_at_obj_radius(thing, cor_x, cor_y, cor_z, dist_sq)) {
+                    m++;
+                }
+            }
+            if (m >= count)
+                return 1;
         }
     }
-    return true;
+    return 0;
 }
 
-TbBool group_all_survivors_in_vehicle(ushort group, short vehicle)
-{
-    short thing;
-    struct Thing *p_thing;
-
-    thing = same_type_head[256 + group];
-    for (; thing > 0; thing = p_thing->LinkSameGroup)
-    {
-        p_thing = &things[thing];
-        if (p_thing->U.UPerson.Vehicle != vehicle)
-        {
-            if (!person_is_dead(thing) && !thing_is_destroyed(thing))
-                return false;
-        }
-    }
-    return false;
-}
-
-TbBool group_members_in_vehicle(ushort group, short vehicle, ushort amount)
-{
-    short thing;
-    struct Thing *p_thing;
-    ushort n;
-
-    n = 0;
-    thing = same_type_head[256 + group];
-    for (; thing > 0; thing = p_thing->LinkSameGroup)
-    {
-        p_thing = &things[thing];
-        if (!person_is_dead(thing) && !thing_is_destroyed(thing))
-        {
-            if (p_thing->U.UPerson.Vehicle == vehicle)
-                n++;
-        }
-        if (n >= amount)
-            return true;
-    }
-    return false;
-}
-
-TbBool group_members_persuaded_by_player(ushort group, ushort plyr, ushort amount)
-{
-    short thing;
-    struct Thing *p_thing;
-    ushort n;
-
-    n = 0;
-    thing = same_type_head[256 + group];
-    for (; thing > 0; thing = p_thing->LinkSameGroup)
-    {
-        p_thing = &things[thing];
-        if (person_is_persuaded_by_player(thing, plyr))
-            n++;
-        if (n >= amount)
-            return true;
-    }
-    return false;
-}
-
-TbBool group_members_killed_or_persuaded_by_player(ushort group, ushort plyr, ushort amount)
-{
-    short thing;
-    struct Thing *p_thing;
-    ushort n;
-
-    n = 0;
-    thing = same_type_head[256 + group];
-    for (; thing > 0; thing = p_thing->LinkSameGroup)
-    {
-        p_thing = &things[thing];
-        if (person_is_persuaded_by_player(thing, plyr) ||
-          person_is_dead(thing) || thing_is_destroyed(thing))
-            n++;
-        if (n >= amount)
-            return true;
-    }
-    return false;
-}
-
-TbBool group_members_dead(ushort group, ushort amount)
-{
-    short thing;
-    struct Thing *p_thing;
-    ushort n;
-
-    n = 0;
-    thing = same_type_head[256 + group];
-    for (; thing > 0; thing = p_thing->LinkSameGroup)
-    {
-        p_thing = &things[thing];
-        if (person_is_dead(thing) || thing_is_destroyed(thing))
-            n++;
-        if (n >= amount)
-            return true;
-    }
-    return false;
-}
-
-TbBool person_is_near_thing(short neartng, short thing, ushort radius)
+TbBool person_is_near_thing(ThingIdx neartng, ThingIdx thing, ushort radius)
 {
     short nearX, nearZ;
 
@@ -921,72 +972,22 @@ TbBool person_is_near_thing(short neartng, short thing, ushort radius)
 }
 
 
-TbBool group_members_near_thing(short neartng, ushort group, ushort amount, ushort radius)
-{
-    short thing;
-    struct Thing *p_thing;
-    ushort n;
-    short nearX, nearZ;
-
-    if ((neartng == 0) || person_is_dead(neartng) || thing_is_destroyed(neartng))
-        return false;
-    if (neartng <= 0) {
-        struct SimpleThing *p_neartng;
-        p_neartng = &sthings[neartng];
-        nearX = p_neartng->X;
-        nearZ = p_neartng->Z;
-    } else {
-        struct Thing *p_neartng;
-        p_neartng = &things[neartng];
-        nearX = p_neartng->X;
-        nearZ = p_neartng->Z;
-    }
-
-    n = 0;
-    thing = same_type_head[256 + group];
-    for (; thing > 0; thing = p_thing->LinkSameGroup)
-    {
-        p_thing = &things[thing];
-        if (!person_is_dead(thing) && !thing_is_destroyed(thing))
-        {
-            if (thing_is_within_circle(thing, nearX, nearZ, radius << 6))
-                n++;
-        }
-        if (n >= amount)
-            return true;
-    }
-    return false;
-}
-
-TbBool group_members_persuaded_by_person(ushort group, short owntng, ushort amount)
-{
-    short thing;
-    struct Thing *p_thing;
-    ushort n;
-
-    n = 0;
-    thing = same_type_head[256 + group];
-    for (; thing > 0; thing = p_thing->LinkSameGroup)
-    {
-        p_thing = &things[thing];
-        if (person_is_persuaded_by_person(thing, owntng))
-            n++;
-        if (n >= amount)
-            return true;
-    }
-    return false;
-}
-
 TbBool group_members_arrived_at_objectv(ushort group, struct Objective *p_objectv, ushort amount)
 {
-    short thing;
     struct Thing *p_thing;
+    ThingIdx thing;
+    short i;
     ushort n;
 
+    assert(group < PEOPLE_GROUPS_LIMIT);
     n = 0;
     thing = same_type_head[256 + group];
-    for (; thing > 0; thing = p_thing->LinkSameGroup)
+    for (i = 0; thing > 0; thing = p_thing->LinkSameGroup, i++)
     {
+        if (i >= THINGS_LIMIT) {
+            LOGERR("Infinite loop in same group things list");
+            break;
+        }
         p_thing = &things[thing];
         if (thing_arrived_at_obj(thing, p_objectv))
             n++;
@@ -998,18 +999,12 @@ TbBool group_members_arrived_at_objectv(ushort group, struct Objective *p_object
 
 ubyte fix_single_objective(struct Objective *p_objectv, ushort objectv, const char *srctext)
 {
-#if 0
-    ubyte ret;
-    asm volatile ("call ASM_fix_single_objective\n"
-        : "=r" (ret) : "a" (p_objectv));
-    return ret;
-#else
     struct ObjectiveDef *p_odef;
-    short thing;
+    ThingIdx thing;
     ubyte ret;
 
     // Skip objectives for other levels
-    if (p_objectv->Level != (current_level - 1) % 15 + 1)
+    if (p_objectv->Level != LEVEL_NUM_STRAIN(current_level))
         return 1;
     if (p_objectv->Map != current_map)
         return 1;
@@ -1019,7 +1014,7 @@ ubyte fix_single_objective(struct Objective *p_objectv, ushort objectv, const ch
     ret = 1;
     if ((p_odef->Flags & ObDF_ReqGroup) != 0)
     {
-        if ((p_objectv->Thing < 0) || (p_objectv->Thing >= PEOPLE_GROUPS_COUNT)) {
+        if ((p_objectv->Thing < 0) || (p_objectv->Thing >= PEOPLE_GROUPS_LIMIT)) {
             LOGERR("Objv%s%d = %s Group(%hd) out of range",
               srctext, objectv, p_odef->CmdName, p_objectv->Thing);
             p_objectv->Thing = 0;
@@ -1114,7 +1109,7 @@ ubyte fix_single_objective(struct Objective *p_objectv, ushort objectv, const ch
             thing = search_things_for_index(p_objectv->Thing);
             // One mistake which often happens on the map, is that we have static
             // lights assigned as items. This should be really fixed in the level,
-            // but there is also no reson not to try fix it here.
+            // but there is also no reason not to try fix it here.
             if (thing < 0) {
                 struct SimpleThing *p_sthing = &sthings[thing];
                 if (p_sthing->Type == SmTT_STATIC) {
@@ -1210,7 +1205,7 @@ ubyte fix_single_objective(struct Objective *p_objectv, ushort objectv, const ch
 
     if ((p_odef->Flags & ObDF_ReqSecGrp) != 0)
     {
-        if ((p_objectv->Arg2 <= 0) || (p_objectv->Arg2 >= PEOPLE_GROUPS_COUNT)) {
+        if ((p_objectv->Arg2 <= 0) || (p_objectv->Arg2 >= PEOPLE_GROUPS_LIMIT)) {
             LOGERR("Objv%s%d = %s SecGroup(%d) out of range",
               srctext, objectv, p_odef->CmdName, (int)p_objectv->Arg2);
             p_objectv->Arg2 = 0;
@@ -1247,44 +1242,48 @@ ubyte fix_single_objective(struct Objective *p_objectv, ushort objectv, const ch
     }
 
     return ret;
-#endif
 }
 
 short test_objective(ushort objectv, ushort show_obj)
 {
-#if 0
-    short ret;
-    asm volatile ("call ASM_test_objective\n"
-        : "=r" (ret) : "a" (objectv), "d" (show_obj));
-    return ret;
-#else
     struct Objective *p_objectv;
-    short thing, thing2, group, amount;
+    ThingIdx thing, thing2;
+    short group, amount;
 
     if (show_obj == 2)
     {
         p_objectv = &game_used_lvl_objectives[objectv];
-        if (((ingame.UserFlags & UsrF_Cheats) != 0) &&
-          (p_objectv->Status != 2) && lbKeyOn[KC_SLASH] && (lbShift & KMod_ALT))
+        if ((ingame.UserFlags & UsrF_Cheats) != 0)
         {
-            lbKeyOn[KC_SLASH] = 0;
-            p_objectv->Status = 2;
+            if (is_key_pressed(KC_SLASH, KMod_ALT))
+            {
+                if (p_objectv->Status != ObvStatu_FAILED)
+                {
+                    clear_key_pressed(KC_SLASH);
+                    p_objectv->Status = ObvStatu_FAILED;
+                }
+            }
         }
-        if (p_objectv->Status == 2)
+        if (p_objectv->Status == ObvStatu_FAILED)
             return 1;
-        if (p_objectv->Status == 1)
+        if (p_objectv->Status == ObvStatu_COMPLETED)
             return 0;
     }
     else
     {
         p_objectv = &game_used_objectives[objectv];
-        if (((ingame.UserFlags & UsrF_Cheats) != 0) &&
-          (p_objectv->Status != 2) && lbKeyOn[KC_SLASH] && (lbShift & KMod_ALT))
+        if ((ingame.UserFlags & UsrF_Cheats) != 0)
         {
-            lbKeyOn[KC_SLASH] = 0;
-            p_objectv->Status = 2;
+            if (is_key_pressed(KC_SLASH, KMod_ALT))
+            {
+                if (p_objectv->Status != ObvStatu_FAILED)
+                {
+                    clear_key_pressed(KC_SLASH);
+                    p_objectv->Status = ObvStatu_FAILED;
+                }
+            }
         }
-        if (p_objectv->Status == 2)
+        if (p_objectv->Status == ObvStatu_FAILED)
             return 1;
         if (((p_objectv->Flags & GObjF_HIDDEN) == 0) && word_1C8446 && (show_obj != 0))
             draw_objective(objectv, 0);
@@ -1292,7 +1291,7 @@ short test_objective(ushort objectv, ushort show_obj)
             add_signal_to_scanner(p_objectv, 0);
         if ((p_objectv->Flags & GObjF_CANT_MET) != 0)
             return 1;
-        if (p_objectv->Status == 1)
+        if (p_objectv->Status == ObvStatu_COMPLETED)
             return -1;
     }
 
@@ -1301,23 +1300,23 @@ short test_objective(ushort objectv, ushort show_obj)
     case GAME_OBJ_P_DEAD:
         thing = p_objectv->Thing;
         if (person_is_dead(thing) || thing_is_destroyed(thing)) {
-            p_objectv->Status = 2;
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
-        p_objectv->Status = 0;
+        p_objectv->Status = ObvStatu_UNDECIDED;
         break;
     case GAME_OBJ_ALL_G_DEAD:
         group = p_objectv->Thing;
         if (group_actions[group].Alive <= 0) {
-            p_objectv->Status = 2;
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
     case GAME_OBJ_MEM_G_DEAD:
         group = p_objectv->Thing;
         amount = p_objectv->Arg2;
-        if (group_members_dead(group, amount)) {
-            p_objectv->Status = 2;
+        if (group_has_no_less_members_dead(group, amount)) {
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
@@ -1325,7 +1324,7 @@ short test_objective(ushort objectv, ushort show_obj)
         thing = p_objectv->Thing;
         thing2 = p_objectv->Y;
         if (person_is_near_thing(thing, thing2, p_objectv->Radius)) {
-            p_objectv->Status = 2;
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
@@ -1333,15 +1332,15 @@ short test_objective(ushort objectv, ushort show_obj)
         thing = p_objectv->Thing;
         group = p_objectv->Arg2;
         amount = p_objectv->Y;
-        if (group_members_near_thing(thing, group, amount, p_objectv->Radius)) {
-            p_objectv->Status = 2;
+        if (group_has_no_less_members_near_thing(thing, group, amount, p_objectv->Radius)) {
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
     case GAME_OBJ_P_ARRIVES:
         thing = p_objectv->Thing;
         if (thing_arrived_at_objectv(thing, p_objectv)) {
-            p_objectv->Status = 2;
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
@@ -1349,36 +1348,36 @@ short test_objective(ushort objectv, ushort show_obj)
         group = p_objectv->Thing;
         amount = p_objectv->Arg2;
         if (group_members_arrived_at_objectv(group, p_objectv, amount)) {
-            p_objectv->Status = 2;
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
     case GAME_OBJ_ALL_G_ARRIVES:
         group = p_objectv->Thing;
         if (all_group_arrived(group, p_objectv->X, p_objectv->Y, p_objectv->Z, p_objectv->Radius)) {
-            p_objectv->Status = 2;
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
     case GAME_OBJ_PERSUADE_P:
         thing = p_objectv->Thing;
         if (person_is_persuaded_by_player(thing, local_player_no)) {
-            p_objectv->Status = 2;
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
     case GAME_OBJ_PERSUADE_MEM_G:
         group = p_objectv->Thing;
         amount = p_objectv->Arg2;
-        if (group_members_persuaded_by_player(group, local_player_no, amount)) {
-            p_objectv->Status = 2;
+        if (group_has_no_less_members_persuaded_by_player(group, local_player_no, amount)) {
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
     case GAME_OBJ_PERSUADE_ALL_G:
         group = p_objectv->Thing;
         if (all_group_persuaded(group)) {
-            p_objectv->Status = 2;
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
@@ -1386,14 +1385,14 @@ short test_objective(ushort objectv, ushort show_obj)
         p_objectv->Radius++;
         if (p_objectv->Radius >= p_objectv->Thing) {
             p_objectv->Radius = 0;
-            p_objectv->Status = 2;
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
     case GAME_OBJ_GET_ITEM:
         thing = p_objectv->Thing;
         if (item_is_carried_by_player(thing, p_objectv->Arg2, local_player_no)) {
-            p_objectv->Status = 2;
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
@@ -1404,7 +1403,7 @@ short test_objective(ushort objectv, ushort show_obj)
     case GAME_OBJ_DESTROY_OBJECT:
         thing = p_objectv->Thing;
         if (thing_is_destroyed(thing)) {
-            p_objectv->Status = 2;
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
@@ -1412,22 +1411,22 @@ short test_objective(ushort objectv, ushort show_obj)
         thing = p_objectv->Thing;
         if (person_is_persuaded_by_player(thing, local_player_no) ||
           person_is_dead(thing) || thing_is_destroyed(thing)) {
-            p_objectv->Status = 2;
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
     case GAME_OBJ_PKILL_MEM_G:
         group = p_objectv->Thing;
         amount = p_objectv->Arg2;
-        if (group_members_killed_or_persuaded_by_player(group, local_player_no, amount)) {
-            p_objectv->Status = 2;
+        if (group_has_no_less_members_killed_or_persuaded_by_player(group, local_player_no, amount)) {
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
     case GAME_OBJ_PKILL_ALL_G:
         group = p_objectv->Thing;
-        if (group_all_killed_or_persuaded_by_player(group, local_player_no)) {
-            p_objectv->Status = 2;
+        if (group_has_all_killed_or_persuaded_by_player(group, local_player_no)) {
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
@@ -1437,24 +1436,28 @@ short test_objective(ushort objectv, ushort show_obj)
         break;
     case GAME_OBJ_PROTECT_G:
         group = p_objectv->Thing;
-        if (group_members_dead(group, 1)) {
-            p_objectv->Status = 1;
+        if (group_has_no_less_members_dead(group, 1)) {
+            p_objectv->Status = ObvStatu_COMPLETED;
             return 0;
         }
         break;
     case GAME_OBJ_P_PERS_G:
         group = p_objectv->Thing;
         thing = p_objectv->Arg2;
-        if (group_members_persuaded_by_person(group, thing, 1)) {
-            p_objectv->Status = 2;
+        if (group_has_no_less_members_persuaded_by_person(group, thing, 1)) {
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
     case GAME_OBJ_ALL_G_USE_V:
         group = p_objectv->Arg2;
         thing = p_objectv->Thing;
-        if (group_all_survivors_in_vehicle(group, thing)) {
-            p_objectv->Status = 2;
+        if (vehicle_is_destroyed(thing)) {
+            p_objectv->Status = ObvStatu_COMPLETED;
+            return 0;
+        }
+        if (group_has_all_survivors_in_vehicle(group, thing)) {
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
@@ -1462,36 +1465,44 @@ short test_objective(ushort objectv, ushort show_obj)
         group = p_objectv->Arg2;
         thing = p_objectv->Thing;
         amount = p_objectv->Y;
-        if (group_members_in_vehicle(group, thing, amount)) {
-            p_objectv->Status = 2;
+        if (vehicle_is_destroyed(thing)) {
+            p_objectv->Status = ObvStatu_COMPLETED;
+            return 0;
+        }
+        if (group_has_no_less_members_in_vehicle(group, thing, amount)) {
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
     case GAME_OBJ_V_ARRIVES:
         thing = p_objectv->Thing;
+        if (vehicle_is_destroyed(thing)) {
+            p_objectv->Status = ObvStatu_COMPLETED;
+            return 0;
+        }
         if (thing_arrived_at_objectv(thing, p_objectv)) {
-            p_objectv->Status = 2;
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
     case GAME_OBJ_DESTROY_V:
         thing = p_objectv->Thing;
-        if (thing_is_destroyed(thing)) {
-            p_objectv->Status = 2;
+        if (vehicle_is_destroyed(thing)) {
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
-        p_objectv->Status = 0;
+        // TODO why would we set it to 0 here? And why unconditionally?
+        p_objectv->Status = ObvStatu_UNDECIDED;
         break;
     case GAME_OBJ_ITEM_ARRIVES:
         thing = p_objectv->Thing;
         if (item_arrived_at_objectv(thing, p_objectv->Arg2, p_objectv)) {
-            p_objectv->Status = 2;
+            p_objectv->Status = ObvStatu_FAILED;
             return 1;
         }
         break;
     }
     return 0;
-#endif
 }
 
 void snprint_objective(char *buf, ulong buflen, struct Objective *p_objectv, ushort objectv)
@@ -1647,7 +1658,7 @@ void snprint_netscan_objctv(char *buf, ulong buflen, struct NetscanObjective *p_
         nparams++;
     }
 
-    for (i = 0; i < 5; i++)
+    for (i = 0; i < NETSCAN_OBJECTIVE_POINTS; i++)
     {
         if ((p_nsobv->X[i]|p_nsobv->Z[i]) != 0) {
             if (nparams) { sprintf(s, ", "); s += strlen(s); }
@@ -1810,25 +1821,31 @@ int tokenize_script_func(char *olist[], char *obuf, const char *ibuf, long ibufl
     return li;
 }
 
-int parse_objective_param(struct Objective *p_objectv, const char *buf, long buflen)
+int parse_objective_param(struct Objective *p_objectv, ulong *fields_used, const char *buf, long buflen)
 {
+    struct ObjectiveDef *p_odef;
     char *toklist[PARAM_TOKEN_MAX];
     char tokbuf[128];
+    ulong stored_field;
     int i;
 
+    p_odef = &objectv_defs[p_objectv->Type];
     LbMemorySet(toklist, 0, sizeof(toklist));
     i = tokenize_script_func(toklist, tokbuf, buf, buflen);
     if (i < 2) {
-        LOGWARN("Objective parameter consists of less than 2 tokens.");
+        LOGWARN("Objective \"%s\" parameter consists of less than 2 tokens.",
+          p_odef->CmdName);
         return -1;
     }
     if (i >= PARAM_TOKEN_MAX) {
         // If too many params, tokbuf[] have been overwritten partially
-        LOGWARN("Objective parameter consists of too many (%d) tokens.", i);
+        LOGWARN("Objective \"%s\" parameter consists of too many (%d) tokens.",
+          p_odef->CmdName, i);
         return -1;
     }
 
     // Finding parameter number
+    stored_field = 0;
     i = 0;
     while (1)
     {
@@ -1848,51 +1865,132 @@ int parse_objective_param(struct Objective *p_objectv, const char *buf, long buf
     switch (i)
     {
     case ObvP_Group:
+        if ((p_odef->Flags & ObDF_ReqGroup) == 0) {
+            LOGWARN("Objective \"%s\" parameter \"%s\" is not expected.",
+              p_odef->CmdName, toklist[0]);
+        }
+        stored_field = (1 << ObvP_Thing);
+        p_objectv->Thing = atoi(toklist[1]);
+        break;
     case ObvP_Count:
+        if ((p_odef->Flags & ObDF_ReqCount) == 0) {
+            LOGWARN("Objective \"%s\" parameter \"%s\" is not expected.",
+              p_odef->CmdName, toklist[0]);
+        }
+        stored_field = (1 << ObvP_Thing);
         p_objectv->Thing = atoi(toklist[1]);
         break;
     case ObvP_Thing:
         if (toklist[2] == NULL)  {
-            LOGWARN("Objective parameter \"%s\" requires 2 numbers, got less.", toklist[0]);
+            LOGWARN("Objective \"%s\" parameter \"%s\" requires 2 numbers, got less.",
+              p_odef->CmdName, toklist[0]);
             return -1;
         }
+        if ((p_odef->Flags & (ObDF_ReqThing|ObDF_ReqPerson
+          |ObDF_ReqVehicle|ObDF_ReqItem|ObDF_ReqObject)) == 0) {
+            LOGWARN("Objective \"%s\" parameter \"%s\" is not expected.",
+              p_odef->CmdName, toklist[0]);
+        }
+        stored_field = (1 << ObvP_Thing) | (1 << ObvP_UniqueID);
         p_objectv->Thing = atoi(toklist[1]);
         p_objectv->UniqueID = atoi(toklist[2]);
         break;
-    case ObvP_UniqueID:
+    case ObvP_UniqueID: // deprecated / testing only
+        LOGWARN("Objective \"%s\" parameter \"%s\" has no need of being used directly.",
+          p_odef->CmdName, toklist[0]);
+        stored_field = (1 << ObvP_UniqueID);
         p_objectv->UniqueID = atoi(toklist[1]);
         break;
     case ObvP_Coord:
         if (toklist[3] == NULL)  {
-            LOGWARN("Objective parameter \"%s\" requires 3 numbers, got less.", toklist[0]);
+            LOGWARN("Objective \"%s\" parameter \"%s\" requires 3 numbers, got less.",
+              p_odef->CmdName, toklist[0]);
             return -1;
         }
+        if ((p_odef->Flags & ObDF_ReqCoord) == 0) {
+            LOGWARN("Objective \"%s\" parameter \"%s\" is not expected.",
+              p_odef->CmdName, toklist[0]);
+        }
+        stored_field = (1 << ObvP_Coord);
         p_objectv->X = atoi(toklist[1]);
-        p_objectv->Y = atoi(toklist[2]);
+        if ((p_odef->Flags & (ObDF_ReqAmountY|ObDF_ReqThingY)) == 0) {
+            stored_field |= (1 << ObvP_CoordY);
+            p_objectv->Y = atoi(toklist[2]);
+        }
         p_objectv->Z = atoi(toklist[3]);
         break;
     case ObvP_Radius:
+        if ((p_odef->Flags & ObDF_ReqRadius) == 0) {
+            LOGWARN("Objective \"%s\" parameter \"%s\" is not expected.",
+              p_odef->CmdName, toklist[0]);
+        }
+        stored_field = (1 << ObvP_Radius);
         p_objectv->Radius = atoi(toklist[1]);
         break;
     case ObvP_Amount:
+        if ((p_odef->Flags & ObDF_ReqAmount) != 0) {
+            stored_field = (1 << ObvP_Arg2);
+            p_objectv->Arg2 = atoi(toklist[1]);
+        }
+        else if ((p_odef->Flags & ObDF_ReqAmountY) != 0) {
+            stored_field = (1 << ObvP_CoordY);
+            p_objectv->Y = atoi(toklist[1]);
+        }
+        else {
+            LOGWARN("Objective \"%s\" parameter \"%s\" is not expected; ignored.",
+              p_odef->CmdName, toklist[0]);
+        }
+        break;
     case ObvP_SecGroup:
+        if ((p_odef->Flags & ObDF_ReqSecGrp) == 0) {
+            LOGWARN("Objective \"%s\" parameter \"%s\" is not expected.",
+              p_odef->CmdName, toklist[0]);
+        }
+        stored_field = (1 << ObvP_Arg2);
+        p_objectv->Arg2 = atoi(toklist[1]);
+        break;
     case ObvP_SecThing:
-    case ObvP_Arg2:
+        if ((p_odef->Flags & ObDF_ReqSecTng) != 0) {
+            stored_field = (1 << ObvP_Arg2);
+            p_objectv->Arg2 = atoi(toklist[1]);
+        }
+        else if ((p_odef->Flags & ObDF_ReqThingY) != 0) {
+            stored_field = (1 << ObvP_CoordY);
+            p_objectv->Y = atoi(toklist[1]);
+        }
+        else {
+            LOGWARN("Objective \"%s\" parameter \"%s\" is not expected; ignored.",
+              p_odef->CmdName, toklist[0]);
+        }
+        break;
+    case ObvP_Arg2: // deprecated / testing only
+        LOGWARN("Objective \"%s\" parameter \"%s\" has no need of being used directly.",
+          p_odef->CmdName, toklist[0]);
+        stored_field = (1 << ObvP_Arg2);
         p_objectv->Arg2 = atoi(toklist[1]);
         break;
     case ObvP_StringIndex:
+        stored_field = (1 << ObvP_StringIndex);
         p_objectv->StringIndex = atoi(toklist[1]);
         break;
     case ObvP_Flags:
+        stored_field = (1 << ObvP_Flags);
         p_objectv->Flags = atoi(toklist[1]);
         break;
     case ObvP_TextId:
+        stored_field = (1 << ObvP_TextId);
         p_objectv->ObjText = atoi(toklist[1]);
         break;
     default:
-        LOGWARN("Objective parameter name \"%s\" not recognized.", toklist[0]);
+        LOGWARN("Objective \"%s\" parameter name \"%s\" not recognized.",
+          p_odef->CmdName, toklist[0]);
         return -1;
     }
+    if ((*fields_used & stored_field) != 0) {
+        LOGWARN("Objective \"%s\" parameter \"%s\" overwites previously set param, used=0x%x.",
+          p_odef->CmdName, toklist[0], (*fields_used & stored_field));
+    }
+    *fields_used |= stored_field;
     return 1;
 }
 
@@ -1902,6 +2000,7 @@ int parse_next_used_objective(const char *buf, long buflen, long pri, long mapno
     struct Objective *p_objectv;
     char *toklist[COMMAND_TOKEN_MAX];
     char tokbuf[256];
+    ulong fields_used;
     int i, objectv, nret;
 
     i = tokenize_script_func(toklist, tokbuf, buf, buflen);
@@ -1926,7 +2025,7 @@ int parse_next_used_objective(const char *buf, long buflen, long pri, long mapno
     }
     p_odef = &objectv_defs[i];
     if (p_odef->CmdName == NULL) {
-        LOGWARN("Objective name not recognized.");
+        LOGWARN("Objective name \"%s\" not recognized.", toklist[0]);
         return -1;
     }
     objectv = add_used_objective(mapno, levelno);
@@ -1935,10 +2034,11 @@ int parse_next_used_objective(const char *buf, long buflen, long pri, long mapno
     p_objectv->Pri = pri;
 
     nret = objectv;
+    fields_used = 0;
     for (i = 1; toklist[i] != NULL; i++)
     {
         int ret;
-        ret = parse_objective_param(p_objectv, toklist[i], sizeof(tokbuf) - (toklist[i] - tokbuf) );
+        ret = parse_objective_param(p_objectv, &fields_used, toklist[i], sizeof(tokbuf) - (toklist[i] - tokbuf) );
         if (ret != 1)
             nret = -1;
     }
@@ -2078,14 +2178,14 @@ int load_netscan_objectives_bin(struct NetscanObjective *nsobv_arr, ubyte mapno,
 
 void load_netscan_objectives(ubyte mapno, ubyte level)
 {
-#if 0
-    netscan_objectives_count = load_netscan_objectives_bin(netscan_objectives, mapno, level);
-#else
     struct Mission *p_missi;
     ushort missi;
     int remain;
 
     missi = find_mission_with_map_and_level(mapno, level);
+    if (missi == 0) {
+        LOGERR("Unable to map map and level to mission.");
+    }
     p_missi = &mission_list[missi];
     LbMemoryCopy(netscan_objectives, &mission_netscan_objectives[p_missi->NetscanObvIndex],
       sizeof(struct NetscanObjective) * p_missi->NetscanObvCount);
@@ -2094,7 +2194,6 @@ void load_netscan_objectives(ubyte mapno, ubyte level)
     if (remain > 0)
         LbMemorySet(&netscan_objectives[netscan_objectives_count], '\0',
           sizeof(struct NetscanObjective) * remain);
-#endif
 }
 
 int read_objectives_text(void *data)
@@ -2149,4 +2248,5 @@ TbResult load_objectives_text(void)
     }
     return Lb_SUCCESS;
 }
+
 /******************************************************************************/

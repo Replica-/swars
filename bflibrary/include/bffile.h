@@ -34,10 +34,6 @@
 extern "C" {
 #endif
 
-//TODO change to build system param
-#define LB_FILENAME_TRANSFORM 1
-
-
 /* File system separator. Use when concatenating path; when checking existing
  * path, it is better to try both separators rather than use these defines.
  */
@@ -104,7 +100,7 @@ typedef struct _finddata_t TbFILE_FIND;
 #pragma pack(1)
 
 struct TbFileFind {
-    char Filename[144];
+    char Filename[DISKPATH_SIZE];
     char AlternateFilename[14];
     unsigned long Attributes;
     unsigned long Length;
@@ -125,6 +121,8 @@ typedef struct TbFileFind TbFileFind;
 typedef void (*FileNameTransform)(char *out_fname, const char *inp_fname);
 
 /** Callback to be used for transforming all file names before opening.
+ *
+ * The callback can assume the output buffer to be FILENAME_MAX long.
  */
 extern FileNameTransform lbFileNameTransform;
 
@@ -235,7 +233,22 @@ TbResult LbFileRename(const char *fname_old, const char *fname_new);
 TbResult LbFileDelete(const char *fname);
 
 long LbFileLengthRnc(const char *fname);
+
+/** Opens a file and reads it into given buffer, unpacking RNC if found.
+ *
+ * @param fname File name string
+ * @param buffer Memory buffer for storing the file content
+ * @return Size written into buffer, or -1 on error.
+ */
 long LbFileLoadAt(const char *fname, void *buffer);
+
+/** Creates a new file and writes content of given buffer into it.
+ *
+ * @param fname File name string
+ * @param buffer Memory buffer with the source data
+ * @param len Memory buffer length to be saved
+ * @return Size written to file, or -1 on error.
+ */
 long LbFileSaveAt(const char *fname, const void *buffer, ulong len);
 
 long LbFileStringSearch(TbFileHandle handle, const char *sstr, ubyte *buf,

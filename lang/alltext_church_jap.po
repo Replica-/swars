@@ -1,8 +1,8 @@
 # *****************************************************************************
-#  Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+#  Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 # *****************************************************************************
 #   @file alltext_church_jap.po
-#      Menu text for SW Port translation file
+#      Menu text for SyndWarsFX translation file
 #  @par Purpose:
 #      Contains translation of the national text in the game.
 #  @par Comment:
@@ -18,10 +18,10 @@
 # *****************************************************************************
 msgid ""
 msgstr ""
-"Project-Id-Version: Menu text for SW Port\n"
-"Report-Msgid-Bugs-To: https://github.com/swfans/swars/issues\n"
+"Project-Id-Version: Menu text for SyndWarsFX\n"
+"Report-Msgid-Bugs-To: https://github.com/swfans/syndwarsfx/issues\n"
 "POT-Creation-Date: 2023-09-05 11:30+0200\n"
-"PO-Revision-Date: 2023-12-30 13:51+0100\n"
+"PO-Revision-Date: 2025-12-15 22:02+0100\n"
 "Last-Translator: Mefistotelis <mefistotelis@gmail.com>\n"
 "Language-Team: Syndicate Wars Fans <github.com/swfans>\n"
 "Language: ja_JP\n"
@@ -125,6 +125,7 @@ msgstr "成功を祈る。"
 #: mission.brief.mail21.par6.c4 mission.brief.mail22.par7.c4
 #: mission.brief.mail23.par5.c4 mission.brief.mail24.par5.c4
 #: mission.brief.mail25.par5.c4 mission.brief.mail31.par7.c4
+#: mission.brief.mail32.par4.c4
 msgctxt "mission brief email sender"
 msgid "Virgil"
 msgstr "ヴィルギル"
@@ -158,6 +159,7 @@ msgstr ""
 #: mission.brief.mail21.par10.c1 mission.brief.mail22.par9.c1
 #: mission.brief.mail23.par7.c1 mission.brief.mail24.par7.c1
 #: mission.brief.mail25.par8.c1 mission.brief.mail31.par10.c1
+#: mission.brief.mail32.par6.c1
 msgctxt "mission brief book quote"
 msgid "- The Book of Cataclysm."
 msgstr "－終末の書"
@@ -996,6 +998,7 @@ msgid ""
 "Satellite alert: EuroCorp agent type identkeys detected, tracks unstable"
 msgstr "軌道衛星情報：　ユーロコープのエージェントを確認"
 
+#. This mission name is a reference to one of previous games developed by Bullfrog.
 #: mission.title:44
 msgctxt "mission title"
 msgid "Powermonger"
@@ -2146,8 +2149,11 @@ msgid "Landing Ground: Adelaide IML Link"
 msgstr "潜入地点：　アデレードIMLリンク"
 
 #: mission.brief.mail24.map6.level3:2
+#, fuzzy
+#| msgctxt "mission brief tactical information"
+#| msgid "The compound holding Brother Ix"
 msgctxt "mission brief tactical information"
-msgid "The compound holding Brother Ix"
+msgid "The compound holding Brother IX"
 msgstr "作戦目標：　「ザ・ナイン」"
 
 #: mission.brief.mail24.map6.level3:3
@@ -2319,6 +2325,64 @@ msgstr ""
 #: mission.brief.mail31.map3.level10:6
 msgctxt "mission brief tactical information"
 msgid "Local police have recently escorted armoured cars to the city vault"
+msgstr ""
+
+#: mission.title:110
+msgctxt "mission title"
+msgid "Unrest"
+msgstr ""
+
+#: mission.brief.mail32.par1.h
+msgctxt "mission brief email header"
+msgid "Apostle of the New Epoch."
+msgstr ""
+
+#: mission.brief.mail32.par2.c2
+msgctxt "mission brief email orders"
+msgid ""
+"There is a task you must perform for us. The Unguided are foolish enough to "
+"think they can use our belief against us. Our sources have told us that a "
+"contingent of punks have taken civilians hostage. Your team will be sent in "
+"against them."
+msgstr ""
+
+#: mission.brief.mail32.par3.c5
+msgctxt "mission brief email paragraph"
+msgid ""
+"We have the element of surprise. The Unguided expect us to rescue the "
+"hostages. All you must do is destroy the Unguided causing this irritation. "
+"Do not worry about the public held to ransom. They are not Churchmembers and "
+"mean nothing. Just stop the Unguided in whichever way you choose. Make sure "
+"it is permanent."
+msgstr ""
+
+#: mission.brief.mail32.par5.c1
+msgctxt "mission brief book quote"
+msgid ""
+"When tact is required, use brute force. When force is required, use greater "
+"force. When the greatest force is required, use your head. Surprise is "
+"everything."
+msgstr ""
+
+#: mission.brief.mail32.map10.level2:1
+#, fuzzy
+#| msgctxt "mission brief tactical information"
+#| msgid "Landing Ground: APC destination"
+msgctxt "mission brief tactical information"
+msgid "Landing Ground: Phoenix Temple"
+msgstr "潜入地点：　APC目的地"
+
+#: mission.brief.mail32.map10.level2:2
+#, fuzzy
+#| msgctxt "mission brief tactical information"
+#| msgid "Unguided landing zones"
+msgctxt "mission brief tactical information"
+msgid "Unguided hostage takers"
+msgstr "アンガイデッド侵入地点"
+
+#: mission.brief.mail32.map10.level2:3
+msgctxt "mission brief tactical information"
+msgid "Sanctuary: Phoenix Temple"
 msgstr ""
 
 #: message.win:1

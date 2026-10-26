@@ -2,7 +2,7 @@
 // Bullfrog Engine Emulation Library - for use to remake classic games like
 // Syndicate Wars, Magic Carpet, Genewars or Dungeon Keeper.
 /******************************************************************************/
-/** @file scr_copy.asm
+/** @file scr_copy.c
  *     Implementation of related functions.
  * @par Purpose:
  *     Unknown.
@@ -21,6 +21,8 @@
 #include "bfscreen.h"
 
 void *LbI_XMemCopy(void *dest, void *source, ulong len);
+
+void *LbI_XMemCopyFlip(void *dest, void *source, ulong len);
 
 void *LbI_XMemRectCopy(void *dest, void *source, ulong lineLen,
   ulong width, ulong height);
@@ -48,6 +50,102 @@ void LbScreenCopy(TbPixel *sourceBuf, TbPixel *destBuf, ushort height)
     short shift;
     short h;
 
+    shift = lbDisplay.GraphicsScreenWidth - lbDisplay.GraphicsWindowWidth;
+    // Note that source and destination buffers have different line lengths
+    if ((lbDisplay.DrawFlags & Lb_SPRITE_FLIP_VERTIC) == 0)
+    {
+        if ((lbDisplay.DrawFlags & Lb_SPRITE_FLIP_HORIZ) == 0) {
+            s = sourceBuf;
+            d = destBuf;
+            for (h = height; h > 0; h--)
+            {
+                LbI_XMemCopy(d, s, lbDisplay.GraphicsWindowWidth);
+                s += lbDisplay.GraphicsWindowWidth;
+                d += lbDisplay.GraphicsWindowWidth + shift;
+            }
+        } else {
+            s = sourceBuf;
+            d = destBuf;
+            for (h = height; h > 0; h--)
+            {
+                LbI_XMemCopyFlip(d, s, lbDisplay.GraphicsWindowWidth);
+                s += lbDisplay.GraphicsWindowWidth;
+                d += lbDisplay.GraphicsWindowWidth + shift;
+            }
+        }
+    }
+    else
+    {
+        if ((lbDisplay.DrawFlags & Lb_SPRITE_FLIP_HORIZ) == 0) {
+            s = sourceBuf + (height - 1) * lbDisplay.GraphicsWindowWidth;
+            d = destBuf;
+            for (h = height; h > 0; h--)
+            {
+                LbI_XMemCopy(d, s, lbDisplay.GraphicsWindowWidth);
+                s -= lbDisplay.GraphicsWindowWidth;
+                d += lbDisplay.GraphicsWindowWidth + shift;
+            }
+        } else {
+            s = sourceBuf + (height - 1) * lbDisplay.GraphicsWindowWidth;
+            d = destBuf;
+            for (h = height; h > 0; h--)
+            {
+                LbI_XMemCopyFlip(d, s, lbDisplay.GraphicsWindowWidth);
+                s -= lbDisplay.GraphicsWindowWidth;
+                d += lbDisplay.GraphicsWindowWidth + shift;
+            }
+        }
+    }
+}
+
+/** @internal
+ *  Draw part of sprite line.
+ *
+ * @param buf_out
+ * @param buf_inp
+ * @param buf_len
+ * @param mirror
+ */
+static inline void LbDrawBufferFCRemap(TbPixel **buf_out, const TbPixel *buf_inp,
+        const int buf_len, const TbPixel *cmap)
+{
+    int i;
+
+    for (i = 0; i < buf_len; i++)
+    {
+        **buf_out = cmap[*(const ubyte *)buf_inp];
+        buf_inp++;
+        (*buf_out)++;
+    }
+}
+
+void LbScreenCopyRemap(TbPixel *sourceBuf, TbPixel *destBuf, ushort height,
+  const TbPixel *cmap)
+{
+    ubyte *s;
+    ubyte *d;
+    short shift;
+    short h;
+
+    s = sourceBuf;
+    d = destBuf;
+    shift = lbDisplay.GraphicsScreenWidth - lbDisplay.GraphicsWindowWidth;
+    // Note that source and destination buffers have different line lengths
+    for (h = height; h > 0; h--)
+    {
+        LbDrawBufferFCRemap(&d, s, lbDisplay.GraphicsWindowWidth, cmap);
+        s += lbDisplay.GraphicsWindowWidth;
+        d += shift;
+    }
+}
+
+void LbScreenSave(TbPixel *sourceBuf, TbPixel *destBuf, ushort height)
+{
+    ubyte *s;
+    ubyte *d;
+    short shift;
+    short h;
+
     s = sourceBuf;
     d = destBuf;
     shift = lbDisplay.GraphicsScreenWidth - lbDisplay.GraphicsWindowWidth;
@@ -55,8 +153,8 @@ void LbScreenCopy(TbPixel *sourceBuf, TbPixel *destBuf, ushort height)
     for (h = height; h > 0; h--)
     {
         LbI_XMemCopy(d, s, lbDisplay.GraphicsWindowWidth);
-        s += lbDisplay.GraphicsWindowWidth;
-        d += lbDisplay.GraphicsWindowWidth + shift;
+        s += lbDisplay.GraphicsWindowWidth + shift;
+        d += lbDisplay.GraphicsWindowWidth;
     }
 }
 

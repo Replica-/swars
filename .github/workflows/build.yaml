@@ -14,10 +14,10 @@ on:
 
 jobs:
   ubuntu-gcc:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     name: "Linux Ubuntu"
     container:
-      image: ubuntu:20.04
+      image: ubuntu:22.04
     env:
       DEBIAN_FRONTEND: noninteractive
       TZ: Etc/UTC
@@ -56,9 +56,10 @@ jobs:
           apt install -y \
             gcc-multilib g++-multilib lib32z1 python3 \
             vorbis-tools cdparanoia \
-            libsdl1.2-dev:i386 libopenal-dev:i386 \
+            libsdl2-dev:i386 libopenal-dev:i386 \
             libvorbis-dev:i386 libvorbisfile3:i386 \
             libogg-dev:i386 \
+            libpng-dev:i386 \
             libwildmidi-dev:i386
 
           apt install -y \
@@ -72,13 +73,13 @@ jobs:
 
       - name: Configure
         env:
-          CFLAGS: "-m32"
-          CXXFLAGS: "-m32"
-          LDFLAGS: "-m32"
+          CFLAGS: "-m32 -fno-PIC -fno-PIE"
+          CXXFLAGS: "-m32 -fno-PIC -fno-PIE"
+          LDFLAGS: "-m32 -fno-PIC -fno-PIE"
           PKG_CONFIG_PATH: "/usr/lib/i386-linux-gnu/pkgconfig"
         run: |
           mkdir -p release; cd release
-          ../configure
+          ../configure --prefix="/" --disable-lb-wscreen-control
 
       - name: Build executable
         run: |
@@ -91,13 +92,35 @@ jobs:
           # Get version marking from C header
           PKG_VERSION=$(sed -n 's/^#define[ ]\+PACKAGE_VERSION "\([^"]\+\)"$/\1/p' src/config.h | head -n 1 | tr '.' '_')
           make V=1 DESTDIR=$PWD/pkg install
-          echo "PKG_NAME=swars-$PKG_VERSION-ubuntu-patch" >> $GITHUB_ENV
+          echo "PKG_NAME=syndwarsfx-$PKG_VERSION-ubuntu-patch" >> $GITHUB_ENV
+          echo "TST_NAME=syndwarsfx-$PKG_VERSION-ubuntu-tests" >> $GITHUB_ENV
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PKG_NAME }}
           path: release/pkg/**
+
+      - name: Execute unit tests
+        id: unittests
+        run: |
+          cd release
+          make V=1 clean
+          make V=1 check
+
+      - name: Gather unit tests logs
+        if: ${{ steps.unittests.conclusion != 'skipped' }}
+        run: |
+          cd release
+          tail -n +1 ./bflibrary/test-suite.log $(find ./bflibrary/ -name 'tst_*.log')
+
+      - name: Upload unit tests debug files
+        if: ${{ failure() && steps.unittests.conclusion == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.TST_NAME }}
+          path: |
+            release/bflibrary/**
 
   windows-msys2:
     name: "Windows MSYS2"
@@ -131,10 +154,15 @@ jobs:
               mingw-w64-i686-toolchain
               mingw-w64-i686-autotools
               mingw-w64-i686-libpng
-              mingw-w64-i686-SDL
-              mingw-w64-i686-openal
+              mingw-w64-i686-SDL2
               mingw-w64-i686-libvorbis
               mingw-w64-i686-libogg
+
+      - name: Manual install of extra MSYS2 packages
+        run: |
+          # package no longer supported: mingw-w64-i686-openal
+          pacman -U --noconfirm https://repo.msys2.org/mingw/mingw32/mingw-w64-i686-libmysofa-1.3.4-1-any.pkg.tar.zst
+          pacman -U --noconfirm https://repo.msys2.org/mingw/mingw32/mingw-w64-i686-openal-1.25.2-1-any.pkg.tar.zst
 
       - name: Install python modules
         run: |
@@ -142,23 +170,23 @@ jobs:
 
       - name: Install WildMIDI
         run: |
-          wget https://github.com/Mindwerks/wildmidi/releases/download/wildmidi-0.4.5/wildmidi-0.4.5-win32.zip
-          unzip wildmidi-0.4.5-win32.zip
-          cp wildmidi-0.4.5-win32/*.h /mingw32/include/
-          cp wildmidi-0.4.5-win32/*.a /mingw32/lib/
-          cp wildmidi-0.4.5-win32/*.dll /mingw32/bin/
+          wget https://github.com/Mindwerks/wildmidi/releases/download/wildmidi-0.5.0/wildmidi-0.5.0-windows.zip
+          unzip wildmidi-0.5.0-windows.zip
+          cp wildmidi-0.5.0-windows/include/*.h /mingw32/include/
+          cp wildmidi-0.5.0-windows/x86/*.a /mingw32/lib/
+          cp wildmidi-0.5.0-windows/x86/*.dll /mingw32/bin/
 
       - name: Autoreconf
         run: autoreconf -ivf
 
       - name: Configure
         env:
-          CFLAGS: "-m32"
-          CXXFLAGS: "-m32"
-          LDFLAGS: "-m32"
+          CFLAGS: "-m32 -fno-PIC -fno-PIE"
+          CXXFLAGS: "-m32 -fno-PIC -fno-PIE"
+          LDFLAGS: "-m32 -fno-PIC -fno-PIE"
         run: |
           mkdir -p release; cd release
-          ../configure
+          ../configure --prefix="/" --disable-lb-wscreen-control
 
       - name: Build executable
         run: |
@@ -171,14 +199,36 @@ jobs:
           # Get version marking from C header
           PKG_VERSION=$(sed -n 's/^#define[ ]\+PACKAGE_VERSION "\([^"]\+\)"$/\1/p' src/config.h | head -n 1 | tr '.' '_')
           make V=1 DESTDIR=$PWD/pkg install
-          echo "PKG_NAME=swars-$PKG_VERSION-win32-patch" >> $GITHUB_ENV
-          echo "INSTLR_NAME=swars-$PKG_VERSION-win32-setup" >> $GITHUB_ENV
+          echo "PKG_NAME=syndwarsfx-$PKG_VERSION-win32-patch" >> $GITHUB_ENV
+          echo "TST_NAME=syndwarsfx-$PKG_VERSION-win32-tests" >> $GITHUB_ENV
+          echo "INSTLR_NAME=syndwarsfx-$PKG_VERSION-win32-setup" >> $GITHUB_ENV
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PKG_NAME }}
           path: release/pkg/**
+
+      - name: Execute unit tests
+        id: unittests
+        run: |
+          cd release
+          make V=1 clean
+          make V=1 check
+
+      - name: Gather unit tests logs
+        if: ${{ steps.unittests.conclusion != 'skipped' }}
+        run: |
+          cd release
+          tail -n +1 ./bflibrary/test-suite.log $(find ./bflibrary/ -name 'tst_*.log')
+
+      - name: Upload unit tests debug files
+        if: ${{ failure() && steps.unittests.conclusion == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.TST_NAME }}
+          path: |
+            release/bflibrary/**
 
       - name: Prepare for downloading from MEGA - wget
         env:
@@ -195,14 +245,46 @@ jobs:
           "${{ runner.workspace }}\dl\MEGAcmdSetup.exe" /S
           echo %LOCALAPPDATA%\MEGAcmd>> %GITHUB_PATH%
 
+      - name: Prepare NSIS - get and install
+        uses: repolevedavaj/install-nsis@v1.2.0
+        with:
+          nsis-version: '3.12'
+
+      - name: Download required NSIS plugins - wget
+        env:
+          DL_WORKSPACE: ${{ runner.workspace }}\dl
+        working-directory: ${{ runner.workspace }}
+        run: |
+          mkdir -p "${DL_WORKSPACE}"
+          wget -O "${DL_WORKSPACE}\\Inetc.zip" --retry-connrefused --retry-on-http-error=403,503,504  --waitretry=20 --auth-no-challenge --referer="https://nsis.sourceforge.io/Inetc_plug-in" "https://nsis.sourceforge.io/mediawiki/images/c/c9/Inetc.zip"
+          wget -O "${DL_WORKSPACE}\\NSISunzU.zip" --retry-connrefused --retry-on-http-error=403,503,504 --waitretry=20 --auth-no-challenge --referer="https://nsis.sourceforge.io/Nsisunz_plug-in" "https://nsis.sourceforge.io/mediawiki/images/5/5a/NSISunzU.zip"
+          wget -O "${DL_WORKSPACE}\\Md5dll.zip" --retry-connrefused --retry-on-http-error=403,503,504 --waitretry=20 --auth-no-challenge --referer="https://nsis.sourceforge.io/MD5_plugin" "https://nsis.sourceforge.io/mediawiki/images/d/d7/Md5dll.zip"
+
       - name: Download installer utils
         # Instead of the usual actions/download-artifact, we are downloading from Mega
         env:
           DL_WORKSPACE: ${{ github.workspace }}
-        # We are calling batch script here, so cmd is needed as shell
-        shell: cmd
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 3
+          max_attempts: 3
+          # We are calling batch script here, so cmd is needed as shell
+          shell: cmd
+          command: |
+            mega-get "https://mega.nz/file/YYVGzByB#MmtXTAsuvFQ6TW6T62NxU2YCEHUVp_I_Z30miqjXtv4" "${{ env.DL_WORKSPACE }}"
+
+      - name: NSIS plugins unpack
+        env:
+          DL_WORKSPACE: ${{ runner.workspace }}\dl
         run: |
-          mega-get "https://mega.nz/file/YYVGzByB#MmtXTAsuvFQ6TW6T62NxU2YCEHUVp_I_Z30miqjXtv4" "${{ env.DL_WORKSPACE }}"
+          mkdir -p release/nsis-plugins/x86-unicode
+          mkdir -p release/nsis-plugins/x86-ansi
+          cd release
+          unzip -uj -q "${DL_WORKSPACE}\\Inetc.zip" "Plugins/x86-unicode/INetC.dll" -d nsis-plugins/x86-unicode
+          unzip -uj -q "${DL_WORKSPACE}\\NSISunzU.zip" "NSISunzU/Plugin unicode/nsisunz.dll" -d nsis-plugins/x86-unicode
+          unzip -uj -q "${DL_WORKSPACE}\\Md5dll.zip" "md5dll/UNICODE/md5dll.dll" -d nsis-plugins/x86-unicode
+          unzip -uj -q "${DL_WORKSPACE}\\Inetc.zip" "Plugins/x86-ansi/INetC.dll" -d nsis-plugins/x86-ansi
+          unzip -uj -q "${DL_WORKSPACE}\\Md5dll.zip" "md5dll/ANSI/md5dll.dll" -d nsis-plugins/x86-ansi
 
       - name: Installer utils unpack
         run: |
@@ -212,13 +294,14 @@ jobs:
           rm ../util-nsis.zip
 
       - name: Build installer
-        uses: joncloud/makensis-action@v4
+        uses: joncloud/makensis-action@v4.1
         with:
-          script-file: "release/res/swars-setup.nsi"
+          additional-plugin-paths: "release/nsis-plugins"
+          script-file: "release/util/syndwarsfx-setup.nsi"
           arguments: "-V3"
 
       - name: Upload installer
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.INSTLR_NAME }}
-          path: release/res/swars-setup.exe
+          path: release/util/syndwarsfx-setup.exe

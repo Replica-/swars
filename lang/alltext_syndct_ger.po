@@ -1,8 +1,8 @@
 # *****************************************************************************
-#  Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+#  Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 # *****************************************************************************
 #   @file alltext_syndct_ger.po
-#      Menu text for SW Port translation file
+#      Menu text for SyndWarsFX translation file
 #  @par Purpose:
 #      Contains translation of the national text in the game.
 #  @par Comment:
@@ -18,10 +18,10 @@
 # *****************************************************************************
 msgid ""
 msgstr ""
-"Project-Id-Version: Menu text for SW Port\n"
-"Report-Msgid-Bugs-To: https://github.com/swfans/swars/issues\n"
+"Project-Id-Version: Menu text for SyndWarsFX\n"
+"Report-Msgid-Bugs-To: https://github.com/swfans/syndwarsfx/issues\n"
 "POT-Creation-Date: 2023-09-05 11:32+0200\n"
-"PO-Revision-Date: 2023-12-30 12:02+0100\n"
+"PO-Revision-Date: 2025-12-15 22:56+0100\n"
 "Last-Translator: Mefistotelis <mefistotelis@gmail.com>\n"
 "Language-Team: Syndicate Wars Fans <github.com/swfans>\n"
 "Language: de_DE\n"
@@ -689,7 +689,7 @@ msgstr ""
 "sein werden. Das gibt uns dafür die Gelegenheit, den bewaffneten Konvoi zu "
 "entführen, bevor er seinen Bestimmungsort erreicht."
 
-#: mission.brief.mail5.map9.level1:1 mission.brief.mail16.map40.level1:2
+#: mission.brief.mail5.map9.level1:1
 msgctxt "mission brief tactical information"
 msgid "Dropsite: Singapore IML Link"
 msgstr "Absprunggebiet: Singapur, IML-Station"
@@ -714,7 +714,7 @@ msgctxt "mission brief tactical information"
 msgid "Target vehicle"
 msgstr "Zielfahrzeug"
 
-#: mission.brief.mail5.map9.level1:6
+#: mission.brief.mail5.map9.level1:6 mission.brief.mail16.map40.level1:2
 msgctxt "mission brief tactical information"
 msgid "Rendezvous point"
 msgstr "Treffpunkt"
@@ -1286,7 +1286,7 @@ msgid ""
 "London AI has been psych-profiling the message content of an increasing "
 "number of subversive broadcasts from Ko-Paull Vissick. His seminal message, "
 "sent on an open channel, clearly incited the Unguided to rise up, not only "
-"againstthe Syndicate, but also the Church of the New Epoch. Unfortunately, "
+"against the Syndicate, but also the Church of the New Epoch. Unfortunately, "
 "Vissick's invective was littered with prophecies of doom, indicating that "
 "his current state of mind is far from stable. He claimed, for example, that "
 "the Church of the New Epoch would bring about nothing less than Armageddon. "

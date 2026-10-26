@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port - open-source reimplementation of SW.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file game_data.c
  *     Memory managing routines.
@@ -19,33 +19,53 @@
 #include "game_data.h"
 
 #include <assert.h>
-#include "globals.h"
-#include "bflib_basics.h"
 #include "bffile.h"
 #include "bfdir.h"
 #include "bffnuniq.h"
+#include "bfmemut.h"
 #include "bfstrut.h"
+
 #include "campaign.h"
 #include "command.h"
+#include "engincam.h"
+#include "engindrwlstx.h"
+#include "enginfloor.h"
 #include "enginlights.h"
 #include "enginpriobjs.h"
 #include "enginpritxtr.h"
+#include "enginprops.h"
 #include "enginsngobjs.h"
 #include "enginsngtxtr.h"
-#include "lvobjctv.h"
+#include "engintxtrmap.h"
 #include "bigmap.h"
+#include "game_options.h"
 #include "game.h"
+#include "lvfiles.h"
+#include "lvobjctv.h"
+#include "lvwalk.h"
 #include "swlog.h"
-#include "unix.h"
+#include "thing.h"
+#include "tngcolisn.h"
+#include "osunix.h"
+#include "oswindws.h"
 #include "vehtraffic.h"
-#include "windows.h"
 #include "dos.h"
 
 static char data_path_user[DISKPATH_SIZE] = "";
 static char data_path_hdd[DISKPATH_SIZE] = "";
-static char game_dir_savegame[] = "qdata/savegame";
-static char game_dir_screenshots[] = "qdata/screenshots";
-static char game_file_text_dat[] = "data/text.dat";
+static char game_dir_language[64] = "language/eng";
+char cd_drive[52];
+char language_3str[4] = "eng";
+
+void *scratch_malloc_mem = NULL;
+u32 scratch_malloc_size = 0;
+
+void *engine_mem_alloc_ptr = NULL;
+u32 engine_mem_alloc_size = 5900000;
+
+ubyte *game_user_heap = NULL;
+
+ubyte *spare_map_buffer = NULL;
 
 /******************************************************************************/
 
@@ -53,8 +73,8 @@ MemSystem mem_game[] = {
   { "my_big_map",		(void **)&game_my_big_map,		18u, 16513, 0, 0, 0 },
   { "textures",			(void **)&game_textures,		18u, 4512, 0, 0, 0 },
   { "face_textures",	(void **)&game_face_textures,	16u, 4000, 0, 0, 0 },
-  { "object_points",	(void **)&game_object_points,    10u, 20000, 0, 0, 0 },
-  { "object_faces",		(void **)&game_object_faces,	32u, 15000, 0, 0, 0 },
+  { "object_points",	(void **)&game_object_points,	10u, 20000, 0, 0, 0 },
+  { "object_faces3",	(void **)&game_object_faces3,	32u, 15000, 0, 0, 0 },
   { "objects",			(void **)&game_objects,			36u, 2000, 0, 0, 0 },
   { "quick_lights",		(void **)&game_quick_lights,	6u, 64000, 0, 0, 0 },
   { "full_lights",		(void **)&game_full_lights,		32u, 4000, 0, 0, 0 },
@@ -67,15 +87,15 @@ MemSystem mem_game[] = {
   { "col_vects",		(void **)&game_col_vects,		14u, 13000, 0, 0, 0 },
   { "walk_headers",		(void **)&game_walk_headers,	4u, 3000, 0, 0, 0 },
   { "walk_items",		(void **)&game_walk_items,		2u, 18000, 0, 0, 0 },
-  { "col_columns",		(void **)&game_col_columns,		16u, 6000, 0, 0, 0 },
+  { "col_columns",		(void **)&game_col_columns,		16u, 8000, 0, 0, 0 },
   { "prim4_textures",	(void **)&prim4_textures,		18u, 1200, 0, 0, 0 },
   { "prim_face_textures", (void **)&prim_face_textures,	16u, 500, 0, 0, 0 },
   { "prim_object_points", (void **)&prim_object_points,	10u, 2000, 0, 0, 0 },
-  { "prim_object_faces", (void **)&prim_object_faces,	32u, 800, 0, 0, 0 },
+  { "prim_object_faces3", (void **)&prim_object_faces3,	32u, 800, 0, 0, 0 },
   { "prim_object_faces4", (void **)&prim_object_faces4,	40u, 1300, 0, 0, 0 },
   { "prim_objects",		(void **)&prim_objects,			36u, 60, 0, 0, 0 },
-  { "special_object_faces", (void **)&game_special_object_faces, 32u, 1400, 0, 0, 0 },
-  { "special_object_faces4",(void **)&game_special_object_faces4, 40u, 1400, 0, 0, 0 },
+  { "special_obj_faces3", (void **)&game_special_obj_faces3, 32u, 1400, 0, 0, 0 },
+  { "special_obj_faces4", (void **)&game_special_obj_faces4, 40u, 1400, 0, 0, 0 },
   { "floor_tiles",		(void **)&game_floor_tiles,		39u, 18000, 0, 0, 0 },
   { "used_objectives",	(void **)&game_used_objectives,	32u, 1200, 0, 0, 0 },
   { "objectives",		(void **)&game_objectives,		32u, 1200, 0, 0, 0 },
@@ -92,21 +112,48 @@ MemSystem mem_game[] = {
   { NULL,				NULL,							0u, 0, 0, 0, 0 }
 };
 
+PathInfo game_dirs[] = {
+  {"data",		1},
+  {"qdata",		0},
+  {"maps",		1},
+  {"levels",	1},
+  {"intro",		1},
+  {"sound",		1},
+  {"data/equip",1},
+  {"qdata/equip",0},
+  {game_dir_language,	0},
+  {"conf",		0},
+  {"qdata/savegame",	0},
+  {"qdata/screenshots",0},
+  {NULL,		0},
+};
+
+void SetupBflibScreenshotsDir(void)
+{
+    PathInfo *pinfo;
+
+    pinfo = &game_dirs[DirPlace_Scrnshots];
+    LbSetImagesDirectory(pinfo->directory);
+}
+
 const char *
 GetDirectoryUser(void)
 {
     if (data_path_user[0] == '\0')
     {
+        PathInfo *pinfo;
+
         if (!sys_get_user_path(data_path_user, sizeof(data_path_user)))
         {
             snprintf(data_path_user, sizeof(data_path_user), ".");
         }
-        LOGDBG("Dir for user files '%s'", data_path_user);
-        //char path_create[DISKPATH_SIZE];
-        //snprintf(path_create, sizeof(path_create), "%s/%s", data_path_user, game_dir_savegame);
-        LbDirectoryMake(game_dir_savegame, true);
-        //snprintf(path_create, sizeof(path_create), "%s/%s", data_path_user, game_dir_screenshots);
-        LbDirectoryMake(game_dir_screenshots, true);
+        LOGSYNC_F("Dir for user files '%s'", data_path_user);
+
+        pinfo = &game_dirs[DirPlace_Savegame];
+        LbDirectoryMake(pinfo->directory, true);
+
+        pinfo = &game_dirs[DirPlace_Scrnshots];
+        LbDirectoryMake(pinfo->directory, true);
     }
     return data_path_user;
 }
@@ -120,7 +167,7 @@ GetDirectoryHdd(void)
         {
             snprintf(data_path_hdd, sizeof(data_path_hdd), "%s", ".");
         }
-        LOGDBG("Dir with HDD data '%s'",data_path_hdd);
+        LOGSYNC_F("Dir with HDD data '%s'", data_path_hdd);
     }
     return data_path_hdd;
 }
@@ -156,7 +203,7 @@ GetDirPlaceFromPath(const char *fname)
         }
     }
     // Second pass - match starting part of the path
-    for (dir_place = 0; dir_place < (int)(sizeof(game_dirs)/sizeof(game_dirs[0])); dir_place++)
+    for (dir_place = sizeof(game_dirs)/sizeof(game_dirs[0]) - 1; dir_place >= 0; dir_place--)
     {
         PathInfo *pinfo;
         pinfo = &game_dirs[dir_place];
@@ -172,7 +219,7 @@ GetDirPlaceFromPath(const char *fname)
 }
 
 static void
-replace_backslash_with_fs_separator(char *path)
+replace_fs_separator_to_native(char *path)
 {
     size_t n;
     for (n = 0; path[n] != '\0'; n++)
@@ -186,8 +233,7 @@ replace_backslash_with_fs_separator(char *path)
     }
 }
 
-void
-SyndFileNameTransform(char *out_fname, const char *inp_fname)
+void SyndFileNameTransform(char *out_fname, const char *inp_fname)
 {
     char fs_fname[DISKPATH_SIZE];
     int dir_place;
@@ -195,10 +241,7 @@ SyndFileNameTransform(char *out_fname, const char *inp_fname)
 
     // Figure out whether the base folder should be data folder, user folder or CD
     dir_place = GetDirPlaceFromPath(inp_fname);
-    if ( (dir_place == DirPlace_QData) && (strncasecmp(inp_fname, game_dir_savegame, strlen(game_dir_savegame)) == 0) ) {
-        base_dir = GetDirectoryUser();
-    }
-    else if ( (dir_place == DirPlace_QData) && (strncasecmp(inp_fname, game_dir_screenshots, strlen(game_dir_screenshots)) == 0) ) {
+    if ((dir_place == DirPlace_Savegame) || (dir_place == DirPlace_Scrnshots)) {
         base_dir = GetDirectoryUser();
     }
     else if (dir_place != DirPlace_None) {
@@ -211,60 +254,77 @@ SyndFileNameTransform(char *out_fname, const char *inp_fname)
         base_dir = GetDirectoryHdd();
     }
 
-    // Special file name switch for using language-specific files from CD
-    if ( (dir_place == DirPlace_Data) && game_dirs[dir_place].use_cd &&
-      (strcasecmp(inp_fname, game_file_text_dat) == 0) ) {
-        snprintf(fs_fname, DISKPATH_SIZE, "language/%s/text.dat", language_3str);
-    } else {
-        strncpy(fs_fname, inp_fname, DISKPATH_SIZE);
-    }
+    strncpy(fs_fname, inp_fname, DISKPATH_SIZE-1);
+    fs_fname[DISKPATH_SIZE-1] = '\0';
     // Switch the input folder separators to proper ones for current os
-    replace_backslash_with_fs_separator(fs_fname);
+    replace_fs_separator_to_native(fs_fname);
     // Add base path only if the input one is not absolute
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
     if (fs_fname[0] == FS_SEP || (strlen(fs_fname) >= 2 && fs_fname[1] == ':')) {
-        snprintf (out_fname, DISKPATH_SIZE, "%s", fs_fname);
+        snprintf(out_fname, FILENAME_MAX-1, "%s", fs_fname);
     } else {
-        snprintf(out_fname, DISKPATH_SIZE, "%s" FS_SEP_STR "%s", base_dir, fs_fname);
+        snprintf(out_fname, FILENAME_MAX-1, "%s" FS_SEP_STR "%s", base_dir, fs_fname);
     }
+#pragma GCC diagnostic pop
 }
 
-void
-setup_file_names(void)
+void setup_file_names(void)
 {
+#if LB_FILENAME_TRANSFORM
     lbFileNameTransform = SyndFileNameTransform;
+#endif
+    SetupBflibScreenshotsDir();
     // This fills the path variable; for user, it also creates the folder
     GetDirectoryHdd();
     GetDirectoryUser();
 }
 
+void setup_language_file_names(void)
+{
+    snprintf(game_dir_language, sizeof(game_dir_language), "language/%s", language_3str);
+}
+
 int get_highest_used_packet_record_no(int campgn, int missi)
 {
     char fname[DISKPATH_SIZE];
-    sprintf(fname, "%s/rc%02dm%03d.s*", game_dir_savegame, campgn, missi);
-    return get_highest_file_no(fname, strrchr(fname, '*') - fname, game_dir_savegame);
+    PathInfo *pinfo;
+
+    pinfo = &game_dirs[DirPlace_Savegame];
+    sprintf(fname, "%s/rc%02dm%03d.s*", pinfo->directory, campgn, missi);
+    return get_highest_file_no(fname, strrchr(fname, '*') - fname, pinfo->directory);
 }
 
 void get_packet_record_fname(char *fname, int campgn, int missi, int file_no)
 {
-    sprintf(fname, "%s/rc%02dm%03d.s%02d", game_dir_savegame, campgn, missi, file_no);
+    PathInfo *pinfo;
+
+    pinfo = &game_dirs[DirPlace_Savegame];
+    sprintf(fname, "%s/rc%02dm%03d.s%02d", pinfo->directory, campgn, missi, file_no);
 }
 
 void get_user_settings_fname(char *fname, const char *name)
 {
-    if (strlen(name) == 0)
+    PathInfo *pinfo;
+
+    pinfo = &game_dirs[DirPlace_Savegame];
+    if (name[0] == '\0')
         name = "default";
-    sprintf(fname, "%s/%.8s.ini", game_dir_savegame, name);
-    LbStringToLower(fname+strlen(game_dir_savegame));
+    sprintf(fname, "%s/%.8s.ini", pinfo->directory, name);
+    LbStringToLower(fname+strlen(pinfo->directory));
 }
 
 void get_saved_game_fname(char *fname, ushort slot)
 {
+    PathInfo *pinfo;
+
+    pinfo = &game_dirs[DirPlace_Savegame];
     if (slot == 0)
-        sprintf(fname, "%s/synwarsm.sav", game_dir_savegame);
+        sprintf(fname, "%s/synwarsm.sav", pinfo->directory);
     else if (slot < 9)
-        sprintf(fname, "%s/synwars%d.sav", game_dir_savegame, (int)slot - 1);
+        sprintf(fname, "%s/synwars%d.sav", pinfo->directory, (int)slot - 1);
     else
-        sprintf(fname, "%s/swars%03d.sav", game_dir_savegame, (int)slot - 1);
+        sprintf(fname, "%s/swars%03d.sav", pinfo->directory, (int)slot - 1);
 }
 
 int get_memory_ptr_index(void **mgptr)
@@ -278,7 +338,7 @@ int get_memory_ptr_index(void **mgptr)
     return -1;
 }
 
-long get_memory_ptr_allocated_count(void **mgptr)
+int get_memory_ptr_allocated_count(void **mgptr)
 {
     int i;
     for (i = 0; mem_game[i].Name != NULL; i++)
@@ -301,32 +361,111 @@ TbBool mem_game_index_is_prim(int index)
  */
 void adjust_memory_use(void)
 {
+    int i;
+    ulong total;
+
+    total = 0;
+
+    // Bezier points are only used when editing maps
+    assert((i = get_memory_ptr_index((void **)&bezier_pts)) != -1);
+    if (ingame.LowerMemoryUse == 1)
+        mem_game[i].N = 1;
+    total += mem_game[i].ESize * mem_game[i].N;
+
+    assert((i = get_memory_ptr_index((void **)&game_objectives)) != -1);
+    if (ingame.LowerMemoryUse == 1)
+        mem_game[i].N = 1;
+    total += mem_game[i].ESize * mem_game[i].N;
+
+    assert((i = get_memory_ptr_index((void **)&spare_map_buffer)) != -1);
+    if (ingame.LowerMemoryUse == 1)
+        mem_game[i].N = 1;
+    total += mem_game[i].ESize * mem_game[i].N;
+
+    assert((i = get_memory_ptr_index((void **)&game_used_objectives)) != -1);
+    if (ingame.LowerMemoryUse == 1)
+        mem_game[i].N = 1000;
+    total += mem_game[i].ESize * mem_game[i].N;
+
+    assert((i = get_memory_ptr_index((void **)&game_floor_tiles)) != -1);
+    if (ingame.LowerMemoryUse == 1)
+        mem_game[i].N = 1124;
+    total += mem_game[i].ESize * mem_game[i].N;
+
+    assert((i = get_memory_ptr_index((void **)&game_draw_list)) != -1);
+    if (ingame.LowerMemoryUse == 1)
+        mem_game[i].N = 2500;
+    total += mem_game[i].ESize * mem_game[i].N;
+
+    assert((i = get_memory_ptr_index((void **)&game_sort_sprites)) != -1);
+    if (ingame.LowerMemoryUse == 1)
+        mem_game[i].N = 1000;
+    total += mem_game[i].ESize * mem_game[i].N;
+
+    assert((i = get_memory_ptr_index((void **)&game_sort_lines)) != -1);
+    if (ingame.LowerMemoryUse == 1)
+        mem_game[i].N = 700;
+    total += mem_game[i].ESize * mem_game[i].N;
+
+    assert((i = get_memory_ptr_index((void **)&game_screen_point_pool)) != -1);
+    if (ingame.LowerMemoryUse == 1)
+        mem_game[i].N = 18000; // every face and every face4 needs a few
+    total += mem_game[i].ESize * mem_game[i].N;
+
+    assert((i = get_memory_ptr_index((void **)&prim_object_points)) != -1);
+    if ((ingame.LowerMemoryUse == 1) && (is_single_game || cmdln_param_bcg))
+        mem_game[i].N = 2000;
+    total += mem_game[i].ESize * mem_game[i].N;
+
+    assert((i = get_memory_ptr_index((void **)&prim_object_faces3)) != -1);
+    if ((ingame.LowerMemoryUse == 1) && (is_single_game || cmdln_param_bcg))
+        mem_game[i].N = 2000;
+    total += mem_game[i].ESize * mem_game[i].N;
+
+    assert((i = get_memory_ptr_index((void **)&prim_object_faces4)) != -1);
+    if ((ingame.LowerMemoryUse == 1) && (is_single_game || cmdln_param_bcg))
+        mem_game[i].N = 2000;
+    total += mem_game[i].ESize * mem_game[i].N;
+
+    assert((i = get_memory_ptr_index((void **)&game_object_faces3)) != -1);
+    if (ingame.LowerMemoryUse == 1)
+        mem_game[i].N = 11000;
+    total += mem_game[i].ESize * mem_game[i].N;
+
+    assert((i = get_memory_ptr_index((void **)&game_object_faces4)) != -1);
+    if (ingame.LowerMemoryUse == 1)
+        mem_game[i].N = 11000;
+    total += mem_game[i].ESize * mem_game[i].N;
+
+    assert((i = get_memory_ptr_index((void **)&game_objects)) != -1);
+    if (ingame.LowerMemoryUse == 1)
+        mem_game[i].N = 1500;
+    total += mem_game[i].ESize * mem_game[i].N;
+
+    assert((i = get_memory_ptr_index((void **)&game_full_lights)) != -1);
+    if (ingame.LowerMemoryUse == 1)
+        mem_game[i].N = 1000;
+    total += mem_game[i].ESize * mem_game[i].N;
+
+    assert((i = get_memory_ptr_index((void **)&game_col_vects_list)) != -1);
+    if (ingame.LowerMemoryUse == 1)
+        mem_game[i].N = 16000;
+    total += mem_game[i].ESize * mem_game[i].N;
+
+    assert((i = get_memory_ptr_index((void **)&game_col_vects)) != -1);
+    if (ingame.LowerMemoryUse == 1)
+        mem_game[i].N = 9000;
+    total += mem_game[i].ESize * mem_game[i].N;
+
     if (ingame.LowerMemoryUse == 1)
     {
-        mem_game[35].N = 1; // bez_edit
-        mem_game[28].N = 1; // objectives
-        mem_game[36].N = 1; // spare_map_buffer
-        mem_game[27].N = 1000; // used_objectives
-        mem_game[26].N = 1124; // floor_tiles
-        mem_game[31].N = 2500; // draw_list
-        mem_game[32].N = 1000; // sort_sprites
-        mem_game[33].N = 700; // sort_lines
-        mem_game[30].N = 3000; // screen_point_pool
-        if ( is_single_game || cmdln_param_bcg )
-        {
-            mem_game[20].N = 2000; // prim_object_points
-            mem_game[21].N = 2000; // prim_object_faces increase(?)
-            mem_game[22].N = 2000; // prim_object_faces4 increase(?)
-        }
-        mem_game[4].N = 11000; // object_faces
-        mem_game[9].N = 11000; // object_faces4 increase(?)
-        mem_game[5].N = 1500; // objects
-        mem_game[7].N = 1000; // full_lights
-        mem_game[13].N = 16000; // col_vects_list
-        mem_game[14].N = 9000; // col_vects
-        engine_mem_alloc_size = 2700000;
-        game_perspective = (mem_game[5].N >> 8) & 0xff; // = 5
+        engine_mem_alloc_size = (2000000 + total + 0xFFFF) & ~0xFFFF;
+        game_perspective = ProjM_Perspective;
+    } else
+    {
+        engine_mem_alloc_size = (2850000 + total + 0xFFFF) & ~0xFFFF;
     }
+    LOGSYNC("Set engine_mem_alloc_size=%u total=%lu", engine_mem_alloc_size, total);
 }
 
 uint memory_table_entries(MemSystem *mem_table)
@@ -343,27 +482,34 @@ uint memory_table_entries(MemSystem *mem_table)
     return i;
 }
 
-void init_memory(MemSystem *mem_table)
+TbResult init_memory(MemSystem *mem_table)
 {
-#if 0
-    asm volatile ("call ASM_init_memory\n"
-        :  : "a" (mem_table));
-#endif
     MemSystem *ment;
     int mem_table_len;
     ulong totlen;
     ubyte *p;
     int i;
     ulong k;
+    TbResult ret;
 
+    ret = Lb_SUCCESS;
     totlen = 8192;
     mem_table_len = memory_table_entries(mem_table);
 
-    p = scratch_malloc_mem;
+    if (engine_mem_alloc_ptr == NULL) {
+        LOGWARN("Memory for engine not allocated; further init will not work correctly");
+        ret = Lb_FAIL;
+    }
+
+    if (tmaps_extra_buf == NULL) {
+        LOGWARN("Texture maps not allocated; cannor reuse their extra memory");
+    }
+
+    p = NULL;
     for (i = mem_table_len - 1; i >= 0; i--)
     {
         ment = &mem_table[i];
-        if (i == 17)
+        if (i == 17) // col_columns
             p = engine_mem_alloc_ptr + totlen;
 
         if (ment->PrivBuffer == NULL)
@@ -371,29 +517,116 @@ void init_memory(MemSystem *mem_table)
             if ((engine_mem_alloc_size & 0x80000000) == 0)
               ment->PrivBuffer = engine_mem_alloc_ptr + totlen;
             else
-              exit_game = 1;
+              ret = Lb_FAIL;
 
-            if (ment->N * (ulong)ment->ESize >= dword_1810D5 || mem_game_index_is_prim(i))
+            if (ment->N * (ulong)ment->ESize < tmaps_extra_len && !mem_game_index_is_prim(i))
+            {
+                // Reuse extra texture maps atlas memory
+                ment->PrivBuffer = tmaps_extra_buf;
+                k = ment->N * ment->ESize;
+                k = (k + 4) & ~0x3;
+                tmaps_extra_len -= k;
+                tmaps_extra_buf += k;
+            }
+            else
             {
                 k = ment->N * ment->ESize;
                 k = (k + 4) & ~0x3;
                 totlen += k;
                 assert(totlen <= engine_mem_alloc_size);
             }
-            else
-            {
-                ment->PrivBuffer = dword_1810D1;
-                k = ment->N * ment->ESize;
-                k = (k + 4) & ~0x3;
-                dword_1810D5 -= k;
-                dword_1810D1 += k;
-            }
             *(ment->BufferPtr) = ment->PrivBuffer;
         }
     }
-    scratch_malloc_mem = p;
+    if (p != NULL) {
+        scratch_malloc_mem = p;
+        assert((ubyte *)engine_mem_alloc_ptr + engine_mem_alloc_size > p);
+        scratch_malloc_size = (ubyte *)engine_mem_alloc_ptr + engine_mem_alloc_size - p;
+    } else {
+        LOGWARN("Memory for scratch_malloc not prepared");
+        scratch_malloc_size = 0;
+        ret = Lb_FAIL;
+    }
+
+    //TODO clear first two entries only? looks like some workaround; maybe swrender should have mem init function?
     memset(game_sort_sprites, 0, 0x20u);
-    fade_data = *ment[23].BufferPtr;
+
+    scratch_buf1 = *mem_table[23].BufferPtr; // prim_objects
+    if (scratch_buf1 == NULL) {
+        LOGWARN("Memory for scratch_buf1 not prepared");
+        ret = Lb_FAIL;
+    }
+
+    if (ret == Lb_FAIL) {
+        LOGSYNC("Memory init failed, game will exit");
+        exit_game = 1;
+    } else {
+        LOGSYNC("Memory init performed");
+    }
+
+    return ret;
 }
 
+TbResult propagate_memory_sizes(void)
+{
+    TbResult ret;
+
+    ret = Lb_SUCCESS;
+
+    screen_points_limit = mem_game[30].N;
+    assert(screen_points_limit > 0);
+    draw_items_limit = mem_game[31].N;
+    assert(draw_items_limit > 0);
+    sort_lines_limit = get_memory_ptr_allocated_count((void **)&game_sort_lines);
+    assert(sort_lines_limit > 0);
+    sort_sprites_limit = get_memory_ptr_allocated_count((void **)&game_sort_sprites);
+    assert(sort_sprites_limit > 0);
+    floor_tiles_limit = get_memory_ptr_allocated_count((void **)&game_floor_tiles);
+    assert(floor_tiles_limit > 0);
+
+    game_textures_limit = get_memory_ptr_allocated_count((void **)&game_textures);
+    assert(game_textures_limit > 0);
+    face_textures_limit = get_memory_ptr_allocated_count((void **)&game_face_textures);
+    assert(face_textures_limit > 0);
+    game_anim_tmaps_limit = get_memory_ptr_allocated_count((void **)&game_anim_tmaps);
+    assert(game_anim_tmaps_limit > 0);
+
+    game_object_points_limit = get_memory_ptr_allocated_count((void **)&game_object_points);
+    assert(game_object_points_limit > 0);
+    game_object_faces3_limit = get_memory_ptr_allocated_count((void **)&game_object_faces3);
+    assert(game_object_faces3_limit > 0);
+    game_object_faces4_limit = get_memory_ptr_allocated_count((void **)&game_object_faces4);
+    assert(game_object_faces4_limit > 0);
+    game_normals_limit = get_memory_ptr_allocated_count((void **)&game_normals);
+    assert(game_normals_limit > 0);
+    game_objects_limit = get_memory_ptr_allocated_count((void **)&game_objects);
+    assert(game_objects_limit > 0);
+
+    game_special_obj_faces3_limit = get_memory_ptr_allocated_count((void **)&game_special_obj_faces3);
+    assert(game_special_obj_faces3_limit > 0);
+    game_special_obj_faces4_limit = get_memory_ptr_allocated_count((void **)&game_special_obj_faces4);
+    assert(game_special_obj_faces4_limit > 0);
+
+    prim_object_faces3_limit = get_memory_ptr_allocated_count((void **)&prim_object_faces3);
+    assert(prim_object_faces3_limit > 0);
+    prim_object_faces4_limit = get_memory_ptr_allocated_count((void **)&prim_object_faces4);
+    assert(prim_object_faces4_limit > 0);
+
+    return ret;
+}
+
+void init_things_memory_with_user_heap(void)
+{
+    ubyte *buf;
+    u32 sthings_len, things_len;
+
+    buf = game_user_heap + 34000;
+    sthings_len = STHINGS_LIMIT * sizeof(struct SimpleThing);
+    things_len = THINGS_LIMIT * sizeof(struct Thing);
+    LbMemorySet(buf, 0, sthings_len + things_len);
+
+    buf += sthings_len;
+    things = (struct Thing *)buf;
+    sthings = (struct SimpleThing *)buf;
+}
 /******************************************************************************/

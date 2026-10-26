@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file bflib_vidraw.h
  *     Header file for bflib_vidraw.c.
@@ -31,9 +31,7 @@ extern "C" {
 #pragma pack()
 /******************************************************************************/
 
-void LbDrawTriangle(short x1, short y1, short x2, short y2, short x3, short y3, ubyte col);
-
-void LbDrawSlantBox(short X, short Y, ushort a3, ushort a4);
+void draw_noise_box(short X, short Y, ushort a3, ushort a4);
 
 /******************************************************************************/
 #ifdef __cplusplus

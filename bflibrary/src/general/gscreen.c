@@ -2,7 +2,7 @@
 // Bullfrog Engine Emulation Library - for use to remake classic games like
 // Syndicate Wars, Magic Carpet, Genewars or Dungeon Keeper.
 /******************************************************************************/
-/** @file gscreen.cpp
+/** @file gscreen.c
  *     Implementation of related functions.
  * @par Purpose:
  *     Unknown.
@@ -161,7 +161,7 @@ TbScreenMode LbRegisterVideoModeString(const char *desc)
     if (bpp < 9) {
         flags |= Lb_VF_PALETTE;
     } else
-    if ((bpp == 24) || (bpp = 32)) {
+    if ((bpp == 24) || (bpp == 32)) {
         flags |= Lb_VF_RGBCOLOUR;
     } else
     {
@@ -216,6 +216,12 @@ TbScreenCoord LbScreenHeight(void)
 TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord height,
     ubyte *palette)
 {
+    if ((width > MAX_SUPPORTED_SCREEN_WIDTH) || (height > MAX_SUPPORTED_SCREEN_HEIGHT)) {
+        LOGWARN("requested work screen size exceeds static limit, %dx%d > %dx%d",
+          (int)width, (int)height,
+          (int)MAX_SUPPORTED_SCREEN_WIDTH, (int)MAX_SUPPORTED_SCREEN_HEIGHT);
+    }
+
     return LbScreenSetupAnyMode(mode, width, height, palette);
 }
 

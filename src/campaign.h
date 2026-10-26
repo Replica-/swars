@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file campaign.h
  *     Header file for campaign.c.
@@ -29,7 +29,7 @@ extern "C" {
 
 #define CAMPAIGNS_MAX_COUNT 6
 #define MISSIONS_MAX_COUNT 120
-#define MISSION_STATES_COUNT 50
+#define MISSION_STATE_SLOTS_COUNT 50
 
 enum CampaignFlags {
     CmpgF_IsSinglePlayer = 0x0001,
@@ -69,6 +69,32 @@ enum MissionExtraRewards {
     MEReward_WeaponResearched,
     MEReward_CybModSingle,
     MEReward_WeaponSingle,
+};
+
+enum MissionAtmosphere {
+    MAtmsph_None = 0,
+    MAtmsph_Earth,
+    MAtmsph_Space,
+    MAtmsph_Moon,
+};
+
+enum MissionWeather {
+    MWeathr_None = 0,
+    MWeathr_Sunny,
+    MWeathr_Rainy,
+    MWeathr_Snowy,
+};
+
+//TODO use the same values as ObjectiveStatuses?
+enum MissionResolutionStatus {
+    MResol_FAILED = -1,
+    MResol_UNDECIDED = 0,
+    MResol_COMPLETED = 1,
+};
+
+enum WaitToFadeFlags {
+    WTFade_ON_SUCCESS = 0x8000,
+    WTFade_ON_FAIL = 0x4000,
 };
 
 struct Campaign {
@@ -155,7 +181,8 @@ struct Mission { // sizeof=76
 	ushort PreProcess;
     /** Flag switches for the mission. */
     ushort Flags;
-    ubyte field_4A;
+    /** Atmosphere and weather during the mission. */
+    ubyte Atmosphere;
     ubyte field_4B;
 };
 
@@ -163,26 +190,44 @@ struct Mission { // sizeof=76
 /******************************************************************************/
 extern struct Campaign campaigns[CAMPAIGNS_MAX_COUNT];
 extern struct Mission mission_list[MISSIONS_MAX_COUNT];
+
+extern short mission_open[MISSION_STATE_SLOTS_COUNT];
+extern short mission_state[MISSION_STATE_SLOTS_COUNT];
+
+/** Text name of the current mission (citydrop name).
+ */
 extern char mission_name[50];
 
-extern char *netscan_text;
-#define netscan_text_len 16384
+extern ubyte background_type;
+
+extern char *memload_netscan_text;
+#define memload_netscan_text_len 16384
 
 void load_campaigns(void);
 ushort selectable_campaigns_count(void);
 
+void clear_mission_state_slots(void);
 ushort find_mission_state_slot(ushort missi);
 ushort find_empty_mission_state_slot(void);
-void remove_mission_state_slot(ushort mslot);
+void remove_mission_state_slot(ushort missi);
 ushort replace_mission_state_slot(ushort old_missi, ushort new_missi);
+short get_mission_state_using_state_slot(ushort missi);
+void set_mission_state_using_state_slot(ushort missi, short mstate);
 void init_mission_states(void);
+void missions_clear_bank_tests(void);
 
 ushort find_mission_with_map_and_level(ushort mapno, ushort level);
+ushort find_first_mission_with_map(short mapno);
 void fix_mission_used_objectives(short missi);
 
 TbBool mission_remain_until_success(ushort missi);
 TbBool mission_has_immediate_next_on_success(ushort missi);
 TbBool mission_has_immediate_previous(ushort missi);
+
+/** Returns if the mission has either email message or triggers to be received
+ * by player on mission fail.
+ */
+TbBool mission_has_fail_email_or_triggers(ushort missi);
 TbBool mission_is_final_at_game_end(ushort missi);
 
 TbBool read_missions_conf_info(int num);
@@ -194,7 +239,13 @@ void read_mission_netscan_objectives_bin(void);
 void apply_missions_fixups(void);
 
 TbResult load_netscan_text_data(ushort mapno, ushort level);
-TbResult load_mission_name_text(ubyte missi);
+
+/** Loads `mission_name` text for given mission.
+ *
+ * Reuses `memload_city_prop_text` as temporary buffer. City properties
+ * stored there are lost after this call, and have to be reloaded.
+ */
+TbResult load_mission_name_text(ushort missi);
 
 /******************************************************************************/
 #ifdef __cplusplus

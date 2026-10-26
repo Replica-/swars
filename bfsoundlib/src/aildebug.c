@@ -32,8 +32,8 @@
 #include "miscutil.h"
 #include "ailss.h"
 #include "mssdig.h"
-#include "mssxmidi.h"
 #include "mssxdig.h"
+#include "mssxmidi.h"
 /******************************************************************************/
 static long long tmcount_start = 0;
 
@@ -42,8 +42,13 @@ uint16_t AIL_debug;
 uint16_t AIL_sys_debug;
 uint32_t AIL_indent;
 
+/******************************************************************************/
+
 int32_t AIL_startup(void)
 {
+#if LB_FILENAME_TRANSFORM
+    char real_fname[FILENAME_MAX];
+#endif
     const char *logfname;
     int32_t ret;
 
@@ -57,7 +62,17 @@ int32_t AIL_startup(void)
     if (logfname != NULL) {
         if (getenv("AIL_SYS_DEBUG"))
             AIL_sys_debug = 1;
-        AIL_debugfile = fopen(logfname, "w+t");
+#if LB_FILENAME_TRANSFORM
+        if (lbFileNameTransform != NULL)
+        {
+            lbFileNameTransform(real_fname, logfname);
+            AIL_debugfile = fopen(real_fname, "w+t");
+        }
+        else
+#endif
+        {
+            AIL_debugfile = fopen(logfname, "w+t");
+        }
     }
 
     if (AIL_debugfile != NULL) {
@@ -641,6 +656,32 @@ void AIL_end_sample(SNDSAMPLE *s)
         fprintf(AIL_debugfile, "%s(0x%p)\n", __func__, s);
 
     AIL2OAL_API_end_sample(s);
+
+    if (AIL_debug && (AIL_indent == 1 || AIL_sys_debug))
+        fprintf(AIL_debugfile, "Finished\n");
+    AIL_indent--;
+}
+
+void AIL_stop_sample(SNDSAMPLE *s)
+{
+    AIL_indent++;
+    if (AIL_debug && (AIL_indent == 1 || AIL_sys_debug))
+        fprintf(AIL_debugfile, "%s(0x%p)\n", __func__, s);
+
+    AIL2OAL_API_stop_sample(s);
+
+    if (AIL_debug && (AIL_indent == 1 || AIL_sys_debug))
+        fprintf(AIL_debugfile, "Finished\n");
+    AIL_indent--;
+}
+
+void AIL_resume_sample(SNDSAMPLE *s)
+{
+    AIL_indent++;
+    if (AIL_debug && (AIL_indent == 1 || AIL_sys_debug))
+        fprintf(AIL_debugfile, "%s(0x%p)\n", __func__, s);
+
+    AIL2OAL_API_resume_sample(s);
 
     if (AIL_debug && (AIL_indent == 1 || AIL_sys_debug))
         fprintf(AIL_debugfile, "Finished\n");
@@ -1372,7 +1413,7 @@ MDI_DRIVER *AIL_open_XMIDI_driver(uint32_t flags)
     if (mdidrv == NULL)
     {
         if (flags & AIL_OPEN_XMIDI_NULL_DRIVER)
-            mdidrv = AIL2OAL_API_install_MDI_driver_file("NULL.MDI", NULL);
+            mdidrv = AIL2OAL_API_install_MDI_driver_file("null.mdi", NULL);
     }
     if (mdidrv == NULL)
     {

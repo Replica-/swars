@@ -29,6 +29,14 @@ extern "C" {
 
 #define POLY_SCANS_COUNT (MAX_SUPPORTED_SCREEN_HEIGHT * 6 / 5)
 
+/** Shift required to Vb coord get position within vec_map texture data.
+ */
+#define VEC_MAP_PITCH_SH 8
+
+/** Line pitch within vec_map texture data.
+ */
+#define VEC_MAP_PITCH (1 << VEC_MAP_PITCH_SH)
+
 #pragma pack(1)
 
 enum RenderingVectorMode {
@@ -93,16 +101,29 @@ extern ubyte *dither_end;
 void setup_vecs(ubyte *screenbuf, ubyte *nvec_map,
   ulong line_len, ulong width, ulong height);
 
+/** Triangle rendering function.
+ *
+ * Draw textured triangle on graphics buffer previously set by setup_vecs(),
+ * at given 3 points.
+ *
+ * For the triangle to be visible, points need to be provided in clockwise
+ * order.
+ *
+ * @param point_a Coordinates and texture mapping of first point.
+ * @param point_b Coordinates and texture mapping of second point.
+ * @param point_c Coordinates and texture mapping of third point.
+ */
 void trig(struct PolyPoint *point_a, struct PolyPoint *point_b,
   struct PolyPoint *point_c);
 
 void draw_gpoly(struct PolyPoint *point_a, struct PolyPoint *point_b,
   struct PolyPoint *point_c);
 
+void poly_line(struct PolyPoint *point_a, struct PolyPoint *point_b);
+
 #if 0
 
 int render_table();
-int poly_line();
 #endif
 
 #ifdef __cplusplus

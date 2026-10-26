@@ -71,19 +71,13 @@ typedef signed char PlayerNumber;
 typedef unsigned char ThingClass;
 /** Type which stores thing model. */
 typedef unsigned char ThingModel;
-/** Type which stores thing index. */
-typedef unsigned short ThingIndex;
+
 typedef long HitPoints;
 /** Level number within a campaign. */
 typedef long LevelNumber;
-/** Game turn number, used for in-game time computations. */
-typedef unsigned long GameTurn;
-/** Game turns difference, used for in-game time computations. */
-typedef long GameTurnDelta;
 /** Identifier of a national text string. */
 typedef int TextStringId;
-/** Map coordinate in full resolution. Position within subtile is scaled 0..255. */
-typedef long MapCoord;
+
 /** Distance between map coordinates in full resolution. */
 typedef long MapCoordDelta;
 /** Map subtile coordinate. Every slab consists of 3x3 subtiles. */

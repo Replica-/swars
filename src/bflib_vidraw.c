@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file bflib_vidraw.c
  *     Routines to be moved to bflibrary.
@@ -17,25 +17,56 @@
  */
 /******************************************************************************/
 #include "bflib_vidraw.h"
+#include "bftringl.h"
 
 #include <stdlib.h>
+#include <string.h>
+#include <assert.h>
+#include "bfscreen.h"
+#include "bfline.h"
+#include "bfutility.h"
+
+#include "engintrns.h"
 /******************************************************************************/
 
-void LbDrawTriangle(short x1, short y1, short x2, short y2, short x3, short y3, ubyte col)
-{
-    asm volatile (
-      "push %6\n"
-      "push %5\n"
-      "push %4\n"
-      "call ASM_LbDrawTriangle\n"
-        :  : "a" (x1), "d" (y1), "b" (x2), "c" (y2), "g" (x3), "g" (y3), "g" (col));
-}
+ubyte byte_1DDC44[640];
+ubyte byte_1DDEC4 = 0;
+ubyte byte_1C4B7F = 0;
+ubyte byte_1C6DED = 0;
+ubyte byte_155189 = 247;
 
-void LbDrawSlantBox(short X, short Y, ushort a3, ushort a4)
+void draw_noise_box(short x, short y, ushort w, ushort h)
 {
-    asm volatile (
-      "call ASM_LbDrawSlantBox\n"
-        :  : "a" (X), "d" (Y), "b" (a3), "c" (a4));
+    uint dx, dy;
+    ushort rnd;
+
+    if (!byte_1DDEC4 || byte_1C6DED)
+    {
+        for (dx = 0; dx < sizeof(byte_1DDC44); dx++)
+        {
+            byte_1DDC44[dx] = 0;
+            rnd = LbRandomAnyShort();
+            if ((rnd % 9) > 4) {
+                byte_1DDC44[dx] = byte_155189;
+            }
+        }
+        byte_1C6DED = 0;
+        byte_1DDEC4 = 1;
+    }
+
+    if (!byte_1C4B7F)
+    {
+        ubyte *out;
+        ubyte *inp;
+
+        for (dy = 1; dy < (uint)h - 1; dy++)
+        {
+            rnd = LbRandomAnyShort();
+            out = &lbDisplay.WScreen[x + 1 + (y + dy) * lbDisplay.GraphicsScreenWidth];
+            inp = &byte_1DDC44[rnd % (sizeof(byte_1DDC44) - w)];
+            memcpy(out, inp, w - 2);
+        }
+    }
 }
 
 /******************************************************************************/

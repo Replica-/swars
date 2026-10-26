@@ -1,8 +1,8 @@
 # *****************************************************************************
-#  Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+#  Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 # *****************************************************************************
 #   @file alltext_comm_swe.po
-#      Menu text for SW Port translation file
+#      Menu text for SyndWarsFX translation file
 #  @par Purpose:
 #      Contains translation of the national text in the game.
 #  @par Comment:
@@ -18,11 +18,11 @@
 # *****************************************************************************
 msgid ""
 msgstr ""
-"Project-Id-Version: Menu text for SW Port\n"
-"Report-Msgid-Bugs-To: https://github.com/swfans/swars/issues\n"
+"Project-Id-Version: Menu text for SyndWarsFX\n"
+"Report-Msgid-Bugs-To: https://github.com/swfans/syndwarsfx/issues\n"
 "POT-Creation-Date: 2023-09-05 11:43+0200\n"
-"PO-Revision-Date: 2023-12-29 20:04+0100\n"
-"Last-Translator: Mefistotelis <mefistotelis@gmail.com>\n"
+"PO-Revision-Date: 2026-01-08 17:00+0100\n"
+"Last-Translator: Agent Chunk <kobaltsextio@discord>\n"
 "Language-Team: Syndicate Wars Fans <github.com/swfans>\n"
 "Language: sv_SE\n"
 "MIME-Version: 1.0\n"
@@ -39,12 +39,12 @@ msgstr "Eliminera de Ostyrda"
 #: scanner.objective:2
 msgctxt "objective text shown on scanner"
 msgid "Return to HQ"
-msgstr "Tervänd till HK"
+msgstr "Återvänd till HK"
 
 #: scanner.objective:3
 msgctxt "objective text shown on scanner"
 msgid "Persuade Yamaguchi technicians"
-msgstr "Ívertala Yamaguchis tekniker"
+msgstr "Övertala Yamaguchis tekniker"
 
 #: scanner.objective:4
 msgctxt "objective text shown on scanner"
@@ -59,7 +59,7 @@ msgstr "Teknikers dödsolycka"
 #: scanner.objective:6
 msgctxt "objective text shown on scanner"
 msgid "Persuade Yamaguchi executives"
-msgstr "Ívertala Yamaguchis ledning"
+msgstr "Övertala Yamaguchis ledning"
 
 #: scanner.objective:7
 msgctxt "objective text shown on scanner"
@@ -79,12 +79,12 @@ msgstr "Agents dödsolycka"
 #: scanner.objective:10
 msgctxt "objective text shown on scanner"
 msgid "Persuade Bluesky scientists"
-msgstr "Ívertala Blueskys vetenskapsmän"
+msgstr "Övertala Blueskys vetenskapsmän"
 
 #: scanner.objective:11 scanner.objective:161
 msgctxt "objective text shown on scanner"
 msgid "Persuade Bluesky scientist"
-msgstr "Ívertala Blueskys vetenskapsman"
+msgstr "Övertala Blueskys vetenskapsman"
 
 #: scanner.objective:12
 msgctxt "objective text shown on scanner"
@@ -109,7 +109,7 @@ msgstr "Guldbilen har förstörts"
 #: scanner.objective:16
 msgctxt "objective text shown on scanner"
 msgid "The bullion car has reached Tang HQ"
-msgstr "Guldbilen har nätt Tangs HK"
+msgstr "Guldbilen har nått Tangs HK"
 
 #: scanner.objective:17
 msgctxt "objective text shown on scanner"
@@ -119,7 +119,7 @@ msgstr "Leverera bilen till evakueringszonen"
 #: scanner.objective:18
 msgctxt "objective text shown on scanner"
 msgid "Steal cult technology from temple"
-msgstr "Stjäl artefakt frän templet"
+msgstr "Stjäl artefakt från templet"
 
 #: scanner.objective:19
 msgctxt "objective text shown on scanner"
@@ -154,27 +154,27 @@ msgstr "Eliminera agent"
 #: scanner.objective:25
 msgctxt "objective text shown on scanner"
 msgid "Persuade agent"
-msgstr "Ívertala agent"
+msgstr "Övertala agent"
 
 #: scanner.objective:26
 msgctxt "objective text shown on scanner"
 msgid "Target agent has died"
-msgstr "Mälagent har dött"
+msgstr "Målagent har dött"
 
 #: scanner.objective:27
 msgctxt "objective text shown on scanner"
 msgid "Target agent has escaped"
-msgstr "Mälagent har flytt"
+msgstr "Målagent har flytt"
 
 #: scanner.objective:28
 msgctxt "objective text shown on scanner"
 msgid "Persuade NAA employee"
-msgstr "Ívertala NAA anställd"
+msgstr "Övertala NAA anställd"
 
 #: scanner.objective:29
 msgctxt "objective text shown on scanner"
 msgid "Persuade Jennifer Taks"
-msgstr "Ívertala Jennifer Taks"
+msgstr "Övertala Jennifer Taks"
 
 #: scanner.objective:30
 msgctxt "objective text shown on scanner"
@@ -194,22 +194,22 @@ msgstr "Eliminera fanatiker"
 #: scanner.objective:33
 msgctxt "objective text shown on scanner"
 msgid "Persuade Gel Data scientist"
-msgstr "Ívertala Gel Datas vetenskapsman"
+msgstr "Övertala Gel Datas vetenskapsman"
 
 #: scanner.objective:34
 msgctxt "objective text shown on scanner"
 msgid "Persuade Gel Data scientists"
-msgstr "Ívertala Gel Datas vetenskapsmän"
+msgstr "Övertala Gel Datas vetenskapsmän"
 
 #: scanner.objective:35
 msgctxt "objective text shown on scanner"
 msgid "Persuade Hexagon scientist"
-msgstr "Ívertala Hexagons vetenskapsman"
+msgstr "Övertala Hexagons vetenskapsman"
 
 #: scanner.objective:36
 msgctxt "objective text shown on scanner"
 msgid "Persuade Hexagon scientists"
-msgstr "Ívertala Hexagons vetenskapsmän"
+msgstr "Övertala Hexagons vetenskapsmän"
 
 #: scanner.objective:37
 msgctxt "objective text shown on scanner"
@@ -234,7 +234,7 @@ msgstr "Vetenskapsman förlorad"
 #: scanner.objective:42
 msgctxt "objective text shown on scanner"
 msgid "Persuade C3 scientists"
-msgstr "Ívertala C3 vetenskapsmän"
+msgstr "Övertala C3 vetenskapsmän"
 
 #: scanner.objective:43
 msgctxt "objective text shown on scanner"
@@ -309,7 +309,7 @@ msgstr "Evakuering misslyckad"
 #: scanner.objective:57
 msgctxt "objective text shown on scanner"
 msgid "Persuade Mirabelle Lucy De Saxo"
-msgstr "Ívertala Mirabelle Lucy De Saxo"
+msgstr "Övertala Mirabelle Lucy De Saxo"
 
 #: scanner.objective:58
 msgctxt "objective text shown on scanner"
@@ -379,7 +379,7 @@ msgstr "Skaffa rymdfärjans livsstödsmodul"
 #: scanner.objective:71
 msgctxt "objective text shown on scanner"
 msgid "Access lunar shuttle craft"
-msgstr "Tillträd mänfärjan"
+msgstr "Tillträd månfärjan"
 
 #: scanner.objective:72
 msgctxt "objective text shown on scanner"
@@ -388,8 +388,8 @@ msgstr "Eliminera de Nio"
 
 #: scanner.objective:73
 msgctxt "objective text shown on scanner"
-msgid "The Nine have activated the ion gate. you have been defeated."
-msgstr "De Nio har aktiverat jongrinden. du har besegrats."
+msgid "The Nine have activated the ion gate. You have been defeated."
+msgstr "De Nio har aktiverat jongrinden. Du har besegrats."
 
 #: scanner.objective:74
 msgctxt "objective text shown on scanner"
@@ -399,7 +399,7 @@ msgstr "Eliminera de Ostyrda hedningarna"
 #: scanner.objective:75
 msgctxt "objective text shown on scanner"
 msgid "Our garden of meditations has been destroyed"
-msgstr "Vär trädgärd för meditation har förstörts"
+msgstr "Vår trädgård för meditation har förstörts"
 
 #: scanner.objective:76
 msgctxt "objective text shown on scanner"
@@ -414,12 +414,12 @@ msgstr "Eskortera agent till IML-länken"
 #: scanner.objective:78
 msgctxt "objective text shown on scanner"
 msgid "Your target has been eliminated"
-msgstr "Ditt mäl har eliminerats"
+msgstr "Ditt mål har eliminerats"
 
 #: scanner.objective:79 scanner.objective:162
 msgctxt "objective text shown on scanner"
 msgid "Your target has escaped"
-msgstr "Ditt mäl har flytt"
+msgstr "Ditt mål har flytt"
 
 #: scanner.objective:80
 msgctxt "objective text shown on scanner"
@@ -484,7 +484,7 @@ msgstr "Förstör den Ostyrda ohyran"
 #: scanner.objective:92
 msgctxt "objective text shown on scanner"
 msgid "Wipe out EuroCorp personnel"
-msgstr "Slä ut EuroCorps personal"
+msgstr "Slå ut EuroCorps personal"
 
 #: scanner.objective:93
 msgctxt "objective text shown on scanner"
@@ -539,7 +539,7 @@ msgstr "Samla videodata till föreläsning"
 #: scanner.objective:104
 msgctxt "objective text shown on scanner"
 msgid "Go to podium"
-msgstr "Gä till podium"
+msgstr "Gå till podium"
 
 #: scanner.objective:105
 msgctxt "objective text shown on scanner"
@@ -584,7 +584,7 @@ msgstr "Ladda upp vapendesign"
 #: scanner.objective:113
 msgctxt "objective text shown on scanner"
 msgid "Return"
-msgstr "Tervänd"
+msgstr "Återvänd"
 
 #: scanner.objective:114
 msgctxt "objective text shown on scanner"
@@ -604,17 +604,17 @@ msgstr "Eliminera styrkorna som kontrollerar flodport"
 #: scanner.objective:117
 msgctxt "objective text shown on scanner, uses across campaigns"
 msgid "Return to IML link"
-msgstr "Tervänd till IML-länk"
+msgstr "Återvänd till IML-länk"
 
 #: scanner.objective:118
 msgctxt "objective text shown on scanner, Church, mission The Dead Zone"
 msgid "Abduct EuroCorp captive"
-msgstr "Kidnappa EuroCorps fänge"
+msgstr "Kidnappa EuroCorps fånge"
 
 #: scanner.objective:119
 msgctxt "objective text shown on scanner, Church, mission The Dead Zone"
 msgid "The target has been eliminated"
-msgstr "Mälet har elininerats"
+msgstr "Målet har elininerats"
 
 #: scanner.objective:120
 msgctxt "objective text shown on scanner, Church, mission Deconstruction"
@@ -624,12 +624,12 @@ msgstr "Förstör forskningsfaciliteter"
 #: scanner.objective:121
 msgctxt "objective text shown on scanner, Church, mission Deconstruction"
 msgid "Eliminate agents of EuroCorp"
-msgstr "Eliminera agenter frän EuroCorp"
+msgstr "Eliminera agenter från EuroCorp"
 
 #: scanner.objective:122
 msgctxt "objective text shown on scanner, Church, mission Friendly Fire"
 msgid "De Saxo must perish"
-msgstr "De Saxo mäste gä under"
+msgstr "De Saxo måste gå under"
 
 #: scanner.objective:123
 msgctxt "objective text shown on scanner, Church, few missions"
@@ -659,7 +659,7 @@ msgstr "Skydda IX"
 #: scanner.objective:128
 msgctxt "objective text shown on scanner, Church, mission Recapture"
 msgid "You have allowed IX to perish"
-msgstr "Du har lätit IX gä under"
+msgstr "Du har låtit IX gå under"
 
 #: scanner.objective:129
 msgctxt "objective text shown on scanner"
@@ -691,7 +691,7 @@ msgstr "Eliminera inkräktare"
 #: scanner.objective:134
 msgctxt "objective text shown on scanner"
 msgid "Persuade infiltrator"
-msgstr "Ívertala infiltratör"
+msgstr "Övertala infiltratör"
 
 #: scanner.objective:135
 msgctxt "objective text shown on scanner, uses across campaigns"
@@ -701,7 +701,7 @@ msgstr "Fortsätt till IML-länk"
 #: scanner.objective:136
 msgctxt "objective text shown on scanner"
 msgid "Target eliminated"
-msgstr "Mälet eliminerat"
+msgstr "Målet eliminerat"
 
 #: scanner.objective:137
 msgctxt "objective text shown on scanner, Church, mission Free Passage"
@@ -751,12 +751,12 @@ msgstr "Ta dem alla till oss"
 #: scanner.objective:146
 msgctxt "objective text shown on scanner, Church, mission The Knowledge"
 msgid "You have allowed Ormandoz to perish"
-msgstr "Du har lätit Ormandoz gä under"
+msgstr "Du har låtit Ormandoz gå under"
 
 #: scanner.objective:147
 msgctxt "objective text shown on scanner, Church, mission The Knowledge"
 msgid "You have allowed Ramirez to perish"
-msgstr "Du har lätit Ramirez gä under"
+msgstr "Du har låtit Ramirez gå under"
 
 #: scanner.objective:148
 msgctxt "objective text shown on scanner, Church, mission Soul Crusader"
@@ -766,12 +766,12 @@ msgstr "Stjäl dr Schweizers arbete"
 #: scanner.objective:149
 msgctxt "objective text shown on scanner, Church, few missions"
 msgid "Return to us"
-msgstr "Tervänd till oss"
+msgstr "Återvänd till oss"
 
 #: scanner.objective:150
 msgctxt "objective text shown on scanner, Church"
 msgid "EuroCorp agents must join us or die"
-msgstr "EuroCorp agenter mäste gä med oss eller dö"
+msgstr "EuroCorp agenter måste gå med oss eller dö"
 
 #: scanner.objective:151
 msgctxt "objective text shown on scanner, Church, mission Spies Like Us"
@@ -791,7 +791,7 @@ msgstr "Neutralisera alla EuroCorp agenter"
 #: scanner.objective:154
 msgctxt "objective text shown on scanner, Church, mission Fall Among Thieves"
 msgid "Let no harm come to De Saxo"
-msgstr "Lät ingenting hända De Saxo"
+msgstr "Låt ingenting hända De Saxo"
 
 #: scanner.objective:155
 msgctxt "objective text shown on scanner"
@@ -801,7 +801,7 @@ msgstr "Ta kontroll över IML-länken"
 #: scanner.objective:156
 msgctxt "objective text shown on scanner, Church, missions with De Saxo"
 msgid "Our blessed daughter is dead"
-msgstr "Vär välsignade dotter är död"
+msgstr "Vår välsignade dotter är död"
 
 #: scanner.objective:157
 msgctxt "objective text shown on scanner, Church"
@@ -811,7 +811,7 @@ msgstr "Du kommer dö för detta kätteri!"
 #: scanner.objective:158
 msgctxt "objective text shown on scanner, Church, mission Spies Like Us"
 msgid "EuroCorp must choose between our faith or death"
-msgstr "EuroCorp mäste välja mellan värt öde och döden"
+msgstr "EuroCorp måste välja mellan vårt öde och döden"
 
 #: scanner.objective:159
 msgctxt "objective text shown on scanner, Church, few missions"
@@ -841,12 +841,12 @@ msgstr "Sök och förstör - kategori U - Ostyrda medborgare"
 #: scanner.objective:166
 msgctxt "objective text shown on scanner, EuroCorp, mission Tokyo Fuseki"
 msgid "Mission update: eliminate cultists"
-msgstr "Uppdatering av uppdraget: eliminera sekter"
+msgstr "Uppdatering av uppdraget: eliminera sektmedlemmar"
 
 #: scanner.objective:167
 msgctxt "objective text shown on scanner, EuroCorp, mission Tokyo Fuseki"
 msgid "Professor Klein detected - persuade the Professor"
-msgstr "Professor Klein upptäckte - övertala professorn"
+msgstr "Professor Klein upptäckt - övertala professorn"
 
 #: scanner.objective:168
 msgctxt "objective text shown on scanner, EuroCorp, mission Tokyo Fuseki"
@@ -891,7 +891,7 @@ msgstr "Post-Industriell"
 #: mapscreen.city1:4
 msgctxt "map screen location - language"
 msgid "Low English"
-msgstr "Läg-Engelska"
+msgstr "Låg-Engelska"
 
 #: mapscreen.city1:5
 msgctxt "map screen location - industry"
@@ -987,7 +987,7 @@ msgstr "Proto-Mandarin"
 #: mapscreen.city4:5
 msgctxt "map screen location - industry"
 msgid "Plastics Fabrication, Hardware Manufacture"
-msgstr "Plastfabrikation, Härdvarutillverkning"
+msgstr "Plastfabrikation, Hårdvarutillverkning"
 
 #: mapscreen.city4:6
 msgctxt "map screen location - toxicity"
@@ -1080,7 +1080,7 @@ msgstr "Pseudo-Malayiska"
 #: mapscreen.city8:5
 msgctxt "map screen location - industry"
 msgid "Water Detoxification, Hardware Manufacture"
-msgstr "Vattenavgiftning, Härdvarutillverkning"
+msgstr "Vattenavgiftning, Hårdvarutillverkning"
 
 #: mapscreen.city8:6
 msgctxt "map screen location - toxicity"
@@ -1125,7 +1125,7 @@ msgstr "Post-Industriell"
 #: mapscreen.city10:4
 msgctxt "map screen location - language"
 msgid "Low Latin"
-msgstr "Läg-Latin"
+msgstr "Låg-Latin"
 
 #: mapscreen.city10:5
 msgctxt "map screen location - industry"
@@ -1342,7 +1342,7 @@ msgstr "Klädtillverkning, Destillering"
 #: mapscreen.city19:6
 msgctxt "map screen location - toxicity"
 msgid "Radioactive Fallout, Human Effluent"
-msgstr "Radiaktivt nedfall, Mänskligt avfall"
+msgstr "Radioaktivt nedfall, Mänskligt avfall"
 
 #: mapscreen.city20:1
 msgctxt "map screen location - name"
@@ -1462,7 +1462,7 @@ msgstr "Destillering"
 #: mapscreen.city26:6 mapscreen.city27:6 mapscreen.city33:6 mapscreen.city35:6
 msgctxt "map screen location - toxicity"
 msgid "Radioactive Fallout"
-msgstr "Radioktivt nedfall"
+msgstr "Radioaktivt nedfall"
 
 #: mapscreen.city27:1
 msgctxt "map screen location - name"
@@ -1793,7 +1793,7 @@ msgstr "Vädermanipulation"
 #: mapscreen.city44:6
 msgctxt "map screen location - toxicity"
 msgid "High Radioactive, Light Industrial"
-msgstr "Kemiskt avfall"
+msgstr "Högradioaktivt avfall, lätt industri"
 
 #: mapscreen.city45:1
 msgctxt "map screen location - name"
@@ -1838,7 +1838,7 @@ msgstr "Luft"
 #: mapscreen.city46:6
 msgctxt "map screen location - toxicity"
 msgid "Low Radioactive"
-msgstr "Läg radioaktivitet"
+msgstr "Låg radioaktivitet"
 
 #: mapscreen.city47:1
 msgctxt "map screen location - name"
@@ -1908,7 +1908,7 @@ msgstr "Naturliga orsaker"
 #: sci.death.reason:3
 msgctxt "scientists death reason"
 msgid "Time-delay virus"
-msgstr "Tidsinstllt virus"
+msgstr "Tidsinställt virus"
 
 #: sci.death.reason:4
 msgctxt "scientists death reason"
@@ -1918,12 +1918,12 @@ msgstr "Experimentfel"
 #: sci.death.reason:5
 msgctxt "scientists death reason"
 msgid "Fatal miscalculation"
-msgstr "Fatal felberkning"
+msgstr "Fatal felberäkning"
 
 #: sci.death.reason:6
 msgctxt "scientists death reason"
 msgid "Illogical deduction"
-msgstr "Ologisk hrledning"
+msgstr "Ologisk härledning"
 
 #: sci.death.reason:7
 msgctxt "scientists death reason"
@@ -1933,7 +1933,7 @@ msgstr "Slutgiltig villfarelse"
 #: sci.death.reason:8
 msgctxt "scientists death reason"
 msgid "Rash judgement"
-msgstr "Fírhastad bedímning"
+msgstr "Förhastad bedömning"
 
 #: sci.death.reason:9
 msgctxt "scientists death reason"
@@ -1953,7 +1953,7 @@ msgstr "Slarv"
 #: sci.death.reason:12
 msgctxt "scientists death reason"
 msgid "Unsafe procedure"
-msgstr "Osker procedur"
+msgstr "Osäker procedur"
 
 #: sci.death.reason:13
 msgctxt "scientists death reason"
@@ -1973,7 +1973,7 @@ msgstr "Misslyckat test"
 #: sci.death.reason:16
 msgctxt "scientists death reason"
 msgid "Cardiac arrest"
-msgstr "Hjrtstillestnd"
+msgstr "Hjärtstillestånd"
 
 #: sci.death.reason:17
 msgctxt "scientists death reason"
@@ -1983,14 +1983,14 @@ msgstr "Felaktigt antagande"
 #: sci.death.reason:18
 msgctxt "scientists death reason"
 msgid "Electrocution"
-msgstr "Dídlig elchock"
+msgstr "Dödlig elchock"
 
 #: sci.death.reason:19
 msgctxt "scientists death reason"
 msgid "Disintegration"
-msgstr "Upplíst"
+msgstr "Upplöst"
 
 #: sci.death.reason:20
 msgctxt "scientists death reason"
 msgid "Misadventure"
-msgstr "Olyckshndelse"
+msgstr "Olyckshändelse"

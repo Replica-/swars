@@ -523,7 +523,7 @@ GLOBAL_FUNC (ASM_LbDrawLine)
 		mov    -0x22(%ebp),%edx
 		push   %eax
 		mov    -0x26(%ebp),%eax
-		call   draw_b_line
+		call   ac_draw_b_line
 		mov    0x7a(%ebp),%al
 	jump_e79cd:
 		lea    0x7e(%ebp),%esp
@@ -534,7 +534,7 @@ GLOBAL_FUNC (ASM_LbDrawLine)
 
 
 /*----------------------------------------------------------------*/
-draw_b_line:	/* 0x0E79D8 */
+GLOBAL_FUNC (ASM_draw_b_line)	/* 0x0E79D8 */
 /*----------------------------------------------------------------*/
 		push   %edi
 		push   %ebp
@@ -1183,63 +1183,7 @@ LbDrawBoxClip_:	/* 0x0FADD0 */
 
 
 /*----------------------------------------------------------------*/
-GLOBAL_FUNC (ASM_LbDrawTriangle)
-/*----------------------------------------------------------------*/
-		push   %ebp
-		mov    %esp,%ebp
-		sub    $0x10,%esp
-		mov    %eax,-0x10(%ebp)
-		mov    %edx,-0xc(%ebp)
-		mov    %ebx,-0x8(%ebp)
-		mov    %ecx,-0x4(%ebp)
-		testb  $0x10,EXPORT_SYMBOL(lbDisplay)+96 # lbDisplay__DrawFlags
-		je     jump_ef4c2
-		xor    %eax,%eax
-		mov    0x10(%ebp),%al
-		mov    -0x4(%ebp),%ecx
-		mov    -0x8(%ebp),%ebx
-		mov    -0xc(%ebp),%edx
-		push   %eax
-		mov    -0x10(%ebp),%eax
-		call   ac_LbDrawLine
-		xor    %eax,%eax
-		mov    0x10(%ebp),%al
-		mov    0xc(%ebp),%ecx
-		mov    0x8(%ebp),%ebx
-		mov    -0x4(%ebp),%edx
-		push   %eax
-		mov    -0x8(%ebp),%eax
-		call   ac_LbDrawLine
-		xor    %eax,%eax
-		mov    0x10(%ebp),%al
-		mov    -0xc(%ebp),%ecx
-		mov    -0x10(%ebp),%ebx
-		mov    0xc(%ebp),%edx
-		push   %eax
-		mov    0x8(%ebp),%eax
-		call   ac_LbDrawLine
-		jmp    jump_ef4e1
-	jump_ef4c2:
-		xor    %eax,%eax
-		mov    0x10(%ebp),%al
-		push   %eax
-		mov    0xc(%ebp),%eax
-		push   %eax
-		mov    0x8(%ebp),%eax
-		mov    -0x4(%ebp),%ecx
-		mov    -0x8(%ebp),%ebx
-		mov    -0xc(%ebp),%edx
-		push   %eax
-		mov    -0x10(%ebp),%eax
-		call   LbDrawTriangleFilled_
-	jump_ef4e1:
-		mov    %ebp,%esp
-		pop    %ebp
-		ret    $0xc
-
-
-/*----------------------------------------------------------------*/
-LbDrawTriangleFilled_:
+GLOBAL_FUNC (ASM_LbDrawTriangleFilled)
 /*----------------------------------------------------------------*/
 		push   %ebp
 		mov    %esp,%ebp
@@ -1412,7 +1356,7 @@ LbDrawTriangleFilled_:
 		mov    %edi,-0x38(%ebp)
 		mov    %edi,-0x40(%ebp)
 	jump_138ac3:
-		lea    data_1e957c,%edi
+		lea    EXPORT_SYMBOL(asm_draw_ranges),%edi
 		jmp    jump_138b55
 	jump_138ace:
 		mov    -0x44(%ebp),%edi
@@ -1451,7 +1395,7 @@ LbDrawTriangleFilled_:
 		setle  -0x48(%ebp)
 		mov    %di,-0x38(%ebp)
 	jump_138b38:
-		lea    data_1e957c,%edi
+		lea    EXPORT_SYMBOL(asm_draw_ranges),%edi
 	jump_138b3e:
 		mov    %eax,(%edi)
 		add    -0x24(%ebp),%eax
@@ -1563,7 +1507,7 @@ LbDrawTriangleFilled_:
 		mov    %di,-0x38(%ebp)
 		mov    %edi,-0x40(%ebp)
 	jump_138c9b:
-		lea    data_1e957c,%edi
+		lea    EXPORT_SYMBOL(asm_draw_ranges),%edi
 		jmp    jump_138d2d
 	jump_138ca6:
 		mov    -0x44(%ebp),%edi
@@ -1602,7 +1546,7 @@ LbDrawTriangleFilled_:
 		setle  -0x48(%ebp)
 		mov    %di,-0x38(%ebp)
 	jump_138d10:
-		lea    data_1e957c,%edi
+		lea    EXPORT_SYMBOL(asm_draw_ranges),%edi
 	jump_138d16:
 		mov    %eax,(%edi)
 		add    -0x24(%ebp),%eax
@@ -1697,7 +1641,7 @@ LbDrawTriangleFilled_:
 		mov    %edi,-0x40(%ebp)
 		mov    %di,-0x30(%ebp)
 	jump_138e37:
-		lea    data_1e957c,%edi
+		lea    EXPORT_SYMBOL(asm_draw_ranges),%edi
 	jump_138e3d:
 		mov    %eax,(%edi)
 		add    -0x24(%ebp),%eax
@@ -1780,7 +1724,7 @@ LbDrawTriangleFilled_:
 		mov    %edi,-0x40(%ebp)
 		mov    %di,-0x30(%ebp)
 	jump_138f40:
-		lea    data_1e957c,%edi
+		lea    EXPORT_SYMBOL(asm_draw_ranges),%edi
 	jump_138f46:
 		mov    %eax,(%edi)
 		add    -0x24(%ebp),%eax
@@ -1790,7 +1734,7 @@ LbDrawTriangleFilled_:
 		decw   -0x30(%ebp)
 		jne    jump_138f46
 	jump_138f5a:
-		lea    data_1e957c,%esi
+		lea    EXPORT_SYMBOL(asm_draw_ranges),%esi
 		mov    -0x20(%ebp),%edx
 		mov    EXPORT_SYMBOL(lbDisplay)+44,%eax # lbDisplay.GraphicsWindowY
 		dec    %eax
@@ -1866,6 +1810,6 @@ LbDrawTriangleFilled_:
 
 .data
 
-data_1e957c:
+GLOBAL (asm_draw_ranges)	/* 0x1E957C */
 		.fill   0xf00
 

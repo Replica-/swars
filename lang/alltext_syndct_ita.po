@@ -1,8 +1,8 @@
 # *****************************************************************************
-#  Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+#  Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 # *****************************************************************************
 #   @file alltext_syndct_ita.po
-#      Menu text for SW Port translation file
+#      Menu text for SyndWarsFX translation file
 #  @par Purpose:
 #      Contains translation of the national text in the game.
 #  @par Comment:
@@ -18,10 +18,10 @@
 # *****************************************************************************
 msgid ""
 msgstr ""
-"Project-Id-Version: Menu text for SW Port\n"
-"Report-Msgid-Bugs-To: https://github.com/swfans/swars/issues\n"
+"Project-Id-Version: Menu text for SyndWarsFX\n"
+"Report-Msgid-Bugs-To: https://github.com/swfans/syndwarsfx/issues\n"
 "POT-Creation-Date: 2023-09-05 11:32+0200\n"
-"PO-Revision-Date: 2023-12-30 11:26+0100\n"
+"PO-Revision-Date: 2025-12-15 22:56+0100\n"
 "Last-Translator: Mefistotelis <mefistotelis@gmail.com>\n"
 "Language-Team: Syndicate Wars Fans <github.com/swfans>\n"
 "Language: it_IT\n"
@@ -693,7 +693,7 @@ msgstr ""
 "arriveranno prima dei tuoi agenti. Tuttavia, questo ci offre la possibilità "
 "di sequestrare la scorta armata prima che raggiunga la propria destinazione."
 
-#: mission.brief.mail5.map9.level1:1 mission.brief.mail16.map40.level1:2
+#: mission.brief.mail5.map9.level1:1
 msgctxt "mission brief tactical information"
 msgid "Dropsite: Singapore IML Link"
 msgstr "Destinazione: collegamento IML di Singapore"
@@ -718,7 +718,7 @@ msgctxt "mission brief tactical information"
 msgid "Target vehicle"
 msgstr "Veicolo da eliminare"
 
-#: mission.brief.mail5.map9.level1:6
+#: mission.brief.mail5.map9.level1:6 mission.brief.mail16.map40.level1:2
 msgctxt "mission brief tactical information"
 msgid "Rendezvous point"
 msgstr "Punto di incontro"
@@ -1276,7 +1276,7 @@ msgid ""
 "London AI has been psych-profiling the message content of an increasing "
 "number of subversive broadcasts from Ko-Paull Vissick. His seminal message, "
 "sent on an open channel, clearly incited the Unguided to rise up, not only "
-"againstthe Syndicate, but also the Church of the New Epoch. Unfortunately, "
+"against the Syndicate, but also the Church of the New Epoch. Unfortunately, "
 "Vissick's invective was littered with prophecies of doom, indicating that "
 "his current state of mind is far from stable. He claimed, for example, that "
 "the Church of the New Epoch would bring about nothing less than Armageddon. "
@@ -1667,7 +1667,7 @@ msgid ""
 "reconstructed Chief Executive group will be in attendance. The area will be "
 "monitored by local police, who are now under our direct control."
 msgstr ""
-"Il professore Kurt Drennan esporr… un piano strategico ai responsabili dei "
+"Il professore Kurt Drennan esporrà un piano strategico ai responsabili dei "
 "nostri dipartimenti, qui a Londra. Drennan e il suo assistente devono "
 "prelevare una copia del Codex per la presentazione a New Hyde Park. Il "
 "nostro gruppo di massimi Dirigenti costituito di recente presenzierà la "
@@ -2366,8 +2366,8 @@ msgid ""
 "UTOPIA architect Professor Klein has been traced by Netscan. Re-persuade the "
 "professor to come and work for us once more."
 msgstr ""
-"L'architetto di UTOPIA, il Professor Klein, è stato rilevato dal Netscan. "
-"Ri-persuadere il professore a venire a lavorare per noi ancora una volta."
+"L'architetto di UTOPIA, il Professor Klein, è stato rilevato dal Netscan. Ri-"
+"persuadere il professore a venire a lavorare per noi ancora una volta."
 
 #: mission.brief.mail31.par7.c5 mission.brief.mail32.par7.c5
 msgctxt "mission brief email paragraph"
@@ -2376,8 +2376,8 @@ msgid ""
 "area. As our inventory does not include a persuadertron, it will be "
 "necessary to relieve the zealots of theirs."
 msgstr ""
-"Aggiunta: membri fanatici del culto nella Nuova Epoca sono stati rilevati in"
-" quest'area. Poichè il nostro inventario non include un persuadertron, sarà "
+"Aggiunta: membri fanatici del culto nella Nuova Epoca sono stati rilevati in "
+"quest'area. Poichè il nostro inventario non include un persuadertron, sarà "
 "necessario privare i fanatici dei loro."
 
 #: mission.brief.mail31.par8.h mission.brief.mail32.par8.h
@@ -2387,8 +2387,8 @@ msgid ""
 "making continuous Netscan feed impossible. No further information is "
 "available."
 msgstr ""
-"Gli effetti del virus Harbinger del culto sul nodo di UTOPIA di Tokyo stanno"
-" rendendo impossibile la continua alimentazione del Netscan. Nessun'altra "
+"Gli effetti del virus Harbinger del culto sul nodo di UTOPIA di Tokyo stanno "
+"rendendo impossibile la continua alimentazione del Netscan. Nessun'altra "
 "informazione disponibile."
 
 #: mission.brief.mail31.map70.level11:2 mission.brief.mail32.map47.level11:2

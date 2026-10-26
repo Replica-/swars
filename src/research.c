@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file research.c
  *     Routines implementing weapons and mods research.
@@ -19,27 +19,39 @@
 #include "research.h"
 
 #include "bfutility.h"
-#include "weapon.h"
+
+#include "campaign.h"
 #include "cybmod.h"
-#include "display.h"
+#include "feequip.h"
 #include "feresearch.h"
-#include "game.h"
+#include "game_options.h"
+#include "guitext.h"
 #include "wadfile.h"
+#include "weapon.h"
 #include "swlog.h"
 /******************************************************************************/
+short daily_scientist_death_chance_permil = 20;
+short scientists_per_group = 4;
+short weapon_donate_research_incr_permil = 125;
+short research_progress_rtc_minutes = 0;
+char scientist_lost_reason[60] = "";
 
-void load_scientist_lost_reason(ushort reason_no)
+struct ResearchInfo research;
+
+/******************************************************************************/
+
+void load_scientist_lost_reason(ushort reason_no, ubyte *scratch_buf)
 {
     int totlen;
     char *s;
     char c;
     ushort i;
 
-    totlen = load_file_alltext("lost.txt", back_buffer + text_buf_pos);
+    totlen = load_file_alltext("lost.txt", scratch_buf);
     if (totlen == -1) {
         return;
     }
-    s = (char *)(back_buffer + text_buf_pos);
+    s = (char *)scratch_buf;
     for (i = 0; i != reason_no; i++)
     {
         do
@@ -91,21 +103,21 @@ int research_wep_get_progress(short cwep)
     return research.WeaponProgress[cwep][cday];
 }
 
-TbBool is_research_weapon_completed(ushort wtype)
+TbBool is_research_weapon_completed(WeaponType wtype)
 {
     ulong wflag;
     wflag = 1 << (wtype - 1);
     return (research.WeaponsCompleted & wflag) != 0;
 }
 
-TbBool is_research_weapon_allowed(ushort wtype)
+TbBool is_research_weapon_allowed(WeaponType wtype)
 {
     ulong wflag;
     wflag = 1 << (wtype - 1);
     return (research.WeaponsAllowed & wflag) != 0;
 }
 
-void research_weapon_allow(ushort wtype)
+void research_weapon_allow(WeaponType wtype)
 {
     ulong wflag;
     wflag = 1 << (wtype - 1);
@@ -115,9 +127,9 @@ void research_weapon_allow(ushort wtype)
 void research_weapon_flags_allow(ulong wpflags)
 {
     ulong oneflag;
-    ushort wtype;
+    WeaponType wtype;
 
-    for (wtype = 1; wtype < WEP_TYPES_COUNT; wtype++)
+    for (wtype = WEP_NULL + 1; wtype < WEP_TYPES_COUNT; wtype++)
     {
         oneflag = 1 << (wtype - 1);
         if ((wpflags & oneflag) == 0)
@@ -128,7 +140,7 @@ void research_weapon_flags_allow(ulong wpflags)
     }
 }
 
-void research_weapon_complete(ushort wtype)
+void research_weapon_complete(WeaponType wtype)
 {
     ulong wflag;
     wflag = 1 << (wtype - 1);
@@ -153,19 +165,19 @@ void research_current_weapon_complete(void)
 
 int research_wep_next_type(void)
 {
-    int wptype;
+    WeaponType wtype;
 
-    wptype = 0;
-    while ((research.WeaponsAllowed & (1 << wptype)) == 0)
+    wtype = WEP_NULL + 1;
+    while ((research.WeaponsAllowed & (1 << (wtype-1))) == 0)
     {
-        wptype++;
-        if (wptype >= WEP_TYPES_COUNT)
+        wtype++;
+        if (wtype >= WEP_TYPES_COUNT)
             return -1;
     }
     if ((research.CurrentWeapon == -1) ||
-      (weapon_tech_level[wptype + 1] > weapon_tech_level[research.CurrentWeapon + 1])) {
-        research.CurrentWeapon = wptype;
-        return wptype;
+      (weapon_tech_level[wtype + 1] > weapon_tech_level[research.CurrentWeapon + 1])) {
+        research.CurrentWeapon = wtype - 1;
+        return wtype;
     }
     return -1;
 }
@@ -237,6 +249,25 @@ void research_cymod_complete(ushort mtype)
     research.ModsCompleted |= mflag;
 }
 
+void research_unkn_func_003(void)
+{
+    struct WeaponDef *wdef;
+    WeaponType wtype;
+
+    wtype = research.CurrentWeapon + 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wtype-limits"
+    if (wtype < 0 || wtype >= WEP_TYPES_COUNT)
+        return;
+#pragma GCC diagnostic pop
+
+    wdef = &weapon_defs[wtype];
+    //TODO this modifies configuration which is not saved.
+    // instead we should count the dropped weapons in
+    // a separate variable within structs which are saved/loaded
+    wdef->PercentPerDay += wdef->PercentPerDay * weapon_donate_research_incr_permil / 1000;
+}
+
 void research_current_cymod_complete(void)
 {
     short mtype;
@@ -274,12 +305,6 @@ int research_cymod_next_type(void)
 
 int research_unkn_func_004(ushort percent_per_day, int expect_funding, int real_funding)
 {
-#if 0
-    int ret;
-    asm volatile ("call ASM_research_unkn_func_004\n"
-        : "=r" (ret) : "a" (percent_per_day), "d" (expect_funding), "b" (real_funding));
-    return ret;
-#else
     int n_remain, overhead;
     int points_total, ppd, delta;
     int points_by_group;
@@ -287,7 +312,7 @@ int research_unkn_func_004(ushort percent_per_day, int expect_funding, int real_
     // Adjust points to number of scientists
     points_total = percent_per_day << 8;
     n_remain = research.Scientists;
-    delta = 4;
+    delta = scientists_per_group;
     ppd = points_total;
     if (n_remain > delta)
     {
@@ -339,17 +364,10 @@ int research_unkn_func_004(ushort percent_per_day, int expect_funding, int real_
         points_total = n_remain * (long long)ppd / delta;
     }
     return points_total;
-#endif
 }
 
 int research_daily_progress_for_type(ubyte rstype)
 {
-#if 0
-    int ret;
-    asm volatile ("call ASM_research_daily_progress_for_type\n"
-        : "=r" (ret) : "a" (rstype));
-    return ret;
-#endif
     int real_funding;
     short progress;
     struct ModDef *mdef;
@@ -357,6 +375,7 @@ int research_daily_progress_for_type(ubyte rstype)
     int scientists_died;
 
     real_funding = 0;
+    progress = 0;
 
     switch (rstype)
     {
@@ -377,7 +396,7 @@ int research_daily_progress_for_type(ubyte rstype)
         else
         {
             research_current_weapon_complete();
-            if (ingame.fld_unk7DE)
+            if (ingame.AutoResearch)
                 research_wep_next_type();
         }
         break;
@@ -399,7 +418,7 @@ int research_daily_progress_for_type(ubyte rstype)
         else
         {
             research_current_cymod_complete();
-            if (ingame.fld_unk7DE)
+            if (ingame.AutoResearch)
                 research_cymod_next_type();
         }
         break;
@@ -412,8 +431,8 @@ int research_daily_progress_for_type(ubyte rstype)
     {
         ingame.Credits -= real_funding;
         ingame.Expenditure += real_funding;
-        //TODO CONFIG make research accident chance a config option
-        if (LbRandomAnyShort() % 100 < 2)
+        // Each day there is a chance of a scientist dying
+        if (LbRandomAnyShort() % 1000 < daily_scientist_death_chance_permil)
         {
             scientists_died++;
             if (LbRandomAnyShort() & 1)
@@ -424,6 +443,30 @@ int research_daily_progress_for_type(ubyte rstype)
         }
     }
     return scientists_died;
+}
+
+void srm_reset_research(void)
+{
+    struct Campaign *p_campgn;
+    int i;
+
+    p_campgn = &campaigns[background_type];
+
+    for (i = 0; i < 32; i++)
+    {
+        research.WeaponDaysDone[i] = 0;
+        research.ModDaysDone[i] = 0;
+        research.WeaponProgress[i][0] = 0;
+        research.ModProgress[i][0] = 0;
+    }
+    research.WeaponsCompleted = p_campgn->StandardWeapons;
+    research.WeaponsAllowed = p_campgn->ResearchWeapons;
+    research.ModsCompleted = p_campgn->StandardMods;
+    research.ModsAllowed = p_campgn->ResearchMods;
+    research.CurrentWeapon = -1;
+    research.CurrentMod = -1;
+    research.Scientists = 0;
+    research.NumBases = 0;
 }
 
 /******************************************************************************/

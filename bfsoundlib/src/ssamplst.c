@@ -21,6 +21,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
 
 #include "ssamplst.h"
 #include "aildebug.h"
@@ -34,20 +35,23 @@
 #include "rnc_1fm.h"
 /******************************************************************************/
 
+TbBool sample_queue_handle_initiated = false;
+TbBool sample_queue_handle_stopped = 1;
+SNDSAMPLE *sample_queue_handle = NULL;
+
+sbyte CurrentSoundBank = -1;
+long current_sample_queue_count = 0;
+
 extern TbBool SoundInstalled;
 extern TbBool DisableLoadSounds;
 
 extern TbBool SoundAble;
 extern ushort SoundType;
+extern TbBool SoundActive;
 
 extern ushort NumberOfSamples;
-
-extern TbBool sample_queue_handle_initiated;
-extern TbBool sample_queue_handle_stopped;
-extern SNDSAMPLE *sample_queue_handle;
-
 extern char full_sound_data_path[224];
-extern ubyte CurrentSoundBank; // = -1;
+extern DIG_DRIVER *SoundDriver;
 
 extern void *SfxData;
 extern void *Sfx;
@@ -55,6 +59,7 @@ extern void *EndSfxs;
 
 extern long largest_dat_size;
 extern long largest_tab_size;
+
 /******************************************************************************/
 
 void StopSampleQueueList(void)
@@ -64,12 +69,58 @@ void StopSampleQueueList(void)
     if (!sample_queue_handle_initiated)
         return;
 
-    sample_queue_handle_stopped = 1;
+    sample_queue_handle_stopped = true;
     AIL_register_EOS_callback(sample_queue_handle, 0);
     AIL_end_sample(sample_queue_handle);
 
     for (i = 0; i < 8; i++)
         AIL_set_sample_user_data(sample_queue_handle, i, 0);
+}
+
+void cb_sample_queue_callback(SNDSAMPLE *s)
+{
+    struct BfSfxInfo *sfi;
+    short sfxid;
+
+    if (sample_queue_handle_stopped || current_sample_queue_count >= 8)
+        return;
+
+    sfxid = AIL_sample_user_data(sample_queue_handle, current_sample_queue_count);
+
+    if (sfxid == 0)
+        return;
+
+    AIL_init_sample(sample_queue_handle);
+    AIL_register_EOS_callback(sample_queue_handle, cb_sample_queue_callback);
+    sfi = &((struct BfSfxInfo *)Sfx)[sfxid];
+    AIL_set_sample_file(sample_queue_handle, sfi->DataBeg, 1);
+    current_sample_queue_count++;
+    AIL_start_sample(sample_queue_handle);
+}
+
+void PlaySampleList(int sfx1, int sfx2, int sfx3, int sfx4, int sfx5, int sfx6, int sfx7, int sfx8)
+{
+    if (!SoundInstalled || !SoundAble || !SoundActive)
+        return;
+
+    if ( !sample_queue_handle_initiated )
+    {
+        sample_queue_handle = AIL_allocate_sample_handle(SoundDriver);
+        sample_queue_handle_initiated = 1;
+    }
+    sample_queue_handle_stopped = true;
+    AIL_end_sample(sample_queue_handle);
+    AIL_set_sample_user_data(sample_queue_handle, 0, sfx1);
+    AIL_set_sample_user_data(sample_queue_handle, 1, sfx2);
+    AIL_set_sample_user_data(sample_queue_handle, 2, sfx3);
+    AIL_set_sample_user_data(sample_queue_handle, 3, sfx4);
+    AIL_set_sample_user_data(sample_queue_handle, 4, sfx5);
+    AIL_set_sample_user_data(sample_queue_handle, 5, sfx6);
+    AIL_set_sample_user_data(sample_queue_handle, 6, sfx7);
+    AIL_set_sample_user_data(sample_queue_handle, 7, sfx8);
+    current_sample_queue_count = 0;
+    sample_queue_handle_stopped = false;
+    cb_sample_queue_callback(sample_queue_handle);
 }
 
 void format_sounds(void)
@@ -152,29 +203,26 @@ int LoadSounds(ubyte bank_no)
     ushort tpno;
     ushort banks_per_tpno[9];
 
-    sprintf(SoundProgressMessage, "BF42 - load sound bank %d\n", bank_no);
-    SoundProgressLog(SoundProgressMessage);
+    SNDLOGSYNC("Sound bank", "start load bank %d", bank_no);
 
     if (!SoundInstalled || !SoundAble || (CurrentSoundBank == bank_no) || DisableLoadSounds)
     {
-        if (!SoundInstalled)
-            sprintf(SoundProgressMessage, "BF47 - load sound bank - failed - Sound not installed\n");
-        else if (!SoundAble)
-            sprintf(SoundProgressMessage, "BF47 - load sound bank - failed - SoundAble = 0\n");
-        else if (DisableLoadSounds)
-            sprintf(SoundProgressMessage, "BF47 - load sound bank - failed - LoadSounds disabled\n");
-        else
-            sprintf(SoundProgressMessage, "BF47 - load sound bank - failed - already loaded\n");
-
-        SoundProgressLog(SoundProgressMessage);
+        if (!SoundInstalled) {
+            SNDLOGSYNC("Sound bank", "sound not installed");
+        } else if (!SoundAble) {
+            SNDLOGSYNC("Sound bank", "not SoundAble");
+        } else if (DisableLoadSounds) {
+            SNDLOGSYNC("Sound bank", "LoadSounds disabled");
+        } else {
+            SNDLOGSYNC("Sound bank", "already loaded");
+        }
         return 1;
     }
 
     StopAllSamples();
     fh = LbFileOpen(full_sound_data_path, Lb_FILE_MODE_READ_ONLY);
     if (fh == INVALID_FILE) {
-        sprintf(SoundProgressMessage, "BF46 - load sound bank - failed - no sound.dat\n");
-        SoundProgressLog(SoundProgressMessage);
+        SNDLOGFAIL("Sound bank", "no 'sound.dat'");
         return 1;
     }
 
@@ -187,29 +235,25 @@ int LoadSounds(ubyte bank_no)
     tpno = GetSoundTpNo(SoundType);
     if (tpno >= 255) {
         LbFileClose(fh);
-        sprintf(SoundProgressMessage, "BF43 - load sound bank - failed - bad sound type\n");
-        SoundProgressLog(SoundProgressMessage);
+        SNDLOGFAIL("Sound bank", "bad sound type");
         return 1;
     }
 
     if (bank_no + 1 > banks_per_tpno[tpno]) {
         LbFileClose(fh);
-        sprintf(SoundProgressMessage, "BF43 - load sound bank - failed - bank not found\n");
-        SoundProgressLog(SoundProgressMessage);
+        SNDLOGFAIL("Sound bank", "bank not found");
         return 1;
     }
     LbFileSeek(fh, 144 * bank_no, 1u);
 
     if (!load_sound_bank(fh, tpno)) {
         LbFileClose(fh);
-        sprintf(SoundProgressMessage, "BF44 - load sound bank - failed - cannot allocate\n");
-        SoundProgressLog(SoundProgressMessage);
+        SNDLOGFAIL("Sound bank", "cannot allocate");
         return 1;
     }
     CurrentSoundBank = bank_no;
     LbFileClose(fh);
-    sprintf(SoundProgressMessage, "BF45 - load sound bank - passed\n");
-    SoundProgressLog(SoundProgressMessage);
+    SNDLOGSYNC("Sound bank", "load bank passed");
     return 0;
 }
 

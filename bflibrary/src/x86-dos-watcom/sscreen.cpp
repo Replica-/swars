@@ -42,7 +42,7 @@
             cor2 = corlimit; \
     }
 
-static inline void *LbI_XMemCopy(void *dest, void *source, ulong len)
+void *LbI_XMemCopy(void *dest, void *source, ulong len)
 {
     ulong remain;
     ubyte *s;
@@ -58,7 +58,28 @@ static inline void *LbI_XMemCopy(void *dest, void *source, ulong len)
     return dest;
 }
 
-static inline void *LbI_XMemCopyAndSet(void *dest, void *source, ulong val, ulong len)
+void *LbI_XMemCopyFlip(void *dest, void *source, ulong len)
+{
+    ulong remain;
+    ubyte *s;
+    ubyte *d;
+    s = (ubyte *)source + len - 4;
+    d = (ubyte *)dest;
+    for (remain = len >> 2; remain != 0; remain--)
+    {
+        ulong v;
+
+        v = *(ulong *)s;
+        v = (v & 0x000000ff) << 24 | (v & 0x0000ff00) << 8 |
+            (v & 0x00ff0000) >> 8 | (v & 0xff000000) >> 24;
+        *(ulong *)d = v;
+        d += 4;
+        s -= 4;
+    }
+    return dest;
+}
+
+void *LbI_XMemCopyAndSet(void *dest, void *source, ulong val, ulong len)
 {
     ulong remain;
     ubyte *s;

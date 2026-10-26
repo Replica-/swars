@@ -1,8 +1,8 @@
 # *****************************************************************************
-#  Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+#  Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 # *****************************************************************************
 #   @file alltext_comm_ita.po
-#      Menu text for SW Port translation file
+#      Menu text for SyndWarsFX translation file
 #  @par Purpose:
 #      Contains translation of the national text in the game.
 #  @par Comment:
@@ -18,10 +18,10 @@
 # *****************************************************************************
 msgid ""
 msgstr ""
-"Project-Id-Version: Menu text for SW Port\n"
-"Report-Msgid-Bugs-To: https://github.com/swfans/swars/issues\n"
+"Project-Id-Version: Menu text for SyndWarsFX\n"
+"Report-Msgid-Bugs-To: https://github.com/swfans/syndwarsfx/issues\n"
 "POT-Creation-Date: 2023-09-05 11:43+0200\n"
-"PO-Revision-Date: 2023-12-29 20:11+0100\n"
+"PO-Revision-Date: 2025-12-15 22:04+0100\n"
 "Last-Translator: Mefistotelis <mefistotelis@gmail.com>\n"
 "Language-Team: Syndicate Wars Fans <github.com/swfans>\n"
 "Language: it_IT\n"
@@ -388,7 +388,7 @@ msgstr "Elimina i Novi"
 
 #: scanner.objective:73
 msgctxt "objective text shown on scanner"
-msgid "The Nine have activated the ion gate. you have been defeated."
+msgid "The Nine have activated the ion gate. You have been defeated."
 msgstr "I Novi hanno attivato la barriera a ioni. Sei stato sconfitto."
 
 #: scanner.objective:74

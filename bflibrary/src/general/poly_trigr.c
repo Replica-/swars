@@ -24,6 +24,10 @@
 #include "poly_trigp.h"
 #include "privbflog.h"
 
+#define PITCH_SH VEC_MAP_PITCH_SH
+#define UA_MASK (VEC_MAP_PITCH - 1)
+#define VB_MASK (0xFF)
+
 /**
  * whether the subtraction (x-y) of two short ints would overflow
  */
@@ -101,13 +105,11 @@ void trig_render_md00(struct TrigLocalRend *tlr)
         }
         else
         {
-            TbBool pY_overflow;
             if (pY > vec_window_width)
                 pY = vec_window_width;
-            pY_overflow = __OFSUBS__(pY, pX);
-            pY = pY - pX;
-            if (((pY < 0) ^ pY_overflow) | (pY == 0))
+            if (pY <= pX)
                 continue;
+            pY = pY - pX;
             o = &o_ln[pX];
         }
         memset(o, col, pY);
@@ -156,15 +158,13 @@ void trig_render_md01(struct TrigLocalRend *tlr)
         }
         else
         {
-            TbBool pY_overflow;
             short colH;
 
             if (pY > vec_window_width)
               pY = vec_window_width;
-            pY_overflow = __OFSUBS__(pY, pX);
-            pY = pY - pX;
-            if (((pY < 0) ^ pY_overflow) | (pY == 0))
+            if (pY <= pX)
                 continue;
+            pY = pY - pX;
             o += pX;
             colH = pp->S >> 16;
             pS = pp->S;
@@ -233,26 +233,24 @@ void trig_render_md02(struct TrigLocalRend *tlr)
                 pY = vec_window_width;
             pX = (pp->U + mX) >> 8;
 
-            colS = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colS = ((colH & 0xFF) << PITCH_SH) + (colL & UA_MASK);
         }
         else
         {
             short colL, colH;
-            TbBool pY_overflow;
 
             if (pY > vec_window_width)
                 pY = vec_window_width;
-            pY_overflow = __OFSUBS__(pY, pX);
-            pY = pY - pX;
-            if (((pY < 0) ^ pY_overflow) | (pY == 0))
+            if (pY <= pX)
                 continue;
+            pY = pY - pX;
             o += pX;
             pU = __ROL4__(pp->V, 16);
             colH = pU;
             pU = (pU & 0xFFFF0000) | (pp->U & 0xFFFF);
             colL = pp->U >> 16;
 
-            colS = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colS = ((colH & 0xFF) << PITCH_SH) + (colL & UA_MASK);
         }
 
         for (; pY > 0; pY--, o++)
@@ -318,26 +316,24 @@ void trig_render_md03(struct TrigLocalRend *tlr)
             if (pY > vec_window_width)
                 pY = vec_window_width;
 
-            colS = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colS = ((colH & 0xFF) << PITCH_SH) + (colL & UA_MASK);
         }
         else
         {
             short colL, colH;
-            TbBool pY_overflow;
 
             if (pY > vec_window_width)
                 pY = vec_window_width;
-            pY_overflow = __OFSUBS__(pY, pX);
-            pY = pY - pX;
-            if (((pY < 0) ^ pY_overflow) | (pY == 0))
+            if (pY <= pX)
                 continue;
+            pY = pY - pX;
             o += pX;
             pU = __ROL4__(pp->V, 16);
             colH = pU;
             pU = (pU & 0xFFFF0000) | ((pp->U) & 0xFFFF);
             colL = (pp->U) >> 16;
 
-            colS = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colS = ((colH & 0xFF) << PITCH_SH) + (colL & UA_MASK);
         }
 
         for (; pY > 0; pY--, o++)
@@ -410,14 +406,12 @@ void trig_render_md04(struct TrigLocalRend *tlr)
         else
         {
             ushort colL, colH;
-            TbBool pY_overflow;
 
             if (pY > vec_window_width)
                 pY = vec_window_width;
-            pY_overflow = __OFSUBS__(pY, pX);
-            pY = pY - pX;
-            if (((pY < 0) ^ pY_overflow) | (pY == 0))
+            if (pY <= pX)
                 continue;
+            pY = pY - pX;
             o += pX;
             colL = vec_colour;
             pU = pp->S;
@@ -505,20 +499,18 @@ void trig_render_md05(struct TrigLocalRend *tlr)
             if (pY > vec_window_width)
                 pY = vec_window_width;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
         else
         {
             ulong factorA, factorB;
             ushort colL, colH;
-            TbBool pY_overflow;
 
             if (pY > vec_window_width)
                 pY = vec_window_width;
-            pY_overflow = __OFSUBS__(pY, pX);
-            pY = pY - pX;
-            if (((pY < 0) ^ pY_overflow) | (pY == 0))
+            if (pY <= pX)
                 continue;
+            pY = pY - pX;
             o_ln += pX;
             factorA = __ROL4__(pp->U, 16);
             factorB = __ROL4__(pp->V, 16);
@@ -528,7 +520,7 @@ void trig_render_md05(struct TrigLocalRend *tlr)
             rfactB = (factorB & 0xFFFF0000) | (factorA & 0xFF);
             rfactA = (factorA & 0xFFFF0000) | (colL & 0xFFFF);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
 
         o = o_ln;
@@ -540,7 +532,7 @@ void trig_render_md05(struct TrigLocalRend *tlr)
             TbBool rfactA_carry;
             TbBool rfactB_carry;
 
-            colM = (colM & 0xFF00) + (rfactB & 0xFF);
+            colM = (colM & (VB_MASK << PITCH_SH)) + (rfactB & UA_MASK);
             colS = (((rfactA >> 8) & 0xFF) << 8) + m[colM];
 
             rfactA_carry = __CFADDL__(rfactA, lsh_var_54);
@@ -549,9 +541,9 @@ void trig_render_md05(struct TrigLocalRend *tlr)
             rfactB_carry = __CFADDL__(rfactB + rfactA_carry, lsh_var_60);
             rfactB = rfactB + lsh_var_60 + rfactA_carry;
 
-            colH = lvr_var_54 + rfactB_carry + (colM >> 8);
+            colH = lvr_var_54 + rfactB_carry + (colM >> PITCH_SH);
             colL = colM;
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
 
             *o = f[colS];
         }
@@ -613,7 +605,7 @@ void trig_render_md06(struct TrigLocalRend *tlr)
             pXa = mX >> 8;
             colL = (pXa >> 8);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
 
             factorB = __ROL4__(pp->S + tlr->var_60 * pXMb, 16);
             pXa = (pXa & 0xFFFF00FF) | ((factorB & 0xFF) << 8);
@@ -644,7 +636,7 @@ void trig_render_md06(struct TrigLocalRend *tlr)
             factorA = (factorA & 0xFFFF0000) | (pp->U & 0xFFFF);
             pXa = (pXa & 0xFFFF00FF) | ((factorB & 0xFF) << 8);
             factorB = (factorB & 0xFFFF0000) | (pLa & 0xFFFF);
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
             pY = factorB & 0xFFFF;
         }
 
@@ -662,9 +654,9 @@ void trig_render_md06(struct TrigLocalRend *tlr)
             colL = (tlr->var_48 >> 16) + fct_carry + colM;
             fct_carry = __CFADDL__(lsh_var_54, factorA);
             factorA += lsh_var_54;
-            colH = (tlr->var_54 >> 16) + fct_carry + (colM >> 8);
+            colH = (tlr->var_54 >> 16) + fct_carry + (colM >> PITCH_SH);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
 
             factorB = (factorB & 0xFFFF0000) | (pY & 0xFFFF);
             fct_carry = __CFADDL__(lsh_var_60, factorB);
@@ -722,26 +714,24 @@ void trig_render_md07(struct TrigLocalRend *tlr)
               pYa = vec_window_width;
             pXa = (ushort)factorB;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
         else
         {
             ushort colL, colH;
-            ubyte pY_overflow;
 
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if ( (ubyte)(((pYa & 0x8000u) != 0) ^ pY_overflow) | ((ushort)pYa == 0) )
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o += pXa;
             factorA = __ROL4__(pp->V, 16);
             colH = factorA;
             factorA = (factorA & 0xFFFF0000) | (pp->U & 0xFFFF);
             colL = ((pp->U >> 16) & 0xFF);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
 
         for (; pYa > 0; pYa--, o++)
@@ -757,9 +747,9 @@ void trig_render_md07(struct TrigLocalRend *tlr)
             factorA_carry = __CFADDL__(lsh_var_54, factorA);
             factorA += lsh_var_54;
             *o = f[colS];
-            colH = (colM >> 8) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
+            colH = (colM >> PITCH_SH) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
     }
 }
@@ -811,26 +801,24 @@ void trig_render_md08(struct TrigLocalRend *tlr)
               pYa = vec_window_width;
             pXa = (ushort)factorC;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
         else
         {
             ushort colL, colH;
-            ubyte pY_overflow;
 
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if ( (ubyte)(((pYa & 0x8000u) != 0) ^ pY_overflow) | ((ushort)pYa == 0) )
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o += pXa;
             factorA = __ROL4__(pp->V, 16);
             colH = factorA;
             factorA = (factorA & 0xFFFF0000) + (pp->U & 0xFFFF);
             colL = ((pp->U >> 16) & 0xFF);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
 
         for (; pYa > 0; pYa--, o++)
@@ -847,9 +835,9 @@ void trig_render_md08(struct TrigLocalRend *tlr)
                 *o = f[colS];
             factorA_carry = __CFADDL__(lsh_var_54, factorA);
             factorA += lsh_var_54;
-            colH = (colM >> 8) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
+            colH = (colM >> PITCH_SH) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
     }
 }
@@ -900,26 +888,24 @@ void trig_render_md09(struct TrigLocalRend *tlr)
               pYa = vec_window_width;
             pXa = (ushort)factorC;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
         else
         {
             ushort colL, colH;
-            ubyte pY_overflow;
 
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if (((pYa < 0) ^ pY_overflow) | (pYa == 0))
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o += pXa;
             factorA = __ROL4__(pp->V, 16);
             colH = factorA;
             factorA = (factorA & 0xFFFF0000) + (pp->U & 0xFFFF);
             colL = ((pp->U >> 16) & 0xFF);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
 
         for (; pYa > 0; pYa--, o++)
@@ -938,9 +924,9 @@ void trig_render_md09(struct TrigLocalRend *tlr)
             }
             factorA_carry = __CFADDL__(lsh_var_54, factorA);
             factorA += lsh_var_54;
-            colH = (colM >> 8) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
+            colH = (colM >> PITCH_SH) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
     }
 }
@@ -993,26 +979,24 @@ void trig_render_md10(struct TrigLocalRend *tlr)
               pYa = vec_window_width;
             pXa = (ushort)factorC;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
         else
         {
             ushort colL, colH;
-            ubyte pY_overflow;
 
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if ( (ubyte)(((pYa & 0x8000u) != 0) ^ pY_overflow) | ((ushort)pYa == 0) )
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o += pXa;
             factorA = __ROL4__(pp->V, 16);
             colH = factorA;
             factorA = (factorA & 0xFFFF0000) + (pp->U & 0xFFFF);
             colL = ((pp->U >> 16) & 0xFF);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
 
         for (; pYa > 0; pYa--, o++)
@@ -1030,9 +1014,9 @@ void trig_render_md10(struct TrigLocalRend *tlr)
             colL = ((tlr->var_48 >> 16) & 0xFF) + factorA_carry + colM;
             factorA_carry = __CFADDL__(lsh_var_54, factorA);
             factorA += lsh_var_54;
-            colH = (colM >> 8) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
+            colH = (colM >> PITCH_SH) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
     }
 }
@@ -1084,26 +1068,24 @@ void trig_render_md12(struct TrigLocalRend *tlr)
               pYa = vec_window_width;
             pXa = (ushort)factorB;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
         else
         {
             ushort colL, colH;
-            ubyte pY_overflow;
 
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if ( (ubyte)(((pYa & 0x8000u) != 0) ^ pY_overflow) | ((ushort)pYa == 0) )
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o += pXa;
             factorA = __ROL4__(pp->V, 16);
             colH = factorA;
             factorA = (factorA & 0xFFFF0000) + (pp->U & 0xFFFF);
             colL = ((pp->U >> 16) & 0xFF);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
 
         for (; pYa > 0; pYa--, o++)
@@ -1119,9 +1101,9 @@ void trig_render_md12(struct TrigLocalRend *tlr)
             factorA_carry = __CFADDL__(lsh_var_54, factorA);
             factorA += lsh_var_54;
             *o = g[colS];
-            colH = (colM >> 8) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
+            colH = (colM >> PITCH_SH) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
     }
 }
@@ -1172,26 +1154,24 @@ void trig_render_md13(struct TrigLocalRend *tlr)
               pYa = vec_window_width;
             pXa = (ushort)factorC;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
         else
         {
             ushort colL, colH;
-            ubyte pY_overflow;
 
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if ( (ubyte)(((pYa & 0x8000u) != 0) ^ pY_overflow) | ((ushort)pYa == 0) )
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o += pXa;
             factorA = __ROL4__(pp->V, 16);
             colH = factorA;
             factorA = (factorA & 0xFFFF0000) + (pp->U & 0xFFFF);
             colL = ((pp->U >> 16) & 0xFF);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
 
         for (; pYa > 0; pYa--, o++)
@@ -1207,9 +1187,9 @@ void trig_render_md13(struct TrigLocalRend *tlr)
             factorA_carry = __CFADDL__(lsh_var_54, factorA);
             factorA += lsh_var_54;
             *o = g[colS];
-            colH = (colM >> 8) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
+            colH = (colM >> PITCH_SH) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
     }
 }
@@ -1249,14 +1229,11 @@ void trig_render_md14(struct TrigLocalRend *tlr)
         }
         else
         {
-            ubyte pY_overflow;
-
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if ( ((pYa < 0) ^ pY_overflow) | (pYa == 0) )
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o = &o_ln[pXa];
         }
 
@@ -1298,14 +1275,11 @@ void trig_render_md15(struct TrigLocalRend *tlr)
         }
         else
         {
-            ubyte pY_overflow;
-
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if ( ((pYa < 0) ^ pY_overflow) | (pYa == 0) )
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o = &o_ln[pXa];
         }
 
@@ -1363,14 +1337,12 @@ void trig_render_md16(struct TrigLocalRend *tlr)
         else
         {
             ushort colL, colH;
-            ubyte pY_overflow;
 
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if ( ((pYa < 0) ^ pY_overflow) | (pYa == 0) )
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o += pXa;
             colL = vec_colour;
             factorA = pp->S;
@@ -1443,15 +1415,12 @@ void trig_render_md17(struct TrigLocalRend *tlr)
         else
         {
             ushort colL, colH;
-            ubyte pY_overflow;
 
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if (((pYa < 0) ^ pY_overflow) | (pYa == 0))
+            if (pYa <= pXa)
                 continue;
-
+            pYa -= pXa;
             o += pXa;
             colL = vec_colour;
             factorA = pp->S;
@@ -1520,26 +1489,24 @@ void trig_render_md18(struct TrigLocalRend *tlr)
               pYa = vec_window_width;
             pXa = (ushort)factorC;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
         else
         {
             ushort colL, colH;
-            ubyte pY_carry;
 
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_carry = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if ( ((pYa < 0) ^ pY_carry) | (pYa == 0) )
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o += pXa;
             factorA = __ROL4__(pp->V, 16);
             colH = factorA;
             factorA = (factorA & 0xFFFF0000) + (pp->U & 0xFFFF);
             colL = (pp->U >> 16);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
 
         for (; pYa > 0; pYa--, o++)
@@ -1557,9 +1524,9 @@ void trig_render_md18(struct TrigLocalRend *tlr)
             factorA_carry = __CFADDL__(lsh_var_54, factorA);
             factorA += lsh_var_54;
             *o = g[colS];
-            colH = (colM >> 8) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
+            colH = (colM >> PITCH_SH) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
     }
 }
@@ -1605,26 +1572,24 @@ void trig_render_md19(struct TrigLocalRend *tlr)
             if (pYa > vec_window_width)
               pYa = vec_window_width;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
         else
         {
             ushort colL, colH;
-            ubyte pY_overflow;
 
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if ( ((pYa < 0) ^ pY_overflow) | (pYa == 0) )
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o += pXa;
             factorA = __ROL4__(pp->V, 16);
             colH = factorA;
             factorA = (factorA & 0xFFFF0000) + (pp->U & 0xFFFF);
             colL = ((pp->U >> 16) & 0xFF);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
 
         for (; pYa > 0; pYa--, o++)
@@ -1640,9 +1605,9 @@ void trig_render_md19(struct TrigLocalRend *tlr)
             factorA_carry = __CFADDL__(lsh_var_54, factorA);
             factorA += lsh_var_54;
             *o = g[colS];
-            colH = (colM >> 8) + (tlr->var_54 >> 16) + factorA_carry;
+            colH = (colM >> PITCH_SH) + (tlr->var_54 >> 16) + factorA_carry;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
     }
 }
@@ -1696,19 +1661,17 @@ void trig_render_md20(struct TrigLocalRend *tlr)
             colL = ((pXa >> 8) & 0xFF);
             factorC = __ROL4__(pp->S + tlr->var_60 * pXMb, 16);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
         else
         {
             ushort colL, colH;
-            ubyte pY_overflow;
 
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if ( ((pYa < 0) ^ pY_overflow) | (pYa == 0) )
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o += pXa;
             factorA = __ROL4__(pp->V, 16);
             colH = factorA;
@@ -1716,7 +1679,7 @@ void trig_render_md20(struct TrigLocalRend *tlr)
             colL = ((pp->U >> 16) & 0xFF);
             factorC = __ROL4__(pp->S, 16);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
 
         for (; pYa > 0; pYa--, o++)
@@ -1732,13 +1695,13 @@ void trig_render_md20(struct TrigLocalRend *tlr)
             factorA_carry = __CFADDL__(lsh_var_54, factorA);
             factorA += lsh_var_54;
             colS = ((f[colS] & 0xFF) << 8) + *o;
-            colH = (colM >> 8) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
+            colH = (colM >> PITCH_SH) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
             factorA_carry = __CFADDL__(lsh_var_60, factorC);
             factorC += lsh_var_60;
             *o = g[colS];
             factorC = (factorC & 0xFFFFFF00) | (((tlr->var_60 >> 16) + factorA_carry + factorC) & 0xFF);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
     }
 }
@@ -1792,19 +1755,17 @@ void trig_render_md21(struct TrigLocalRend *tlr)
             factorC = __ROL4__(pp->S + tlr->var_60 * pXMb, 16);
             pXa = (pXa & 0xFFFF);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
         else
         {
             ushort colL, colH;
-            ubyte pY_overflow;
 
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if ( ((pYa < 0) ^ pY_overflow) | (pYa == 0) )
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o += pXa;
             factorA = __ROL4__(pp->V, 16);
             colH = factorA;
@@ -1812,7 +1773,7 @@ void trig_render_md21(struct TrigLocalRend *tlr)
             colL = ((pp->U >> 16) & 0xFF);
             factorC = __ROL4__(pp->S, 16);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
 
         for (; pYa > 0; pYa--, o++)
@@ -1828,13 +1789,13 @@ void trig_render_md21(struct TrigLocalRend *tlr)
             colS = (((*o) & 0xFF) << 8) + (f[colS] & 0xFF);
             factorA_carry = __CFADDL__(lsh_var_54, factorA);
             factorA += lsh_var_54;
-            colH = (colM >> 8) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
+            colH = (colM >> PITCH_SH) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
             factorA_carry = __CFADDL__(lsh_var_60, factorC);
             factorC += lsh_var_60;
             *o = g[colS];
             factorC = (factorC & 0xFFFFFF00) | (((tlr->var_60 >> 16) + factorA_carry + factorC) & 0xFF);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
     }
 }
@@ -1882,26 +1843,24 @@ void trig_render_md22(struct TrigLocalRend *tlr)
               pYa = vec_window_width;
             pXa = factorC & 0xFFFF;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
         else
         {
             ushort colL, colH;
-            ubyte pY_overflow;
 
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if ( ((pYa < 0) ^ pY_overflow) | (pYa == 0) )
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o += pXa;
             factorA = __ROL4__(pp->V, 16);
             colH = factorA;
             factorA = (factorA & 0xFFFF0000) + (pp->U & 0xFFFF);
             colL = ((pp->U >> 16) & 0xFF);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
 
         for (; pYa > 0; pYa--, o++)
@@ -1919,9 +1878,9 @@ void trig_render_md22(struct TrigLocalRend *tlr)
             colL = ((tlr->var_48 >> 16) & 0xFF) + factorA_carry + colM;
             factorA_carry = __CFADDL__(lsh_var_54, factorA);
             factorA += lsh_var_54;
-            colH = (colM >> 8) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
+            colH = (colM >> PITCH_SH) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
     }
 }
@@ -1970,26 +1929,24 @@ void trig_render_md23(struct TrigLocalRend *tlr)
               pYa = vec_window_width;
             pXa = (ushort)factorC;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
         else
         {
             ushort colL, colH;
-            ubyte pY_overflow;
 
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if (((pYa < 0) ^ pY_overflow) | (pYa == 0) )
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o += pXa;
             factorA = __ROL4__(pp->V, 16);
             colH = factorA;
             factorA = (factorA & 0xFFFF0000) + (pp->U & 0xFFFF);
             colL = ((pp->U >> 16) & 0xFF);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
 
         for (; pYa > 0; pYa--, o++)
@@ -2006,9 +1963,9 @@ void trig_render_md23(struct TrigLocalRend *tlr)
             colL = ((tlr->var_48 >> 16) & 0xFF) + factorA_carry + colM;
             factorA_carry = __CFADDL__(lsh_var_54, factorA);
             factorA += lsh_var_54;
-            colH = (colM >> 8) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
+            colH = (colM >> PITCH_SH) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
     }
 }
@@ -2064,19 +2021,17 @@ void trig_render_md24(struct TrigLocalRend *tlr)
             factorC = __ROL4__(pp->S + tlr->var_60 * pXMb, 16);
             pXa = (ushort)pXa;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
         else
         {
             ushort colL, colH;
-            ubyte pY_overflow;
 
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if (((pYa < 0) ^ pY_overflow) | (pYa == 0) )
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o += pXa;
             factorA = __ROL4__(pp->V, 16);
             colH = factorA;
@@ -2084,7 +2039,7 @@ void trig_render_md24(struct TrigLocalRend *tlr)
             colL = ((pp->U >> 16) & 0xFF);
             factorC = __ROL4__(pp->S, 16);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
 
         for (; pYa > 0; pYa--, o++)
@@ -2104,12 +2059,12 @@ void trig_render_md24(struct TrigLocalRend *tlr)
             colL = ((tlr->var_48 >> 16) & 0xFF) + factorA_carry + colM;
             factorA_carry = __CFADDL__(lsh_var_54, factorA);
             factorA += lsh_var_54;
-            colH = (colM >> 8) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
+            colH = (colM >> PITCH_SH) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
             factorA_carry = __CFADDL__(lsh_var_60, factorC);
             factorC += lsh_var_60;
             factorC = (factorC & 0xFFFFFF00) + (((tlr->var_60 >> 16) + factorA_carry + factorC) & 0xFF);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
     }
 }
@@ -2165,19 +2120,17 @@ void trig_render_md25(struct TrigLocalRend *tlr)
             factorC = __ROL4__(pp->S + tlr->var_60 * pXMb, 16);
             pXa = (ushort)pXa;
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
         else
         {
             ushort colL, colH;
-            ubyte pY_overflow;
 
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa = pYa - pXa;
-            if (((pYa < 0) ^ pY_overflow) | (pYa == 0) )
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o += pXa;
             factorA = __ROL4__(pp->V, 16);
             colH = factorA;
@@ -2185,7 +2138,7 @@ void trig_render_md25(struct TrigLocalRend *tlr)
             colL = ((pp->U >> 16) & 0xFF);
             factorC = __ROL4__(pp->S, 16);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
 
         for (; pYa > 0; pYa--, o++)
@@ -2205,12 +2158,12 @@ void trig_render_md25(struct TrigLocalRend *tlr)
             colL = ((tlr->var_48 >> 16) & 0xFF) + factorA_carry + colM;
             factorA_carry = __CFADDL__(lsh_var_54, factorA);
             factorA += lsh_var_54;
-            colH = (colM >> 8) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
+            colH = (colM >> PITCH_SH) + ((tlr->var_54 >> 16) & 0xFF) + factorA_carry;
             factorA_carry = __CFADDL__(lsh_var_60, factorC);
             factorC += lsh_var_60;
             factorC = (factorC & 0xFFFFFF00) | (((tlr->var_60 >> 16) + factorA_carry + factorC) & 0xFF);
 
-            colM = ((colH & 0xFF) << 8) + (colL & 0xFF);
+            colM = ((colH & VB_MASK) << PITCH_SH) + (colL & UA_MASK);
         }
     }
 }
@@ -2253,7 +2206,6 @@ void trig_render_md26(struct TrigLocalRend *tlr)
         ulong factorB, factorD;
         long factorA;
         ulong factorC;
-        ubyte pY_overflow;
         ushort colM;
 
         pXa = pp->X >> 16;
@@ -2275,16 +2227,15 @@ void trig_render_md26(struct TrigLocalRend *tlr)
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
 
-            colM = (factorC & 0xFF) + ((factorD & 0xFF) << 8);
+            colM = ((factorD & VB_MASK) << PITCH_SH) + (factorC & UA_MASK);
         }
         else
         {
             if (pYa > vec_window_width)
                 pYa = vec_window_width;
-            pY_overflow = __OFSUBS__(pYa, pXa);
-            pYa -= pXa;
-            if (((pYa < 0) ^ pY_overflow) | (pYa == 0))
+            if (pYa <= pXa)
                 continue;
+            pYa -= pXa;
             o += pXa;
             factorA = __ROL4__(pp->U, 16);
             factorB = __ROL4__(pp->V, 16);
@@ -2293,7 +2244,7 @@ void trig_render_md26(struct TrigLocalRend *tlr)
             factorA = (factorA & 0xFFFF0000) | (factorC & 0xFFFF);
             factorD = __ROL4__(pp->V, 16);
 
-            colM = (factorC & 0xFF) + ((factorD & 0xFF) << 8);
+            colM = ((factorD & VB_MASK) << PITCH_SH) + (factorC & UA_MASK);
         }
 
         factorB = (factorB & 0xFFFF00FF);
@@ -2303,13 +2254,13 @@ void trig_render_md26(struct TrigLocalRend *tlr)
             ushort colS;
             ubyte factorA_carry, factorB_carry;
 
-            colM = (colM & 0xFF00) | (factorB & 0xFF);
+            colM = (colM & (VB_MASK << PITCH_SH)) | (factorB & UA_MASK);
             colS = (factorA & 0xFF00) | m[colM];
             factorA_carry = __CFADDL__(lsh_var_54, factorA);
             factorA = lsh_var_54 + factorA;
             factorB_carry = __CFADDL__(lsh_var_60, factorB + factorA_carry);
             factorB = lsh_var_60 + factorB + factorA_carry;
-            colM = (colM & 0xFF) + ((((colM >> 8) + lvr_var_54 + factorB_carry) & 0xFF) << 8);
+            colM = (colM & UA_MASK) + ((((colM >> PITCH_SH) + lvr_var_54 + factorB_carry) & VB_MASK) << PITCH_SH);
 
             if ((colS & 0xFF) <= 0xCu) {
                 colS = ((*o) << 8) | f[colS];

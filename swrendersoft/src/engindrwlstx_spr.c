@@ -1,0 +1,869 @@
+/******************************************************************************/
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
+/******************************************************************************/
+/** @file engindrwlstx_spr.c
+ *     Drawlists execution for the 3D engine, sprite and 2D shapes related items.
+ * @par Purpose:
+ *     Implements functions for executing previously made drawlists,
+ *     meaning the actual drawing based on primitives in the list.
+ * @par Comment:
+ *     None.
+ * @author   Tomasz Lis
+ * @date     22 Apr 2024 - 12 May 2024
+ * @par  Copying and copyrights:
+ *     This program is free software; you can redistribute it and/or modify
+ *     it under the terms of the GNU General Public License as published by
+ *     the Free Software Foundation; either version 2 of the License, or
+ *     (at your option) any later version.
+ */
+/******************************************************************************/
+#include "engindrwlstx.h"
+
+#include <assert.h>
+
+#include "bfbox.h"
+#include "bfgentab.h"
+#include "bfline.h"
+#include "bfmemut.h"
+#include "bfsprite.h"
+#include "insspr.h"
+
+#include "drawtext.h"
+#include "engincam.h"
+#include "engincolour.h"
+#include "enginshrapn.h"
+#include "enginzoom.h"
+#include "frame_sprani.h"
+#include "privrdlog.h"
+/******************************************************************************/
+/** Unpacks sprite frame versions from one integer to an array */
+#define SPR_FRAME_VERSIONS_UNPACK(varr, vpck) \
+    (varr)[0] = (((ushort)vpck) >> 0) & 0x07; \
+    (varr)[1] = (((ushort)vpck) >> 3) & 0x07; \
+    (varr)[2] = (((ushort)vpck) >> 6) & 0x07; \
+    (varr)[3] = (((ushort)vpck) >> 9) & 0x07; \
+    (varr)[4] = (((ushort)vpck) >> 12) & 0x07
+
+s32 dword_176CE0;
+s32 dword_176CE4;
+s32 dword_176CE8;
+s32 dword_176CEC;
+s32 dword_176CF0;
+s32 dword_176CF4;
+s32 dword_176D00;
+s32 dword_176D04;
+
+short anim_el_pos_min_x = 0;
+short anim_el_pos_min_y = 0;
+
+TbBool sprite_over_16x16 = false;
+
+struct SortLine *game_sort_lines = NULL;
+struct SortLine *p_current_sort_line = NULL;
+ushort next_sort_line = 0;
+
+struct DrawItem *game_draw_list = NULL;
+struct DrawItem *p_current_draw_item = NULL;
+ushort next_draw_item = 0;
+
+struct SortSprite *game_sort_sprites = NULL;
+struct SortSprite *p_current_sort_sprite = NULL;
+ushort next_sort_sprite = 0;
+
+ScreenSortSpriteRenderCallback screen_sorted_sprite_statc_render_cb = NULL;
+ScreenSortSpriteRenderCallback screen_sorted_sprite_persn_render_cb = NULL;
+
+/******************************************************************************/
+
+static void anim_elem_pos_min_set(short x, short y)
+{
+    anim_el_pos_min_x = x;
+    anim_el_pos_min_y = y;
+}
+
+static void anim_elem_pos_mark(struct Element *p_elem)
+{
+    if (anim_el_pos_min_x > p_elem->X >> 1)
+        anim_el_pos_min_x = p_elem->X >> 1;
+    if (anim_el_pos_min_y > p_elem->Y >> 1)
+        anim_el_pos_min_y = p_elem->Y >> 1;
+}
+
+void draw_sort_line(struct SortLine *p_sline)
+{
+    ushort ftcor;
+    if ((p_sline->Flags & (0x01|0x02)) != 0)
+    {
+        int dist_x, dist_y;
+        int dtX, dtY;
+
+        dist_x = p_sline->X1 - p_sline->X2;
+        dist_y = p_sline->Y1 - p_sline->Y2;
+        if (dist_x < 0)
+            dist_x = -dist_x;
+        if (dist_y < 0)
+            dist_y = -dist_y;
+        if (dist_x <= dist_y) {
+          dtX = 1;
+          dtY = 0;
+        } else {
+          dtX = 0;
+          dtY = 1;
+        }
+
+        if ((p_sline->Flags & 0x02) != 0)
+            lbDisplay.DrawFlags = Lb_SPRITE_TRANSPAR4;
+        ftcor = 256 * p_sline->Shade + p_sline->Col;
+        LbDrawLine(p_sline->X1, p_sline->Y1,
+          p_sline->X2, p_sline->Y2,
+          pixmap.fade_table[ftcor]);
+
+        lbDisplay.DrawFlags = Lb_SPRITE_TRANSPAR4;
+        ftcor = 256 * 20 + p_sline->Col;
+        LbDrawLine(p_sline->X1 + dtX, p_sline->Y1 + dtY,
+          p_sline->X2 + dtX, p_sline->Y2 + dtY,
+          pixmap.fade_table[ftcor]);
+
+        ftcor = 256 * 20 + p_sline->Col;
+        LbDrawLine(p_sline->X1 - dtX, p_sline->Y1 - dtY,
+          p_sline->X2 - dtX, p_sline->Y2 - dtY,
+          pixmap.fade_table[ftcor]);
+        lbDisplay.DrawFlags = 0;
+    }
+    else
+    {
+        ftcor = 256 * p_sline->Shade + p_sline->Col;
+        LbDrawLine(p_sline->X1, p_sline->Y1,
+          p_sline->X2, p_sline->Y2,
+          pixmap.fade_table[ftcor]);
+    }
+}
+
+void draw_sort_line1a(ushort sln)
+{
+    struct SortLine *p_sline;
+    p_sline = &game_sort_lines[sln];
+    draw_sort_line(p_sline);
+}
+
+/** Draw scaled frame containing HUD element on screen, without special treatment.
+ */
+void draw_hud_frame_on_screen(short scr_x, short scr_y, ushort frm, int sscale)
+{
+    struct Frame *p_frm;
+    struct Element *p_elem;
+    ushort el;
+
+    p_frm = &frame[frm];
+    assert(p_frm < frame_end);
+
+    for (el = p_frm->FirstElement; el > 0; el = p_elem->Next)
+    {
+        struct TbSprite *p_spr;
+        int el_X, el_Y;
+
+        p_elem = &melement_ani[el];
+        p_spr = (struct TbSprite *)((ubyte *)m_sprites + p_elem->ToSprite);
+        if ((p_spr <= m_sprites) || (p_spr >= m_sprites_end))
+            continue;
+
+        lbDisplay.DrawFlags = p_elem->Flags & 0x07;
+
+        if ((p_elem->Flags & 0xFE00) == 0) {
+            el_X = scr_x + ((sscale * p_elem->X) >> 9);
+            el_Y = scr_y + ((sscale * p_elem->Y) >> 9);
+            LbSpriteDrawScaled(el_X, el_Y, p_spr,
+              (sscale * p_spr->SWidth + 127) >> 9,
+              (sscale * p_spr->SHeight + 127) >> 9);
+        }
+    }
+}
+
+/** Draw frame containing HUD element without scaling sprites, but do scale position shifts.
+ *
+ * This non-standard solution is useful for frames which reserve spece for something scalable
+ * in the middle. Without it, numbers above agents could fly quite far from the person frames,
+ * depending on zoom level.
+ */
+void draw_hud_frame_on_screen_unscaled_but_scale_pos(short scr_x, short scr_y, ushort frm, int sscale)
+{
+    struct Frame *p_frm;
+    struct Element *p_elem;
+    ushort el;
+
+    p_frm = &frame[frm];
+    assert(p_frm < frame_end);
+
+    for (el = p_frm->FirstElement; el > 0; el = p_elem->Next)
+    {
+        struct TbSprite *p_spr;
+        int el_X, el_Y;
+
+        p_elem = &melement_ani[el];
+        p_spr = (struct TbSprite *)((ubyte *)m_sprites + p_elem->ToSprite);
+        if ((p_spr <= m_sprites) || (p_spr >= m_sprites_end))
+            continue;
+
+        lbDisplay.DrawFlags = p_elem->Flags & 0x07;
+
+        if ((p_elem->Flags & 0xFE00) == 0) {
+            el_X = scr_x + ((sscale * p_elem->X) >> 9);
+            el_Y = scr_y + ((sscale * p_elem->Y) >> 9);
+            LbSpriteDraw(el_X, el_Y, p_spr);
+        }
+    }
+}
+
+void draw_frame_unscaled(int scr_x, int scr_y, ushort frm)
+{
+    struct Frame *p_frm;
+    struct Element *p_elem;
+    ushort el;
+
+    p_frm = &frame[frm];
+    assert(p_frm < frame_end);
+
+    for (el = p_frm->FirstElement; el > 0; el = p_elem->Next)
+    {
+        struct TbSprite *p_spr;
+        int el_X, el_Y;
+
+        p_elem = &melement_ani[el];
+        p_spr = (struct TbSprite *)((ubyte *)m_sprites + p_elem->ToSprite);
+        if ((p_spr <= m_sprites) || (p_spr >= m_sprites_end))
+            continue;
+
+        lbDisplay.DrawFlags = p_elem->Flags & 0x07;
+
+        if ((p_elem->Flags & 0xFE00) == 0) {
+            el_X = scr_x + (p_elem->X >> 1);
+            el_Y = scr_y + (p_elem->Y >> 1);
+            LbSpriteDraw(el_X, el_Y, p_spr);
+        }
+    }
+    lbDisplay.DrawFlags = 0;
+}
+
+void draw_frame_unscaled_one_colour(int scr_x, int scr_y, ushort frm,
+  TbPixel colour)
+{
+    struct Frame *p_frm;
+    struct Element *p_elem;
+    ushort el;
+
+    p_frm = &frame[frm];
+    assert(p_frm < frame_end);
+
+    for (el = p_frm->FirstElement; el > 0; el = p_elem->Next)
+    {
+        struct TbSprite *p_spr;
+        int el_X, el_Y;
+
+        p_elem = &melement_ani[el];
+        p_spr = (struct TbSprite *)((ubyte *)m_sprites + p_elem->ToSprite);
+        if ((p_spr <= m_sprites) || (p_spr >= m_sprites_end))
+            continue;
+
+        lbDisplay.DrawFlags = p_elem->Flags & 0x07;
+
+        if ((p_elem->Flags & 0xFE00) == 0) {
+            el_X = scr_x + (p_elem->X >> 1);
+            el_Y = scr_y + (p_elem->Y >> 1);
+            LbSpriteDrawOneColour(el_X, el_Y, p_spr, colour);
+        }
+    }
+    lbDisplay.DrawFlags = 0;
+}
+
+void draw_frame_on_screen(short scr_x, short scr_y, ushort frm)
+{
+    struct Frame *p_frm;
+    struct Element *p_elem;
+    int sscale;
+    ushort el;
+
+    sscale = overall_scale;
+
+    p_frm = &frame[frm];
+    assert(p_frm < frame_end);
+
+    for (el = p_frm->FirstElement; el > 0; el = p_elem->Next)
+    {
+        struct TbSprite *p_spr;
+        int el_X, el_Y;
+
+        p_elem = &melement_ani[el];
+        p_spr = (struct TbSprite *)((ubyte *)m_sprites + p_elem->ToSprite);
+        if ((p_spr <= m_sprites) || (p_spr >= m_sprites_end))
+            continue;
+
+        lbDisplay.DrawFlags = p_elem->Flags & 0x07;
+
+        if ((p_elem->Flags & 0xFE00) == 0) {
+            el_X = scr_x + ((sscale * p_elem->X) >> 9);
+            el_Y = scr_y + ((sscale * p_elem->Y) >> 9);
+            LbSpriteDrawResized(el_X, el_Y, (16 * sscale) >> 8, p_spr);
+        }
+
+        anim_elem_pos_mark(p_elem);
+    }
+    lbDisplay.DrawFlags = 0;
+}
+
+void draw_frame_unscaled_alpha_force(short scr_x, short scr_y, ushort frm, ubyte brig)
+{
+    struct Frame *p_frm;
+    struct Element *p_elem;
+    ushort el;
+
+    p_frm = &frame[frm];
+    assert(p_frm < frame_end);
+
+    for (el = p_frm->FirstElement; el > 0; el = p_elem->Next)
+    {
+        struct TbSprite *p_spr;
+        int el_X, el_Y;
+
+        p_elem = &melement_ani[el];
+        p_spr = (struct TbSprite *)((ubyte *)m_sprites + p_elem->ToSprite);
+        if ((p_spr <= m_sprites) || (p_spr >= m_sprites_end))
+            continue;
+
+        lbDisplay.DrawFlags = p_elem->Flags & 0x07;
+
+        if ((p_elem->Flags & 0xFE00) == 0) {
+            el_X = scr_x + (p_elem->X >> 1);
+            el_Y = scr_y + (p_elem->Y >> 1);
+            LbSpriteDrawRemap(el_X, el_Y, p_spr, &pixmap.fade_table[brig * PALETTE_8b_COLORS]);
+        }
+
+        anim_elem_pos_mark(p_elem);
+    }
+    lbDisplay.DrawFlags = 0;
+}
+
+void draw_frame_unscaled_alpha_frv(short scr_x, short scr_y, ubyte *frv, ushort frm,
+  ubyte brig)
+{
+    struct Frame *p_frm;
+    struct Element *p_elem;
+    ushort el;
+
+    p_frm = &frame[frm];
+    assert(p_frm < frame_end);
+
+    for (el = p_frm->FirstElement; el > 0; el = p_elem->Next)
+    {
+        struct TbSprite *p_spr;
+        int el_X, el_Y;
+
+        p_elem = &melement_ani[el];
+        p_spr = (struct TbSprite *)((ubyte *)m_sprites + p_elem->ToSprite);
+        if ((p_spr <= m_sprites) || (p_spr >= m_sprites_end))
+            continue;
+
+        lbDisplay.DrawFlags = p_elem->Flags & 0x07;
+
+        if (frv[(p_elem->Flags >> 4) & 0x1F] != ((p_elem->Flags >> 9) & 0x07))
+            continue;
+
+        el_X = scr_x + (p_elem->X >> 1);
+        el_Y = scr_y + (p_elem->Y >> 1);
+        if (((p_elem->Flags >> 4) & 0x1F) == 4) {
+            LbSpriteDraw(el_X, el_Y, p_spr);
+        } else {
+            LbSpriteDrawRemap(el_X, el_Y, p_spr, &pixmap.fade_table[brig * PALETTE_8b_COLORS]);
+        }
+
+        anim_elem_pos_mark(p_elem);
+    }
+    lbDisplay.DrawFlags = 0;
+}
+
+void draw_frame_glb_scale_alpha(int scr_x, int scr_y, ushort frm)
+{
+    struct Frame *p_frm;
+    struct Element *p_elem;
+    ushort el;
+
+    SetAlphaScalingData(dword_176CE0, dword_176CE4, dword_176CE8,
+      dword_176CEC, dword_176CF0, dword_176CF4);
+
+    p_frm = &frame[frm];
+    assert(p_frm < frame_end);
+
+    for (el = p_frm->FirstElement; el > 0; el = p_elem->Next)
+    {
+        struct TbSprite *p_spr;
+        int el_X, el_Y;
+
+        p_elem = &melement_ani[el];
+        p_spr = (struct TbSprite *)((ubyte *)m_sprites + p_elem->ToSprite);
+        if ((p_spr <= m_sprites) || (p_spr >= m_sprites_end))
+            continue;
+
+        lbDisplay.DrawFlags = p_elem->Flags & 0x0F;
+        if ((lbDisplay.DrawFlags & Lb_SPRITE_TRANSPAR4) == 0)
+            lbDisplay.DrawFlags |= Lb_SPRITE_TRANSPAR8;
+
+        if ((p_elem->Flags & 0xFE00) == 0)
+        {
+            el_X = scr_x + (p_elem->X >> 1);
+            el_Y = scr_y + (p_elem->Y >> 1);
+            DrawSpriteWthShadowUsingScalingData(el_X, el_Y, p_spr);
+        }
+    }
+    lbDisplay.DrawFlags = 0;
+}
+
+void draw_frame_glb_scale_alpha_frv(int scr_x, int scr_y, ubyte *frv, ushort frm)
+{
+    struct Frame *p_frm;
+    struct Element *p_elem;
+    ushort el;
+
+    SetAlphaScalingData(dword_176CE0, dword_176CE4, dword_176CE8,
+      dword_176CEC, dword_176CF0, dword_176CF4);
+
+    p_frm = &frame[frm];
+    assert(p_frm < frame_end);
+
+    for (el = p_frm->FirstElement; el > 0; el = p_elem->Next)
+    {
+        struct TbSprite *p_spr;
+        int el_X, el_Y;
+
+        p_elem = &melement_ani[el];
+        p_spr = (struct TbSprite *)((ubyte *)m_sprites + p_elem->ToSprite);
+        if ((p_spr <= m_sprites) || (p_spr >= m_sprites_end))
+            continue;
+
+        lbDisplay.DrawFlags = p_elem->Flags & 0x07;
+        if ((lbDisplay.DrawFlags & Lb_SPRITE_TRANSPAR4) == 0)
+            lbDisplay.DrawFlags |= Lb_SPRITE_TRANSPAR8;
+
+        if (frv[(p_elem->Flags >> 4) & 0x1F] != ((p_elem->Flags >> 9) & 0x07))
+            continue;
+
+        el_X = scr_x + (p_elem->X >> 1);
+        el_Y = scr_y + (p_elem->Y >> 1);
+        DrawSpriteWthShadowUsingScalingData(el_X, el_Y, p_spr);
+    }
+    lbDisplay.DrawFlags = 0;
+}
+
+void debug_check_unkn_sprite_size(const char *src_fname, int src_line)
+{
+    if (!sprite_over_16x16 && (m_sprites[1158].SWidth > 16 || m_sprites[1158].SHeight > 16))
+        sprite_over_16x16 = 1;
+}
+
+void draw_frame_scaled_alpha(int scr_x, int scr_y, ushort frm,
+  ushort scale, ushort alpha)
+{
+    struct Frame *p_frm;
+    struct Element *p_elem;
+    int swidth, sheight;
+    ushort el;
+
+    p_frm = &frame[frm];
+    assert(p_frm < frame_end);
+    lbSpriteReMapPtr = &pixmap.fade_table[256 * alpha];
+
+    anim_elem_pos_min_set(INT16_MAX, INT16_MAX);
+    for (el = p_frm->FirstElement; el > 0; el = p_elem->Next)
+    {
+        p_elem = &melement_ani[el];
+        anim_elem_pos_mark(p_elem);
+    }
+
+    swidth = p_frm->SWidth;
+    sheight = p_frm->SHeight;
+    if ((scale * swidth) >> 9 <= 1)
+        return;
+    if ((scale * sheight) >> 9 <= 1)
+        return;
+
+    dword_176CF0 = (scale * swidth) >> 9;
+    dword_176CF4 = (scale * sheight) >> 9;
+    dword_176CE0 = scr_x + ((scale * anim_el_pos_min_x) >> 8);
+    dword_176CE4 = scr_y + ((scale * anim_el_pos_min_y) >> 8);
+    dword_176CE8 = swidth >> 1;
+    dword_176CEC = sheight >> 1;
+
+    draw_frame_glb_scale_alpha(-anim_el_pos_min_x, -anim_el_pos_min_y, frm);
+}
+
+void draw_frame_scaled_alpha_frv(short x, short y, ubyte *frv, ushort frm,
+  ubyte brig)
+{
+    struct Frame *p_frm;
+    struct Element *p_elem;
+    int max_x, max_y;
+    int min_x, min_y;
+    int range_x, range_y;
+    ushort el;
+    TbBool really_draw;
+
+    really_draw = 0;
+    max_x = -99999;
+    max_y = -99999;
+    min_x = INT16_MAX;
+    min_y = INT16_MAX;
+    p_frm = &frame[frm];
+    assert(p_frm < frame_end);
+
+    for (el = p_frm->FirstElement; el > 0; el = p_elem->Next)
+    {
+        struct TbSprite *p_spr;
+        int el_X, el_Y;
+
+        p_elem = &melement_ani[el];
+        p_spr = (struct TbSprite *)((ubyte *)m_sprites + p_elem->ToSprite);
+        if ((p_spr <= m_sprites) || (p_spr >= m_sprites_end))
+            continue;
+
+        if (frv[(p_elem->Flags >> 4) & 0x1F] != ((p_elem->Flags >> 9) & 0x07))
+            continue;
+
+        really_draw = 1;
+        if (min_x > p_elem->X >> 1)
+            min_x = p_elem->X >> 1;
+        if (min_y > p_elem->Y >> 1)
+            min_y = p_elem->Y >> 1;
+        el_X = p_spr->SWidth + (p_elem->X >> 1);
+        el_Y = p_spr->SHeight + (p_elem->Y >> 1);
+        if (max_x < el_X)
+            max_x = el_X;
+        if (max_y < el_Y)
+            max_y = el_Y;
+    }
+
+    if (!really_draw)
+        return;
+
+    lbSpriteReMapPtr = &pixmap.fade_table[256 * brig];
+    anim_elem_pos_min_set(min_x, min_y);
+
+    range_x = max_x - min_x;
+    range_y = max_y - min_y;
+    if ((range_x > 0) && (range_x <= 128) && (range_y > 0) && (range_y <= 128))
+    {
+        if ( (p_frm->SWidth * overall_scale) >> 9 > 1 && (p_frm->SHeight * overall_scale) >> 9 > 1 )
+        {
+            dword_176CE0 = ((min_x * overall_scale) >> 8) + x;
+            dword_176CE4 = ((min_y * overall_scale) >> 8) + y;
+            dword_176CE8 = range_x;
+            dword_176CEC = range_y;
+            dword_176CF0 = (range_x * overall_scale) >> 8;
+            dword_176CF4 = (range_y * overall_scale) >> 8;
+
+            draw_frame_glb_scale_alpha_frv(-min_x, -min_y, frv, frm);
+        }
+    }
+}
+
+void draw_sorted_sprite1b(ubyte *frv, ushort frm, short scr_x, short scr_y,
+  ubyte brig, ubyte angle)
+{
+    short scale;
+
+    scale = overall_scale;
+    if ((frv[4] != 0) && (angle > 1) && (angle < 7))
+        brig += 15;
+    if (brig < 10)
+        brig = 10;
+    if (brig > 60)
+        brig = 60;
+
+    if ((scale == 256) || (scale <= 0) || (scale >= 4096))
+    {
+        draw_frame_unscaled_alpha_frv(scr_x, scr_y, frv, frm, brig);
+    }
+    else
+    {
+        draw_frame_scaled_alpha_frv(scr_x, scr_y, frv, frm, brig);
+    }
+}
+
+void draw_frame_alpha(short scr_x, short scr_y, ushort frm,
+  short scale, ubyte bright)
+{
+    ubyte brig;
+
+    brig = bright;
+    if (brig < 10)
+        brig = 10;
+    if (brig > 48)
+        brig = 48;
+
+    if ((scale == 256) || (scale <= 0) || (scale >= 4096))
+    {
+        draw_frame_unscaled_alpha_force(scr_x, scr_y, frm, brig);
+    }
+    else
+    {
+        draw_frame_scaled_alpha(scr_x, scr_y, frm, scale, brig);
+    }
+}
+
+void draw_sort_sprite1c(ushort sspr)
+{
+    struct SortSprite *p_sspr;
+    int sscale;
+
+    p_sspr = &game_sort_sprites[sspr];
+    sscale = (p_sspr->Scale * overall_scale) >> 8;
+
+    draw_frame_alpha(p_sspr->X, p_sspr->Y,
+      p_sspr->Frame, sscale, p_sspr->Brightness);
+}
+
+void draw_sort_sprite1a(ushort sspr)
+{
+    struct SortSprite *p_sspr;
+
+    p_sspr = &game_sort_sprites[sspr];
+
+    anim_elem_pos_min_set(120, 120);
+
+    draw_frame_alpha(p_sspr->X, p_sspr->Y, p_sspr->Frame,
+      overall_scale, p_sspr->Brightness);
+
+    screen_sorted_sprite_statc_render_cb(sspr);
+}
+
+void draw_sort_sprite_frame_pers_v(int sspr)
+{
+    struct SortSprite *p_sspr;
+    ubyte frv[5];
+
+    p_sspr = &game_sort_sprites[sspr];
+
+    anim_elem_pos_min_set(120, 120);
+
+    SPR_FRAME_VERSIONS_UNPACK(frv, p_sspr->Scale);
+
+    draw_sorted_sprite1b(frv, p_sspr->Frame, p_sspr->X, p_sspr->Y, p_sspr->Brightness, p_sspr->Angle);
+
+    screen_sorted_sprite_persn_render_cb(sspr);
+}
+
+void draw_sort_sprite_frame_pers_b(int sspr)
+{
+    struct SortSprite *p_sspr;
+
+    p_sspr = &game_sort_sprites[sspr];
+
+    anim_elem_pos_min_set(120, 120);
+
+    draw_frame_alpha(p_sspr->X, p_sspr->Y, p_sspr->Frame,
+      overall_scale, p_sspr->Brightness);
+
+    screen_sorted_sprite_persn_render_cb(sspr);
+}
+
+void draw_sort_sprite_frame_efct_v(int sspr)
+{
+    struct SortSprite *p_sspr;
+    ubyte frv[5];
+
+    p_sspr = &game_sort_sprites[sspr];
+
+    SPR_FRAME_VERSIONS_UNPACK(frv, p_sspr->Scale);
+
+    draw_sorted_sprite1b(frv, p_sspr->Frame, p_sspr->X, p_sspr->Y, p_sspr->Brightness, 0);
+}
+
+/**
+ * Draw smoke cloud sprite.
+ *
+ * @param ph Index in `phwoar` array.
+ */
+void draw_phwoar(ushort ph)
+{
+    struct Phwoar *p_phwoar;
+    int scr_x, scr_y;
+
+    p_phwoar = &phwoar[ph];
+    {
+        struct SpecialPoint *p_scrpoint;
+
+        p_scrpoint = &game_screen_point_pool[p_phwoar->PointOffset];
+        scr_x = p_scrpoint->X + dword_176D00;
+        scr_y = p_scrpoint->Y + dword_176D04;
+    }
+
+    draw_frame_on_screen(scr_x, scr_y, p_phwoar->f);
+}
+
+/**
+ * Draw flame sprite.
+ *
+ * @param flm Index in `FIRE_flame` array.
+ */
+void draw_fire_flame(ushort flm)
+{
+    struct FireFlame *p_flame;
+    struct SpecialPoint *p_scrpoint;
+    ubyte brig;
+
+    brig = PALETTE_FADE_LEVELS / 2;
+    p_flame = &FIRE_flame[flm];
+    if (p_flame->big != 0)
+    {
+        p_scrpoint = &game_screen_point_pool[p_flame->PointOffset];
+        draw_frame_scaled_alpha(p_scrpoint->X + dword_176D00,
+          p_scrpoint->Y + dword_176D04,
+          p_flame->frame, ((p_flame->big + 128) * overall_scale) >> 7, brig);
+    }
+    else
+    {
+        p_scrpoint = &game_screen_point_pool[p_flame->PointOffset];
+        draw_frame_alpha(p_scrpoint->X + dword_176D00,
+          p_scrpoint->Y + dword_176D04, p_flame->frame,
+          overall_scale, brig);
+    }
+}
+
+/**
+ * Draw a bar showing some kind of level parameter, usually health.
+ */
+void draw_horiz_level_bar(short scr_x, short scr_y, ushort w, ushort h,
+  short lvl, ushort max_lvl, TbPixel lvl_col, TbPixel bar_col)
+{
+    ushort range_w, range_h, bar_w, bar_h;
+    short level_x;
+
+    if (max_lvl == 0)
+        max_lvl = 1;
+    if (lvl < 0)
+        lvl = 0;
+    else if (lvl > max_lvl)
+        lvl = max_lvl + 1;
+
+    bar_w = ((w) * overall_scale) >> 8;
+    bar_h = ((h) * overall_scale) >> 8;
+
+    range_w = ((w * 15 / 16) * overall_scale) >> 8;
+    range_h = ((h * 12 / 16) * overall_scale) >> 8;
+
+    // The bar looks better if marins on opposite sides are the same,
+    // that is both dimensions are odd or both are even
+    if ((bar_w & 1) != 0)
+        range_w |= 1;
+    else
+        range_w &= ~1;
+    if ((bar_h & 1) != 0)
+        range_h |= 1;
+    else
+        range_h &= ~1;
+
+    LbDrawBox(scr_x - bar_w / 2, scr_y, bar_w, bar_h, bar_col);
+
+    level_x = range_w * lvl / max_lvl;
+    LbDrawBox(scr_x - bar_w / 2, scr_y + (bar_h - range_h) / 2, level_x, range_h, lvl_col);
+}
+
+/**
+ * Draw long property bar, like health of a vehicle.
+ *
+ * @param sspr Index of SortSprite instance which stores bar properties.
+ */
+void draw_sort_sprite_long_prop_bar(short sspr)
+{
+    struct SortSprite *p_sspr;
+    ushort max_lvl;
+    short lvl;
+    TbPixel lvl_col, bar_col;
+
+    p_sspr = &game_sort_sprites[sspr];
+    lvl_col = p_sspr->Brightness;
+    bar_col = p_sspr->Angle;
+    lvl = p_sspr->Scale;
+    max_lvl = p_sspr->Frame;
+
+    draw_horiz_level_bar(p_sspr->X, p_sspr->Y, 44, 5,
+      lvl, max_lvl, lvl_col, bar_col);
+}
+
+void draw_sort_sprite_number(ushort sspr)
+{
+    char locstr[50];
+    struct SortSprite *p_sspr;
+    TbPixel colour;
+
+    p_sspr = &game_sort_sprites[sspr];
+    colour = p_sspr->Frame;
+    sprintf(locstr, "%d", (int)p_sspr->SrcItem);
+    draw_simple_text(p_sspr->X, p_sspr->Y, locstr, colour);
+}
+
+void draw_sort_sprite_short_text(ushort sspr)
+{
+    char locstr[50];
+    struct SortSprite *p_sspr;
+    TbPixel colour;
+
+    p_sspr = &game_sort_sprites[sspr];
+    colour = p_sspr->Frame;
+    LbMemoryCopy(locstr, &p_sspr->SrcItem, 8);
+    locstr[8] = '\0';
+    draw_simple_text(p_sspr->X, p_sspr->Y, locstr, colour);
+}
+
+void draw_sprites_in_quarters_unscaled(int scr_x, int scr_y,
+  struct TbSprite * const p_sprlst[], int radius)
+{
+    const struct TbSprite *p_spr;
+    int top, bottom, left, right;
+    int i;
+
+    // Compute shifts in all directions, so that sprites have outer borders aligned
+    top = radius;
+    bottom = radius;
+    left = radius;
+    right = radius;
+    for (i = 0; i < 256; i++) {
+        p_spr = p_sprlst[i];
+        if (p_spr == NULL)
+            break;
+
+        // Get top pos from first 2 quarters
+        if (((i & 3) < 2) && (top < radius + p_spr->SHeight))
+            top = radius + p_spr->SHeight;
+        // Get left pos from quarters 0 and 2
+        if (((i & 1) == 0) && (left < radius + p_spr->SWidth))
+           left = radius + p_spr->SWidth;
+        // Get right pos from quarters 1 and 3
+        if (((i & 1) != 0) && (right < radius + p_spr->SWidth))
+           right = radius + p_spr->SWidth;
+        // Get bottom pos from last 2 quarters
+        if (((i & 3) >= 2) && (bottom < radius + p_spr->SHeight))
+            bottom = radius + p_spr->SHeight;
+    }
+
+    for (i = 0; i < 256; i++) {
+        p_spr = p_sprlst[i];
+        if (p_spr == NULL)
+            break;
+
+        switch (i & 3)
+        {
+        case 0:
+            LbSpriteDraw(scr_x - left, scr_y - top, p_spr);
+            break;
+        case 1:
+            LbSpriteDraw(scr_x + right - p_spr->SWidth, scr_y - top, p_spr);
+            break;
+        case 2:
+            LbSpriteDraw(scr_x + right - p_spr->SWidth, scr_y + bottom - p_spr->SHeight, p_spr);
+            break;
+        case 3:
+            LbSpriteDraw(scr_x - left, scr_y + bottom - p_spr->SHeight, p_spr);
+            break;
+        }
+    }
+}
+
+/******************************************************************************/

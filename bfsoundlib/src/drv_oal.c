@@ -26,10 +26,12 @@
 
 #include "drv_oal.h"
 #include "aildebug.h"
-#include OPENAL_ALC_H
-#include OPENAL_AL_H
+#include LBS_OPENAL_ALC_H
+#include LBS_OPENAL_AL_H
 #include "oggvorbis.h"
-#include "wildmidi_lib.h"
+#if LBS_ENABLE_WILDMIDI
+#  include "wildmidi_lib.h"
+#endif
 /******************************************************************************/
 /** We expect up to 64 SNDSAMPLEs and up to 3 SNDSEQUENCEs.
  */
@@ -193,8 +195,8 @@ int32_t OPENAL_create_sources_for_samples(DIG_DRIVER *digdrv)
             digdrv->n_samples = i;
             break;
         }
-        s->system_data[5] = source;
-        s->system_data[4] = 0; // buffers used
+        s->system_data[SmpSD_OAL_SOURCE] = source;
+        s->system_data[SmpSD_OAL_BUFS_USE] = 0; // buffers used
     }
     return (digdrv->n_samples > 0);
 }
@@ -208,10 +210,10 @@ int32_t OPENAL_free_sources_for_samples(DIG_DRIVER *digdrv)
         SNDSAMPLE *s = &digdrv->samples[i];
         ALuint source;
 
-        source = s->system_data[5];
+        source = s->system_data[SmpSD_OAL_SOURCE];
         alDeleteSources(1, &source);
         check_al("alDeleteSources");
-        s->system_data[5] = source;
+        s->system_data[SmpSD_OAL_SOURCE] = source;
     }
     return 1;
 }
@@ -231,8 +233,8 @@ int32_t OPENAL_create_sources_for_sequences(MDI_DRIVER *mdidrv)
             mdidrv->n_sequences = i;
             break;
         }
-        seq->system_data[5] = source;
-        seq->system_data[4] = 0; // buffers used
+        seq->system_data[SeqSD_OAL_SOURCE] = source;
+        seq->system_data[SeqSD_OAL_BUFS_USE] = 0; // buffers used
     }
     return (mdidrv->n_sequences > 0);
 }
@@ -246,10 +248,10 @@ int32_t OPENAL_free_sources_for_sequences(MDI_DRIVER *mdidrv)
         SNDSEQUENCE *seq = &mdidrv->sequences[i];
         ALuint source;
 
-        source = seq->system_data[5];
+        source = seq->system_data[SeqSD_OAL_SOURCE];
         alDeleteSources(1, &source);
         check_al("alDeleteSources");
-        seq->system_data[5] = source;
+        seq->system_data[SeqSD_OAL_SOURCE] = source;
     }
     return 1;
 }
@@ -341,12 +343,18 @@ get_pcm_format(SNDSAMPLE *s)
     switch (s->format)
     {
     case DIG_F_MONO_8:
+        // OpenAL expects 8-bit formats to be unsigned
+        assert((s->flags & DIG_PCM_SIGN) == 0);
         return AL_FORMAT_MONO8;
     case DIG_F_MONO_16:
+        // OpenAL expects 16-bit formats to be signed
+        assert((s->flags & DIG_PCM_SIGN) != 0);
         return AL_FORMAT_MONO16;
     case DIG_F_STEREO_8:
+        assert((s->flags & DIG_PCM_SIGN) == 0);
         return AL_FORMAT_STEREO8;
     case DIG_F_STEREO_16:
+        assert((s->flags & DIG_PCM_SIGN) != 0);
         return AL_FORMAT_STEREO16;
     case DIG_F_MULTICHANNEL_8:
     case DIG_F_MULTICHANNEL_16:
@@ -359,10 +367,30 @@ void OPENAL_stop_sample(SNDSAMPLE *s)
 {
     ALuint source;
 
-    source = s->system_data[5];
+    source = s->system_data[SmpSD_OAL_SOURCE];
 
     alSourceStop(source);
     check_al("alSourceStop");
+}
+
+void OPENAL_pause_sample(SNDSAMPLE *s)
+{
+    ALuint source;
+
+    source = s->system_data[SmpSD_OAL_SOURCE];
+
+    alSourcePause(source);
+    check_al("alSourcePause");
+}
+
+void OPENAL_resume_sample(SNDSAMPLE *s)
+{
+    ALuint source;
+
+    source = s->system_data[SmpSD_OAL_SOURCE];
+
+    alSourcePlay(source);
+    check_al("alSourcePlay");
 }
 
 static void
@@ -376,8 +404,8 @@ queue_dig_sample_buffers(DIG_DRIVER *digdrv, SNDSAMPLE *s)
     ALint state;
     ALuint buf = 0;
 
-    source = s->system_data[5];
-    buffers_used = s->system_data[4];
+    source = s->system_data[SmpSD_OAL_SOURCE];
+    buffers_used = s->system_data[SmpSD_OAL_BUFS_USE];
 
     if (buffers_used >= SOUND_BUFFERS_PER_SRC)
         return;
@@ -401,9 +429,7 @@ queue_dig_sample_buffers(DIG_DRIVER *digdrv, SNDSAMPLE *s)
         if (len > SOUND_MAX_BUFSIZE)
             len = SOUND_MAX_BUFSIZE;
 
-        assert ((s->flags & DIG_PCM_SIGN) != 0);
-
-        buf = pop_free_buffer ();
+        buf = pop_free_buffer();
         alBufferData(buf, get_pcm_format(s), data, len, s->playback_rate);
         if (!check_al("alBufferData"))
             goto err;
@@ -450,11 +476,11 @@ queue_dig_sample_buffers(DIG_DRIVER *digdrv, SNDSAMPLE *s)
         }
     }
 
-    s->system_data[4] = buffers_used;
+    s->system_data[SmpSD_OAL_BUFS_USE] = buffers_used;
     return;
 
 err:
-    s->system_data[4] = buffers_used;
+    s->system_data[SmpSD_OAL_BUFS_USE] = buffers_used;
     if (buf != 0)
         push_free_buffer(buf, NULL);
 }
@@ -465,8 +491,8 @@ unqueue_dig_sample_buffers(SNDSAMPLE *s)
     size_t buffers_used;
     ALuint source;
 
-    source = s->system_data[5];
-    buffers_used = s->system_data[4];
+    source = s->system_data[SmpSD_OAL_SOURCE];
+    buffers_used = s->system_data[SmpSD_OAL_BUFS_USE];
 
     if (buffers_used == 0)
         return;
@@ -476,7 +502,7 @@ unqueue_dig_sample_buffers(SNDSAMPLE *s)
                    (SoundNameCallback) push_free_buffer,
                    NULL);
 
-    s->system_data[4] = buffers_used;
+    s->system_data[SmpSD_OAL_BUFS_USE] = buffers_used;
 
     if (buffers_used > 0
         || s->pos[s->current_buffer] < s->len[s->current_buffer]
@@ -496,7 +522,7 @@ void OPENAL_stop_sequence(SNDSEQUENCE *seq)
 {
     ALuint source;
 
-    source = seq->system_data[5];
+    source = seq->system_data[SeqSD_OAL_SOURCE];
 
     alSourceStop(source);
     check_al("alSourceStop");
@@ -513,9 +539,9 @@ queue_mdi_sequence_buffers(MDI_DRIVER *mdidrv, SNDSEQUENCE *seq)
     ALuint buf = 0;
     int8_t *data;
 
-    smp_rate = mdidrv->system_data[0];
-    source = seq->system_data[5];
-    buffers_used = seq->system_data[4];
+    smp_rate = mdidrv->system_data[MdiSD_SAMPLE_RATE];
+    source = seq->system_data[SeqSD_OAL_SOURCE];
+    buffers_used = seq->system_data[SeqSD_OAL_BUFS_USE];
     data = seq->FOR_ptrs[0];
 
     if (buffers_used >= SOUND_BUFFERS_PER_SRC)
@@ -523,6 +549,7 @@ queue_mdi_sequence_buffers(MDI_DRIVER *mdidrv, SNDSEQUENCE *seq)
 
     while (buffers_used < SOUND_BUFFERS_PER_SRC)
     {
+#if LBS_ENABLE_WILDMIDI
         len = WildMidi_GetOutput(seq->ICA, data, SOUND_MAX_BUFSIZE);
         if (len < 0) {
             AIL_set_error("WildMidi GetOutput returned error");
@@ -577,6 +604,9 @@ queue_mdi_sequence_buffers(MDI_DRIVER *mdidrv, SNDSEQUENCE *seq)
                 seq->EOS(seq);
             break;
         }
+#else
+        break;
+#endif
 
         buf = pop_free_buffer();
         alBufferData(buf, AL_FORMAT_STEREO16, data, len, smp_rate);
@@ -608,11 +638,11 @@ queue_mdi_sequence_buffers(MDI_DRIVER *mdidrv, SNDSEQUENCE *seq)
         }
     }
 
-    seq->system_data[4] = buffers_used;
+    seq->system_data[SeqSD_OAL_BUFS_USE] = buffers_used;
     return;
 
 err:
-    seq->system_data[4] = buffers_used;
+    seq->system_data[SeqSD_OAL_BUFS_USE] = buffers_used;
     if (buf != 0)
         push_free_buffer(buf, NULL);
 }
@@ -623,8 +653,8 @@ unqueue_mdi_sequence_buffers(SNDSEQUENCE *seq)
     size_t buffers_used;
     ALuint source;
 
-    source = seq->system_data[5];
-    buffers_used = seq->system_data[4];
+    source = seq->system_data[SeqSD_OAL_SOURCE];
+    buffers_used = seq->system_data[SeqSD_OAL_BUFS_USE];
 
     if (buffers_used == 0)
         return;
@@ -634,7 +664,7 @@ unqueue_mdi_sequence_buffers(SNDSEQUENCE *seq)
                    (SoundNameCallback) push_free_buffer,
                    NULL);
 
-    seq->system_data[4] = buffers_used;
+    seq->system_data[SeqSD_OAL_BUFS_USE] = buffers_used;
 }
 
 void OPENAL_unqueue_finished_dig_samples(DIG_DRIVER *digdrv)
@@ -656,7 +686,7 @@ void OPENAL_unqueue_finished_dig_samples(DIG_DRIVER *digdrv)
               s->pos[0], s->len[0],
               s->pos[1], s->len[1],
               s->done[0], s->done[1],
-              s->system_data[4]); // buffers_used
+              s->system_data[SmpSD_OAL_BUFS_USE]); // buffers_used
 #endif
 
         unqueue_dig_sample_buffers(s);
@@ -685,7 +715,7 @@ void OPENAL_unqueue_finished_mdi_sequences(MDI_DRIVER *mdidrv)
 #if 0 // verbose debug code
         printf ("sequence %i loops:%i %zu\n", n,
               seq->loop_count,
-              seq->system_data[4]); // buffers_used
+              seq->system_data[SeqSD_OAL_BUFS_USE]); // buffers_used
 #endif
 
         unqueue_mdi_sequence_buffers(seq);

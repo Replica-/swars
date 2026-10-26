@@ -63,6 +63,8 @@ extern int32_t timer_cb_elapsed_times[AIL_N_TIMERS];
 extern void *timer_user[AIL_N_TIMERS];
 extern int32_t timer_status[AIL_N_TIMERS];
 
+/******************************************************************************/
+
 void AIL2OAL_end(void);
 
 void AIL2OAL_start(void)
@@ -184,8 +186,13 @@ int32_t AIL2OAL_API_read_INI(AIL_INI *ini, char *fname)
 {
     FILE *in;
     AIL_INI work;
-    char buffer[80];
-    uint32_t iobuf[67];  // three initial, 64 for buffering
+    union {
+      char real_fname[FILENAME_MAX];
+      struct {
+        char buffer[80];
+        uint32_t iobuf[3+64];  // three initial, 64 for buffering
+      };
+    } loc;
     int32_t i;
     char *value;
     char *parm,*end_parm;
@@ -195,55 +202,66 @@ int32_t AIL2OAL_API_read_INI(AIL_INI *ini, char *fname)
     memset(&work.IO, -1, sizeof(work.IO));
 
     // Open .INI file
-    in = fopen(fname, "rt");
+#if LB_FILENAME_TRANSFORM
+    if (lbFileNameTransform != NULL)
+    {
+        // We only need real_fname in this block - re-use it for other things later
+        lbFileNameTransform(loc.real_fname, fname);
+        in = fopen(loc.real_fname, "rt");
+    }
+    else
+#endif
+    {
+        in = fopen(fname, "rt");
+    }
 
     if (in == 0)
         return 0;
 
-    iobuf[0] = sizeof(iobuf);
-    iobuf[1] = 0;
+    loc.iobuf[0] = sizeof(loc.iobuf);
+    loc.iobuf[1] = 0;
 
-    while (fgets(buffer, sizeof(buffer), in) != NULL)
+    while (fgets(loc.buffer, sizeof(loc.buffer), in) != NULL)
     {
         // Parse line
-        for (i = strlen(buffer)-1; i >= 0; i--)
+        for (i = strlen(loc.buffer)-1; i >= 0; i--)
         {
             // Remove trailing whitespace
-            if (buffer[i] == ' ') {
-                buffer[i] = '\0';
+            if (loc.buffer[i] == ' ') {
+                loc.buffer[i] = '\0';
             } else {
                 break;
             }
         }
 
         // Find "parm" (1st word on line)
-        for (i = 0; i < (int32_t)strlen(buffer); i++)
+        for (i = 0; i < (int32_t)strlen(loc.buffer); i++)
         {
-            if (buffer[i] != ' ')
+            if (loc.buffer[i] != ' ')
                 break;
         }
 
-        parm = (char *)&buffer[i];
+        parm = (char *)&loc.buffer[i];
 
         // Find "value" (2nd word on line)
-        for (; i < (int32_t)strlen(buffer); i++)
+        for (; i < (int32_t)strlen(loc.buffer); i++)
         {
-            if (buffer[i] == ' ')
+            if (loc.buffer[i] == ' ')
                 break;
         }
 
-        end_parm = (char *)&buffer[i];
+        end_parm = (char *)&loc.buffer[i];
 
-        for (; i < (int32_t)strlen(buffer); i++)
+        for (; i < (int32_t)strlen(loc.buffer); i++)
         {
-            if (buffer[i] != ' ')
+            if (loc.buffer[i] != ' ')
                 break;
         }
 
-        value = (char *)&buffer[i];
+        value = (char *)&loc.buffer[i];
 
         // Reject unparsable lines
-        if (i >= (int32_t)strlen(buffer))
+        if (i >= (int32_t)strlen(loc.buffer))
             continue;
 
         *end_parm = 0;

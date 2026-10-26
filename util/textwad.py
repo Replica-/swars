@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # vim:sw=4
 
-""" Text WAD/IDX conversion tool for Syndicate Wars Port.
+""" Text WAD/IDX conversion tool for Syndicate Wars Fan Expansion.
 
 Prepares WAD/IDX files accepted by game engine.
 """
@@ -406,15 +406,9 @@ def enctable_string_to_bytes(cte, s):
 
 
 def waditem_string_national_to_upper(stri):
-    stro = ""
-    for c in stri:
-        if c in "êô":
-            stro = stro + unicodedata.normalize('NFKD', c).encode('ascii', 'ignore').decode('ascii', errors='ignore')
-        elif c in "ìäåéöüñáàèíòúù":
-            stro = stro + c.upper()
-        else:
-            stro = stro + c
-    return stro
+    # currently, there is no need to alter the national character codes
+    # no need to convert to upper() nor normalize('NFKD')
+    return stri
 
 
 def waditem_string_to_bytes(po, fname, s):
@@ -532,7 +526,7 @@ def pofile_set_default_metadata(polist, lang):
     else:
         polang = "UNKNOWN"
     polist.metadata = {
-      'Project-Id-Version': 'Menu text for SW Port',
+      'Project-Id-Version': 'Menu text for SyndWarsFX',
       'Report-Msgid-Bugs-To': 'https://github.com/swfans/swars/issues',
       'POT-Creation-Date': '2023-08-20 01:12+0200',
       'PO-Revision-Date': '2023-09-02 12:00+0100',
@@ -550,10 +544,10 @@ def pofile_set_default_metadata(polist, lang):
 def pofile_set_default_head_comment(polist, pofname):
     polist.header = \
       "*****************************************************************************\n" + \
-      " Syndicate Wars Port, source port of the classic strategy game from Bullfrog.\n" + \
+      " Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.\n" + \
       "*****************************************************************************\n" + \
       "  @file " + pofname + "\n" + \
-      "     Menu text for SW Port translation file\n" + \
+      "     Menu text for SyndWarsFX translation file\n" + \
       " @par Purpose:\n" + \
       "     Contains translation of the national text in the game.\n" + \
       " @par Comment:\n" + \
@@ -1166,21 +1160,37 @@ def create_lines_for_netscan(lines, pomdict):
 
 
 def create_lines_for_outro(lines, pomdict):
-    for campgn in campaign_names[0:3]:
-        lines.append(f"[{campgn}_win]".lower())
-        noexist = False
-        for k in range(1,256):
-            try:
-                e = pomdict[(campgn,'message.win',f'{k}',)]
-            except:
-                e = polib.POEntry()
-                # Finish if the next entry does not exist as well
-                noexist = (campgn,'message.win',f'{k+1}',) not in pomdict
-            if noexist:
-                break
-            if k > 1:
-                lines.append("")
-            lines.append(e.msgstr)
+    # We expect the input dict to contain only entries for one campaign; so create a dict with smaller key
+    pounidict = {}
+    for (campgn, place, num,), e in pomdict.items():
+        pounidict[ (place,num,) ] = e
+    lines.append(f"[header_win]".lower())
+    for k in range(1,256):
+        try:
+            e = pounidict[('header.win',f'{k}',)]
+        except:
+            e = polib.POEntry()
+            # Finish if the next entry does not exist as well
+            noexist = ('header.win',f'{k+1}',) not in pounidict
+        if noexist:
+            break
+        if k > 1:
+            lines.append("")
+        lines.append(e.msgstr)
+    lines.append(f"[message_win]".lower())
+    noexist = False
+    for k in range(1,256):
+        try:
+            e = pounidict[('message.win',f'{k}',)]
+        except:
+            e = polib.POEntry()
+            # Finish if the next entry does not exist as well
+            noexist = ('message.win',f'{k+1}',) not in pounidict
+        if noexist:
+            break
+        if k > 1:
+            lines.append("")
+        lines.append(e.msgstr)
     lines.append("")
     return
 
@@ -1221,6 +1231,8 @@ def textwad_create_from_po(lines, podict, txtfname):
             for place, num in e.occurrences:
                 fname = po_occurrence_to_fname(campgn, place, num)
                 if fname == txtfname:
+                    if (campgn,place,num,) in pomdict:
+                        print("{}: Doubled definition of {} {}{}".format(txtfname,campgn,place,f":{num}" if num != "" else ""))
                     pomdict[ (campgn,place,num,) ] = e
     match = None
     if not match:

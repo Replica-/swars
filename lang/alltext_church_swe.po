@@ -1,8 +1,8 @@
 # *****************************************************************************
-#  Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+#  Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 # *****************************************************************************
 #   @file alltext_church_swe.po
-#      Menu text for SW Port translation file
+#      Menu text for SyndWarsFX translation file
 #  @par Purpose:
 #      Contains translation of the national text in the game.
 #  @par Comment:
@@ -18,11 +18,11 @@
 # *****************************************************************************
 msgid ""
 msgstr ""
-"Project-Id-Version: Menu text for SW Port\n"
-"Report-Msgid-Bugs-To: https://github.com/swfans/swars/issues\n"
+"Project-Id-Version: Menu text for SyndWarsFX\n"
+"Report-Msgid-Bugs-To: https://github.com/swfans/syndwarsfx/issues\n"
 "POT-Creation-Date: 2023-09-05 11:30+0200\n"
-"PO-Revision-Date: 2023-12-30 13:51+0100\n"
-"Last-Translator: Mefistotelis <mefistotelis@gmail.com>\n"
+"PO-Revision-Date: 2026-01-08 17:00+0100\n"
+"Last-Translator: Agent Chunk <kobaltsextio@discord>\n"
 "Language-Team: Syndicate Wars Fans <github.com/swfans>\n"
 "Language: sv_SE\n"
 "MIME-Version: 1.0\n"
@@ -49,7 +49,7 @@ msgstr "Geografi"
 #: mapscreen.heading:4
 msgctxt "church maps screen headings - language"
 msgid "Tongue"
-msgstr "Mäl"
+msgstr "Mål"
 
 #: mapscreen.heading:5
 msgctxt "church maps screen headings - industry"
@@ -125,6 +125,7 @@ msgstr "Var välsignad."
 #: mission.brief.mail21.par6.c4 mission.brief.mail22.par7.c4
 #: mission.brief.mail23.par5.c4 mission.brief.mail24.par5.c4
 #: mission.brief.mail25.par5.c4 mission.brief.mail31.par7.c4
+#: mission.brief.mail32.par4.c4
 msgctxt "mission brief email sender"
 msgid "Virgil"
 msgstr "Virgil"
@@ -156,6 +157,7 @@ msgstr "\"Från er,\" svarade herren. \"Ni har alla klättrat så högt.\""
 #: mission.brief.mail21.par10.c1 mission.brief.mail22.par9.c1
 #: mission.brief.mail23.par7.c1 mission.brief.mail24.par7.c1
 #: mission.brief.mail25.par8.c1 mission.brief.mail31.par10.c1
+#: mission.brief.mail32.par6.c1
 msgctxt "mission brief book quote"
 msgid "- The Book of Cataclysm."
 msgstr "- Kataklysmens bok."
@@ -168,12 +170,12 @@ msgstr "Landningsplats: Detroits IML-länk"
 #: mission.brief.mail1.map35.level2:2
 msgctxt "mission brief tactical information"
 msgid "Target building: EuroCorp AI Ground Station"
-msgstr "Mälbyggnad: EuroCorps AI-markstation"
+msgstr "Målbyggnad: EuroCorps AI-markstation"
 
 #: mission.brief.mail1.map35.level2:3 mission.brief.mail31.map3.level10:5
 msgctxt "mission brief tactical information"
 msgid "Disposition of EuroCorp guards"
-msgstr "Tgärder mot EuroCorp vakter"
+msgstr "Åtgärder mot EuroCorp vakter"
 
 #: mission.brief.mail1.map35.level2:4
 msgctxt "mission brief tactical information"
@@ -267,7 +269,7 @@ msgstr "Landningsplats: Tripolis IML-länk"
 #: mission.brief.mail2.map25.level16:2 mission.brief.mail9d.map25.level46:2
 msgctxt "mission brief tactical information"
 msgid "Our Garden of Meditations"
-msgstr "Vär meditationsträdgärd"
+msgstr "Vår meditationsträdgård"
 
 #: mission.title:51
 msgctxt "mission title"
@@ -325,7 +327,7 @@ msgstr "Landningsplats: Buenos Aires IML-länk"
 #: mission.brief.mail3.map26.level2:2
 msgctxt "mission brief tactical information"
 msgid "Juan Ormandoz works in this executive office estate"
-msgstr "Juan Ormandoz arbetar pä detta kontorsomräde för ledningspersonal"
+msgstr "Juan Ormandoz arbetar på detta kontorsområde för ledningspersonal"
 
 #: mission.brief.mail3.map26.level2:3
 msgctxt "mission brief tactical information"
@@ -340,7 +342,7 @@ msgstr "Fristad: Buenos Aires IML-länk"
 #: mission.brief.mail3.map26.level2:5
 msgctxt "mission brief tactical information"
 msgid "Eavesdrop: city vaults estimated to contain Cr 1,000,000"
-msgstr "Avlyssning: stadsvalvet beräknas innehälla Cr 1,000,000"
+msgstr "Avlyssning: stadsvalvet beräknas innehålla Cr 1,000,000"
 
 #: mission.title:27
 msgctxt "mission title"
@@ -417,7 +419,7 @@ msgstr "Landningsplats: APC för att avlämna dina medhjälpare"
 #: mission.brief.mail4.map7.level3:2
 msgctxt "mission brief tactical information"
 msgid "EuroCorp agent search area"
-msgstr "EuroCorp agenters sökomräde"
+msgstr "EuroCorp agenters sökområde"
 
 #: mission.brief.mail4.map7.level3:3
 msgctxt "mission brief tactical information"
@@ -432,7 +434,7 @@ msgstr "Broar har förstörts i en syndikatattack"
 #: mission.brief.mail4.map7.level3:5
 msgctxt "mission brief tactical information"
 msgid "Eavesdrop: IML route to target is guarded by EuroCorp forces"
-msgstr "Avlyssning IML-rutt till mälet vaktas av EuroCorp-styrkor"
+msgstr "Avlyssning IML-rutt till målet vaktas av EuroCorp-styrkor"
 
 #: mission.title:17
 msgctxt "mission title"
@@ -522,7 +524,7 @@ msgstr "Guldkonvoj"
 #: mission.brief.mail5.map22.level3:4
 msgctxt "mission brief tactical information"
 msgid "Target vehicle"
-msgstr "Mälinvisa fordon"
+msgstr "Målinvisa fordon"
 
 #: mission.brief.mail5.map22.level3:5
 msgctxt "mission brief tactical information"
@@ -762,7 +764,7 @@ msgstr "Landningsplats: Hong Kongs IML-länk"
 #: mission.brief.mail7.map1.level3:2
 msgctxt "mission brief tactical information"
 msgid "Our temple and brethren"
-msgstr "Värt tempel och vära bröder"
+msgstr "Vårt tempel och våra bröder"
 
 #: mission.brief.mail7.map1.level3:3
 msgctxt "mission brief tactical information"
@@ -826,7 +828,7 @@ msgstr "Landningsplats: Roms IML-länk"
 #: mission.brief.mail8.map28.level31:2
 msgctxt "mission brief tactical information"
 msgid "Domicile zones overrun by the Unguided"
-msgstr "Lägniväs bostadszoner invaderade av de Ostyrda"
+msgstr "Lågnivås bostadszoner invaderade av de Ostyrda"
 
 #: mission.brief.mail8.map28.level31:3
 msgctxt "mission brief tactical information"
@@ -841,7 +843,7 @@ msgstr "EuroCorp agenter"
 #: mission.brief.mail8.map28.level31:5
 msgctxt "mission brief tactical information"
 msgid "Eavesdrop: estimated contents of vault Cr 400,000"
-msgstr "Avlyssning: beräknat valvinnehäll Cr 400,000"
+msgstr "Avlyssning: beräknat valvinnehåll Cr 400,000"
 
 #: mission.title:33
 msgctxt "mission title"
@@ -866,7 +868,7 @@ msgstr "Ett dammkorn i guds öga"
 #: mission.brief.mail9.par1.h
 msgctxt "mission brief email header"
 msgid "Receive our blessings, Son of Light."
-msgstr "Mottag vår väslsignelse, du ljusets son."
+msgstr "Mottag vår välsignelse, du ljusets son."
 
 #: mission.brief.mail9.par2.c2
 msgctxt "mission brief email orders"
@@ -936,7 +938,7 @@ msgstr "Det finns njutning i att stjäla maskiners själar."
 #: mission.brief.mail9c.map22.level2:2
 msgctxt "mission brief tactical information"
 msgid "City district under our control"
-msgstr "Stadsdistrikt under vär kontroll"
+msgstr "Stadsdistrikt under vår kontroll"
 
 #: mission.brief.mail9c.map22.level2:3
 msgctxt "mission brief tactical information"
@@ -965,7 +967,7 @@ msgstr "Landningsplats: Santiagos IML-länk"
 #: mission.brief.mail9a.map7.level5:2
 msgctxt "mission brief tactical information"
 msgid "Our temple"
-msgstr "Värt tempel"
+msgstr "Vårt tempel"
 
 #: mission.brief.mail9a.map7.level5:3
 msgctxt "mission brief tactical information"
@@ -978,13 +980,13 @@ msgid ""
 "Eavesdrop: Syndicate strike team scheduled to arrive at garrisons within 48 "
 "hours"
 msgstr ""
-"Avlyssning: Anfallsgrupp frän syndikatet beräknade att anlända pä "
+"Avlyssning: Anfallsgrupp från syndikatet beräknade att anlända på "
 "garnisonerna inom 48 timmar"
 
 #: mission.brief.mail9d.map25.level46:3
 msgctxt "mission brief tactical information"
 msgid "Those you shall keep from harm"
-msgstr "De du skall skydda frän skada"
+msgstr "De du skall skydda från skada"
 
 #: mission.brief.mail9d.map25.level46:4
 msgctxt "mission brief tactical information"
@@ -1001,8 +1003,9 @@ msgctxt "mission brief tactical information"
 msgid ""
 "Satellite alert: EuroCorp agent type identkeys detected, tracks unstable"
 msgstr ""
-"Satellitvarning: agent ID-nycklar av EuroCorp-typ detekterade, spär ostabila"
+"Satellitvarning: agent ID-nycklar av EuroCorp-typ detekterade, spår ostabila"
 
+#. This mission name is a reference to one of previous games developed by Bullfrog.
 #: mission.title:44
 msgctxt "mission title"
 msgid "Powermonger"
@@ -1136,8 +1139,8 @@ msgid ""
 "Eavesdrop: police have been assigned to escort a EuroCorp finance executive "
 "on business in the north-east of the city"
 msgstr ""
-"Avlyssning: polisen har fätt till uppdrag att eskortera en finanschef frän "
-"EuroCorp pä affärer till stadens nordostsida"
+"Avlyssning: polisen har fått till uppdrag att eskortera en finanschef från "
+"EuroCorp på affärer till stadens nordostsida"
 
 #: mission.title:73
 msgctxt "mission title"
@@ -1201,7 +1204,7 @@ msgstr "Valv (tomt)"
 #: mission.brief.mail12.map9.level3:3
 msgctxt "mission brief tactical information"
 msgid "Target vehicles A and B"
-msgstr "Mälinvisa fordon A och B"
+msgstr "Målinvisa fordon A och B"
 
 #: mission.brief.mail12.map9.level3:4
 msgctxt "mission brief tactical information"
@@ -1319,13 +1322,13 @@ msgid ""
 "Eavesdrop: the professor's itinary includes collection of data from this "
 "building"
 msgstr ""
-"Avlyssning: professorns resplaner inkluderar insamling av data frän denna "
+"Avlyssning: professorns resplaner inkluderar insamling av data från denna "
 "byggnad"
 
 #: mission.brief.mail13.map30.level2:7
 msgctxt "mission brief tactical information"
 msgid "Eavesdrop: Unguided invasion of North Side imminent"
-msgstr "Avlyssning: invasion av de Ostyrda frän nordsidan överhängande"
+msgstr "Avlyssning: invasion av de Ostyrda från nordsidan överhängande"
 
 #: mission.title:72
 msgctxt "mission title"
@@ -1421,12 +1424,12 @@ msgstr "EuroCorp installationens portar"
 #: mission.brief.mail14.map4.level3:3
 msgctxt "mission brief tactical information"
 msgid "Site of blast"
-msgstr "Expolosionsplats"
+msgstr "Explosionsplats"
 
 #: mission.brief.mail14.map4.level3:4
 msgctxt "mission brief tactical information"
 msgid "Target building"
-msgstr "Mälinvisa byggnad"
+msgstr "Målinvisa byggnad"
 
 #: mission.brief.mail14.map4.level3:5
 msgctxt "mission brief tactical information"
@@ -1436,7 +1439,7 @@ msgstr "Skenmanöver kommer skapas i denna kommersiella zon"
 #: mission.brief.mail14.map4.level3:6
 msgctxt "mission brief tactical information"
 msgid "Our temple and satellite uplink"
-msgstr "Värt tempel och satellitlänken"
+msgstr "Vårt tempel och satellitlänken"
 
 #: mission.brief.mail14.map4.level3:7
 msgctxt "mission brief tactical information"
@@ -1536,7 +1539,7 @@ msgstr "Landningsplats: Riyadhs IML-länk"
 #: mission.brief.mail15.map20.level16:2
 msgctxt "mission brief tactical information"
 msgid "Target bunkers"
-msgstr "Mälinvisa bunkrar"
+msgstr "Målinvisa bunkrar"
 
 #: mission.brief.mail15.map20.level16:3
 msgctxt "mission brief tactical information"
@@ -1669,7 +1672,7 @@ msgstr "Landningsplats: Pekings IML-länk"
 #: mission.brief.mail17.map32.level2:2
 msgctxt "mission brief tactical information"
 msgid "Hacker's location"
-msgstr "Hackerns uppehällsplats"
+msgstr "Hackerns uppehållsplats"
 
 #: mission.brief.mail17.map32.level2:3
 msgctxt "mission brief tactical information"
@@ -1679,7 +1682,7 @@ msgstr "Fristad: Pekings IML-länk"
 #: mission.brief.mail17.map32.level2:4
 msgctxt "mission brief tactical information"
 msgid "Eavesdrop: city vault estimated to contain Cr 1,500,000"
-msgstr "Avlyssning: stadsvalvet beräknas innehälla Cr 1,500,000"
+msgstr "Avlyssning: stadsvalvet beräknas innehålla Cr 1,500,000"
 
 #: mission.title:16
 msgctxt "mission title"
@@ -1742,7 +1745,7 @@ msgstr "Landningsplats: Delhis IML-länk"
 #: mission.brief.mail18.map27.level1:2
 msgctxt "mission brief tactical information"
 msgid "EuroCorp forces in river port island"
-msgstr "EuroCorp styrkor pä flodportsön"
+msgstr "EuroCorp styrkor på flodportsön"
 
 #: mission.brief.mail18.map27.level1:3 mission.brief.mail23.map22.level4:2
 msgctxt "mission brief tactical information"
@@ -1860,7 +1863,7 @@ msgstr "Fristad: Bangkoks IML-länk"
 #: mission.brief.mail19.map3.level2:5
 msgctxt "mission brief tactical information"
 msgid "A commercial vault still stands here"
-msgstr "Ett kommersiellt valv stär fortfarande här"
+msgstr "Ett kommersiellt valv står fortfarande här"
 
 #: mission.brief.mail19.map3.level2:6
 msgctxt "mission brief tactical information"
@@ -2185,8 +2188,8 @@ msgstr "Landningsplats: Adelaides IML-länk"
 
 #: mission.brief.mail24.map6.level3:2
 msgctxt "mission brief tactical information"
-msgid "The compound holding Brother Ix"
-msgstr "Inhägnaden hällande Broder Ix"
+msgid "The compound holding Brother IX"
+msgstr "Inhägnaden hållande Broder IX"
 
 #: mission.brief.mail24.map6.level3:3
 msgctxt "mission brief tactical information"
@@ -2362,6 +2365,58 @@ msgctxt "mission brief tactical information"
 msgid "Local police have recently escorted armoured cars to the city vault"
 msgstr ""
 
+#: mission.title:110
+msgctxt "mission title"
+msgid "Unrest"
+msgstr ""
+
+#: mission.brief.mail32.par1.h
+msgctxt "mission brief email header"
+msgid "Apostle of the New Epoch."
+msgstr ""
+
+#: mission.brief.mail32.par2.c2
+msgctxt "mission brief email orders"
+msgid ""
+"There is a task you must perform for us. The Unguided are foolish enough to "
+"think they can use our belief against us. Our sources have told us that a "
+"contingent of punks have taken civilians hostage. Your team will be sent in "
+"against them."
+msgstr ""
+
+#: mission.brief.mail32.par3.c5
+msgctxt "mission brief email paragraph"
+msgid ""
+"We have the element of surprise. The Unguided expect us to rescue the "
+"hostages. All you must do is destroy the Unguided causing this irritation. "
+"Do not worry about the public held to ransom. They are not Churchmembers and "
+"mean nothing. Just stop the Unguided in whichever way you choose. Make sure "
+"it is permanent."
+msgstr ""
+
+#: mission.brief.mail32.par5.c1
+msgctxt "mission brief book quote"
+msgid ""
+"When tact is required, use brute force. When force is required, use greater "
+"force. When the greatest force is required, use your head. Surprise is "
+"everything."
+msgstr ""
+
+#: mission.brief.mail32.map10.level2:1
+msgctxt "mission brief tactical information"
+msgid "Landing Ground: Phoenix Temple"
+msgstr "Landningsplats: Phoenixtemplet"
+
+#: mission.brief.mail32.map10.level2:2
+msgctxt "mission brief tactical information"
+msgid "Unguided hostage takers"
+msgstr "Ostyrdas gisslantagare"
+
+#: mission.brief.mail32.map10.level2:3
+msgctxt "mission brief tactical information"
+msgid "Sanctuary: Phoenix Temple"
+msgstr ""
+
 #: message.win:1
 msgctxt "game win message"
 msgid ""
@@ -2369,7 +2424,7 @@ msgid ""
 "Nine's insane plan to restart the human race with clones of themselves, you "
 "have also gained possession of the most destructive weapon ever built."
 msgstr ""
-"Sä din tro pä dig själv har visat sig vara triumferande. Du har inte bara "
+"Så din tro på dig själv har visat sig vara triumferande. Du har inte bara "
 "omintetgjort De Nios vanvettiga plan att omskapa den mänskliga rasen genom "
 "att klona sig själva, du har dessutom tagit besittning över det mest "
 "destruktiva vapen som nägonsin byggts."
@@ -2380,13 +2435,13 @@ msgid ""
 "On Earth, the Syndicate's UTOPIA lies in ruins. Millions hear the voice of "
 "Ko-Paull Vissick calling for reason to prevail."
 msgstr ""
-"Pä jorden ligger syndikatets UTOPIA i ruiner. Miljoner hör Ko-Paull Vissicks "
-"röst kalla pä en anledning att segra."
+"På jorden ligger syndikatets UTOPIA i ruiner. Miljoner hör Ko-Paull Vissicks "
+"röst kalla på en anledning att segra."
 
 #: message.win:3
 msgctxt "game win message"
 msgid "But let your will be done."
-msgstr "Men lät din vilja ske."
+msgstr "Men låt din vilja ske."
 
 #: weapons.UZI.description
 msgctxt "weapons description - uzi"
@@ -2398,11 +2453,11 @@ msgid ""
 "obsolete. The Church of the New Epoch is working on many vastly superior "
 "weapons to offer its Disciples."
 msgstr ""
-"Gammalmodigt personligt försvarsvapen. De sköt frän början kemiskt "
-"framdrivande kinetisk ammunition. Denna uppdaterade version är mer pälitlig, "
+"Gammalmodigt personligt försvarsvapen. De sköt från början kemiskt "
+"framdrivande kinetisk ammunition. Denna uppdaterade version är mer pålitlig, "
 "eftersom den använder sig av en personlig energicell för att avfyra varje "
-"salva. Trots det är Uzin en ätergäng till det förgängna, och därför anser vi "
-"den vara praktiskt taget förlegad. Nya Epokens kyrka arbetar pä mänga helt "
+"salva. Trots det är Uzin en återgång till det förgångna, och därför anser vi "
+"den vara praktiskt taget förlegad. Nya Epokens kyrka arbetar på många helt "
 "överlägsna vapen att erbjuda sina lärjungar."
 
 #: weapons.MINIGUN.description
@@ -2415,8 +2470,8 @@ msgid ""
 "its range and destructive power. When used in multiples, miniguns are "
 "effective against vehicles."
 msgstr ""
-"Även om den är nägot av ett museiföremäl, är denna kinetiska roterande kanon "
-"klart överlägsen Uzin och effektivare mot fiender till vär tro. Precis som "
+"Även om den är något av ett museiföremål, är denna kinetiska roterande kanon "
+"klart överlägsen Uzin och effektivare mot fiender till vår tro. Precis som "
 "Uzin har den uppdaterats med en personlig energicell. Dess nackdelar är att "
 "den är otymplig och ljudlig, men detta uppvägs av dess räckvidd och "
 "förstörelsekraft. När flera används samtidigt, är de effektiva mot fordon."
@@ -2430,9 +2485,9 @@ msgid ""
 "to kinetic energy weapons and it works particularly well on conductive steel."
 msgstr ""
 "De Nio har sett ljusets sub-fotons struktur och frisläppt dess hemligheter. "
-"Deras heliga forskning har utvecklat en jonfokus som överför blixtar pä ett "
-"mäl. Detta vapens räckvidd är vida överlägsen kinetiska energivapens, och "
-"den fungerar speciellt effektivt pä ledande stäl."
+"Deras heliga forskning har utvecklat en jonfokus som överför blixtar på ett "
+"mål. Detta vapens räckvidd är vida överlägsen kinetiska energivapens, och "
+"den fungerar speciellt effektivt på ledande stål."
 
 #: weapons.LASER.description
 msgctxt "weapons description - pulse laser"
@@ -2443,10 +2498,10 @@ msgid ""
 "raised by holding down the trigger, overcharging the weapon and making it "
 "more effective in the process."
 msgstr ""
-"Vära skriftlärda har utvecklat ett effektivt vapen baserat pä den "
-"konventinella lasern. TriSodium 89 sprutas in i pulslaserns "
+"Våra skriftlärda har utvecklat ett effektivt vapen baserat på den "
+"konventionella lasern. TriSodium 89 sprutas in i pulslaserns "
 "avfyrningskammare där den lasras elektriskt. Gasets tryck i "
-"avfyrningskammaren kan ökas genom att avtryckaren hälls ned, vilket gör att "
+"avfyrningskammaren kan ökas genom att avtryckaren hålls ned, vilket gör att "
 "vapnet överbelastas och blir effektivare."
 
 #: weapons.BEAM.description
@@ -2470,12 +2525,12 @@ msgid ""
 "fire. The auto-reload time does leave our holy Acolytes temporarily "
 "vulnerable."
 msgstr ""
-"En implosionsgranat avfyras mot mälet, och använder sin egen styrning för "
+"En implosionsgranat avfyras mot målet, och använder sin egen styrning för "
 "att garantera detonation vid träff. Avfyrare använder monopolära "
 "acceleratorslädar för att garantera en imponerande räckvidd, och de som är "
-"utsedda till mäl kan sällan undfly det gyromälsökande systemet. Detta "
-"superba vapen är ocksä användbart för att skapa omrädeseld. Auto-"
-"omladdningstiden lämnar vära heliga medhjälpare temporärt särbara."
+"utsedda till mål kan sällan undfly det gyromålsökande systemet. Detta "
+"superba vapen är också användbart för att skapa områdeseld. Auto-"
+"omladdningstiden lämnar våra heliga medhjälpare temporärt sårbara."
 
 #: weapons.NUCLGREN.description
 msgctxt "weapons description - nuclear grenade"
@@ -2486,10 +2541,10 @@ msgid ""
 "which it falls. Also, note its effectiveness against structures and groups. "
 "To use this device against a single enemy would be tantamount to blasphemy."
 msgstr ""
-"Trons ljus kommer synas pä mänga mils avständ när en kärngranat detoneras i "
-"kyrkans namn. Använd den med omsorg, apostel - förstörelseförmägan hos detta "
-"vapen är omfattande. Se till att du lämnar omrädet innan den faller. Lägg "
-"ocksä märke till dess effektivitet mot strukturer och grupper. Att använda "
+"Trons ljus kommer synas på många mils avstånd när en kärngranat detoneras i "
+"kyrkans namn. Använd den med omsorg, apostel - förstörelseförmågan hos detta "
+"vapen är omfattande. Se till att du lämnar området innan den faller. Lägg "
+"också märke till dess effektivitet mot strukturer och grupper. Att använda "
 "denna pryl mot en enstaka individ skulle vara det samma som att häda."
 
 #: weapons.PERSUADER.description
@@ -2500,10 +2555,10 @@ msgid ""
 "those disbelievers everything we know to be true in an instant. How could "
 "any resist this avalanche of knowledge and wisdom?"
 msgstr ""
-"Vär församling växer för var dag som gär. Vissa själar är dock motstridiga "
+"Vår församling växer för var dag som gär. Vissa själar är dock motstridiga "
 "till den väg av tro vi erbjuder. Därför har vi indoktrinatorn. Den predikar "
-"direkt allt vi vet är sant rakt in i sinnena pä de som inte tror. Hur skulle "
-"nägon kunna motstä denna störtskur av kunskap och vishet?"
+"direkt allt vi vet är sant rakt in i sinnena på de som inte tror. Hur skulle "
+"någon kunna motstå denna störtskur av kunskap och vishet?"
 
 #: weapons.FLAMER.description
 msgctxt "weapons description - flamer"
@@ -2516,9 +2571,9 @@ msgid ""
 msgstr ""
 "De som inte godtar rättfärdighetens väg kan förvänta sig att brinna för "
 "evigt. Dessa magnox eldkastare är deras första smak av den eviga elden. De "
-"har längt ifrän den räckvidd som energi eller ens kinetiska vapen har, men "
-"de har ändä sina användningsomräden (som i folkmassor t.ex.). De inspirerar "
-"ocksä till den fruktan och underkastelse vi söker."
+"har långt ifrån den räckvidd som energi eller ens kinetiska vapen har, men "
+"de har ändå sina användningsomräden (som i folkmassor t.ex.). De inspirerar "
+"också till den fruktan och underkastelse vi söker."
 
 #: weapons.H2HTASER.description
 msgctxt "weapons description - disrupter"
@@ -2528,9 +2583,9 @@ msgid ""
 "a real alternative to the weapons of destruction provided by our scientists "
 "and benefactors, it is magnificently subversive."
 msgstr ""
-"Denna lilla bekväma produkt om-övertalar sitt mäl eller mälets övertalade "
-"följare med ett minimum av bräk. ven om avbrytaren inte är ett riktigt "
-"alternativ till de förstörelsevapen som tillhandahälls av vära vetenskapsmän "
+"Denna lilla bekväma produkt om-övertalar sitt mål eller målets övertalade "
+"följare med ett minimum av bråk. Även om avbrytaren inte är ett riktigt "
+"alternativ till de förstörelsevapen som tillhandahålls av våra vetenskapsmän "
 "och välgörare, är den storlslaget omstörtande."
 
 #: weapons.CRAZYGAS.description
@@ -2542,10 +2597,10 @@ msgid ""
 "expend their energies regaining control, leaving your holy Acolytes to get "
 "on their mission."
 msgstr ""
-"Psykogas utvinns frän ett främmande svampnarkotikum, och är det idealiska "
+"Psykogas utvinns från ett främmande svampnarkotikum, och är det idealiska "
 "vapnet för att orsaka storskalig ödeläggelse. Om den skjuts in i en grupp "
 "civila, kommer den direkt provocera fram ett okontrollerbart upplopp. Detta "
-"tvingar myndigheterna att öka sin energi pä att äterta kontrollen, vilket "
+"tvingar myndigheterna att öka sin energi på att återta kontrollen, vilket "
 "gör att dina heliga medhjälpare kan fortsätta med sitt uppdrag."
 
 #: weapons.KOGAS.description
@@ -2554,7 +2609,7 @@ msgid ""
 "This censer produces a cloud which lays low any unprotected targets who are "
 "touched by it. Simplicity is welcome wherever it can be effective."
 msgstr ""
-"Denna rökelse producerar ett moln som fäller alla oskyddade mäl som träffas "
+"Denna rökelse producerar ett moln som fäller alla oskyddade mål som träffas "
 "av det. Enkelhet är välkommen när den kan bli effektiv."
 
 #: weapons.ELEMINE.description
@@ -2568,8 +2623,8 @@ msgid ""
 msgstr ""
 "Smäller av om fiendeaktivitet känns av i omgivningen. Jonminan sänder ut "
 "klängen av elektrisk energi i alla riktningar, och är extremt effektiv mot "
-"trons fiender till fot eller i fordon. Dess energismäll kommer ocksä päverka "
-"CHIP-statusen pä de som fängas upp av den."
+"trons fiender till fot eller i fordon. Dess energismäll kommer ocksä påverka "
+"CHIP-statusen på de som fångas upp av den."
 
 #: weapons.EXPLMINE.description
 msgctxt "weapons description - high explosive"
@@ -2592,11 +2647,11 @@ msgid ""
 "Usually one shot will drop a target, and you can make good your escape "
 "unseen."
 msgstr ""
-"Värt gudomliga arbete kallar ibland pä eliminering av individer snarare än "
-"hela grupper. Längdistansgeväret skjuter uraniumtömda kinetiska salvor med "
-"stor noggrannhet pä länga avständ. Fä komponenter i kroppspansar kan stä "
+"Vårt gudomliga arbete kallar ibland på eliminering av individer snarare än "
+"hela grupper. Långdistansgeväret skjuter uraniumtömda kinetiska salvor med "
+"stor noggrannhet på långa avstånd. Få komponenter i kroppspansar kan stå "
 "emot den tryckchock dessa avancerade kulor ger. Normalt kommer ett skott "
-"sänka mälet, och du kan därefter fly obemärkt."
+"sänka målet, och du kan därefter fly obemärkt."
 
 #: weapons.AIRSTRIKE.description
 msgctxt "weapons description - satellite rain"
@@ -2609,12 +2664,12 @@ msgid ""
 "superheat in the atmosphere and cause massive destruction throughout the "
 "area."
 msgstr ""
-"Vi kan fä tag pä uppskjutningskoder för mänga av de geostationära satelliter "
-"som hänger ovanför vär planet, men de datorkostnader som är involverade i "
-"att knäcka syndikatets krypterade säkerhetsläs är höga. När du aktiverar ett "
-"slag, kommer den satellit som är närmast mälinvisa din bestämda position och "
-"skjuta ner äskviggar av blandningen tungsten-uranium vilka kommer "
-"superupphettas i atmosfären och orsaka massiv förstörelse runt hela omrädet."
+"Vi kan få tag på uppskjutningskoder för många av de geostationära satelliter "
+"som hänger ovanför vår planet, men de datorkostnader som är involverade i "
+"att knäcka syndikatets krypterade säkerhetslås är höga. När du aktiverar ett "
+"slag, kommer den satellit som är närmast målinvisa din bestämda position och "
+"skjuta ner åskviggar av blandningen tungsten-uranium vilka kommer "
+"superupphettas i atmosfären och orsaka massiv förstörelse runt hela området."
 
 #: weapons.QDEVASTATOR.description
 msgctxt "weapons description - graviton gun"
@@ -2625,7 +2680,7 @@ msgid ""
 msgstr ""
 "Detta är det vapen med störst förstörelsekraft som De Nio kunnat göra "
 "mobilt. Gravitonvapnet kan frigöra tillräckligt mycket energi för att "
-"reducera ett berg till stenblock. Skäda De Nios vrede!"
+"reducera ett berg till stenblock. Skåda De Nios vrede!"
 
 #: weapons.RAZORWIRE.description
 msgctxt "weapons description - razor wire"
@@ -2636,8 +2691,8 @@ msgid ""
 "strands. A weapon which has stood the test of time well."
 msgstr ""
 "En spole av högelastisk wire med motsatt spunna hullingar. Rakbladswire är "
-"svär att upptäcka, speciellt i stridsituationer. Placera den pä strategiska "
-"platser, sä gör motständarna resten själva dä de traskar in i den. Ett vapen "
+"svår att upptäcka, speciellt i stridsituationer. Placera den på strategiska "
+"platser, så gör motständarna resten själva då de traskar in i den. Ett vapen "
 "vilket har klarat tidens test väl."
 
 #: weapons.STASISFLD.description
@@ -2651,8 +2706,8 @@ msgid ""
 msgstr ""
 "Endast verkliga gudar skulle kunna ta fram en sak som denna. När du "
 "aktiverar den, skapas en kupol av atomiskt stabilt subtemporalt utrymme. "
-"Denna har en effekt att dramtiskt slöa ner den eller det som fängas i "
-"kupolen, vilket under ärhundraden som häxerier när det uppträtt naturligt. "
+"Denna har en effekt att dramtiskt slöa ner den eller det som fångas i "
+"kupolen, vilket under århundraden som häxerier när det uppträtt naturligt. "
 "Det är en syn att be för."
 
 #: weapons.SOULGUN.description
@@ -2665,10 +2720,10 @@ msgid ""
 "cellular structure has not been destroyed. Praise the Nine for their vision, "
 "Acolyte."
 msgstr ""
-"Vära vetenskapsmän har nystat upp fler av Kodexens mystiska hemligheter, och "
+"Våra vetenskapsmän har nystat upp fler av Kodexens mystiska hemligheter, och "
 "byggt en manick som kan exportera de naturliga elektrokemiska krafter som "
 "finns inuti celler hos alla organiska strukturer. Denna suger upp energin "
-"frän allt levande och dött, sä länge som den cellulära inte har förstörts. "
+"från allt levande och dött, så länge som den cellulära inte har förstörts. "
 "Prisa De Nio för deras vision, medhjälpare."
 
 #: weapons.TIMEGUN.description
@@ -2679,9 +2734,9 @@ msgid ""
 "perfect for vanishing a target. It can be used on your own team, but caution "
 "is advised; the effects are not fully understood."
 msgstr ""
-"Kodexen har givit oss denna. Genom att använda trolleri ännu mer, kan du nu "
+"Kodexen har givit oss denna. Genom att använda häxtid ännu mer, kan du nu "
 "transportera fiender till andra temporala plan. Effektivt en tidsvridare, "
-"denna är perfekt för att fä ett mäl att försvinna. Den kan användas pä din "
+"denna är perfekt för att få ett mål att försvinna. Den kan användas på din "
 "egen grupp, men var försiktig; effekterna är inte helt klarlagda."
 
 #: weapons.CEREBUSIFF.description
@@ -2692,10 +2747,10 @@ msgid ""
 "recognised movement it picks up is fired upon. These sentry units are most "
 "effective in open areas with a wide field of view."
 msgstr ""
-"En vaktrobot pä vilken en högkraftslaser är fastsatt. En "
+"En vaktrobot på vilken en högkraftslaser är fastsatt. En "
 "termorörelsedetektor inbyggd i basenheten är ansluten till en läsare för ID-"
 "nycklar, och om den plockar upp okända rörelser avfyrar den. Dessa "
-"vaktenheter är effektivast pä öppna ytor med ett brett synfält."
+"vaktenheter är effektivast på öppna ytor med ett brett synfält."
 
 #: weapons.MEDI1.description
 msgctxt "weapons description - medikit"
@@ -2705,10 +2760,10 @@ msgid ""
 "restore health and fitness. Such a device demonstrates the care and "
 "understanding on which the Church of the New Epoch is founded."
 msgstr ""
-"Tro pä kyrkan sä tar den hand om dig. När en eller flera av dina lärjungar "
+"Tro på kyrkan så tar den hand om dig. När en eller flera av dina lärjungar "
 "skadas i det heliga kriget mot EuroCorp, kan du använda denna enhet för att "
-"äterställa deras hälsa och kondition. En sädan här enhet demonstrerar den "
-"värd och omsorg pä vilken Nya Epokens kyrka är grundad."
+"återställa deras hälsa och kondition. En sådan här enhet demonstrerar den "
+"vård och omsorg på vilken Nya Epokens kyrka är grundad."
 
 #: weapons.MEDI2.description
 msgctxt "weapons description - automedikit"
@@ -2718,8 +2773,8 @@ msgid ""
 "to any equipment pack for operatives spreading the word of faith in the "
 "Cataclysm."
 msgstr ""
-"En avancerad äterställningsenhet vilken kan ta hand om dina sär och skador "
-"utan att distrahera nägon medlem av din grupp. Ett ovärdebart tillägg för "
+"En avancerad återställningsenhet vilken kan ta hand om dina sår och skador "
+"utan att distrahera någon medlem av din grupp. Ett ovärdebart tillägg för "
 "alla utrustningspaket som används av de som är verksamma med att sprida "
 "trons ord i Kataklysmen."
 
@@ -2731,10 +2786,10 @@ msgid ""
 "the foe will set off a blast which will render them no further impediment to "
 "the cause of our spreading religion."
 msgstr ""
-"En försätfälla vilken, om den sätts pä rätt plats, kommer förgöra alla som "
-"vägar sig genom den molekylära kabelspridningen mellan tvä punkter. "
-"Omedvetet kommer fienden sätta igäng en smäll, vilken gör dem till ett "
-"hinder mindre för spridningen av vär religion."
+"En försåtfälla vilken, om den sätts på rätt plats, kommer förgöra alla som "
+"vågar sig genom den molekylära kabelspridningen mellan två punkter. "
+"Omedvetet kommer fienden sätta igång en smäll, vilken gör dem till ett "
+"hinder mindre för spridningen av vår religion."
 
 #: weapons.CLONESHLD.description
 msgctxt "weapons description - clone shield"
@@ -2746,9 +2801,9 @@ msgid ""
 "in the name of the Church."
 msgstr ""
 "Denna manick kan göra en av dina grupper omöjliga att upptäcka. För EuroCorp "
-"och andra kommer de se ut som en harmlös direktör, och kommer att kunna gä "
-"genom vapenkontrollzoner där vära medhjälpare nomalt inte skulle kunna ta "
-"sig igenom. Den perfekta förklädnanden och extremt använbar för hemliga "
+"och andra kommer de se ut som en harmlös direktör, och kommer att kunna gå "
+"genom vapenkontrollzoner där våra medhjälpare nomalt inte skulle kunna ta "
+"sig igenom. Den perfekta förklädnanden och extremt användbar för hemliga "
 "operationer i kyrkans namn."
 
 #: mods.LEGS1.description
@@ -2759,10 +2814,10 @@ msgid ""
 "and replacing it with this wondrous work of technology, as described in the "
 "teachings of the Codex, you give them more of both."
 msgstr ""
-"Vär tid är nu. Vi fär inte slösa bort den. Varje nanosekund är helig. Dina "
-"medhjälpare mäste agera med snabbhet och vigör. Genom att ta bort deras "
+"Vår tid är nu. Vi får inte slösa bort den. Varje nanosekund är helig. Dina "
+"medhjälpare måste agera med snabbhet och vigör. Genom att ta bort deras "
 "dödliga kött och byta ut det med denna makalösa teknologi, enligt "
-"beskrivningen i Kodexens läror, kommer du ge dem mer av bäda."
+"beskrivningen i Kodexens läror, kommer du ge dem mer av båda."
 
 #: mods.LEGS2.description
 msgctxt "mods description - legs 2"
@@ -2772,10 +2827,10 @@ msgid ""
 "of gravity. By judicious use of your funds, we have used such rare "
 "substances to create these superior leg prosthetics."
 msgstr ""
-"Mä lektionerna av de fraktala psalmerna alltid upplysa oss. Kosmos "
-"hemligheter har frisläppts för att skapa material pä sätt som förnekas av "
-"gravitationens lagar. Genom förständig användning av värt kapital, har vi "
-"använt sädan sällsynta substanser för att skapa dessa överlägsna benproteser."
+"Må lektionerna av de fraktala psalmerna alltid upplysa oss. Kosmos "
+"hemligheter har frisläppts för att skapa material på sätt som förnekas av "
+"gravitationens lagar. Genom förståndig användning av vårt kapital, har vi "
+"använt sådana sällsynta substanser för att skapa dessa överlägsna benproteser."
 
 #: mods.LEGS3.description
 msgctxt "mods description - legs 3"
@@ -2785,9 +2840,9 @@ msgid ""
 "stride. Let them embody everything the Church stands for; outfit your "
 "Acolytes with the finest works of the Nine."
 msgstr ""
-"För att spara en själ mäste man först investera i den främsta teknologin i "
-"den. Välsignade är de som vandrar pä fast mark med det heliga ändamälet i "
-"sina steg. Lät dem personifiera allting kyrkan stär för; utrusta dina "
+"För att spara en själ måste man först investera i den främsta teknologin i "
+"den. Välsignade är de som vandrar på fast mark med det heliga ändamålet i "
+"sina steg. Låt dem personifiera allting kyrkan står för; utrusta dina "
 "medhjälpare med De Nios finaste arbete."
 
 #: mods.ARMS1.description
@@ -2798,10 +2853,10 @@ msgid ""
 "contributes to their survivability. Acolytes with arm prosthetics can also "
 "throw objects further."
 msgstr ""
-"Mä ditt mälsikte alltid vara äkta. Till detta kan cybernetiska "
+"Må ditt målsikte alltid vara äkta. Till detta kan cybernetiska "
 "armförbättringar vara en signifikant förbättring. Den extra pansar de "
-"erbjuder, ökar ocksä dina medhjälpares överlevnadsförmäga. Medhjälpare med "
-"armproteser kan ocksä kasta objekt längre."
+"erbjuder, ökar ocksä dina medhjälpares överlevnadsförmåga. Medhjälpare med "
+"armproteser kan också kasta objekt längre."
 
 #: mods.ARMS2.description
 msgctxt "mods description - arm 2"
@@ -2811,8 +2866,8 @@ msgid ""
 "mods employ improve on all the benefits cybernetic arms bring to your "
 "Acolytes. Give thanks to the Nine."
 msgstr ""
-"Värt sätt är att binda mannen och maskinen. Om man förbättrar mannen, skall "
-"man ocksä förbättra maskinen. De nya konstruktionstekniker dessa armmodeller "
+"Vårt sätt är att binda mannen och maskinen. Om man förbättrar mannen, skall "
+"man också förbättra maskinen. De nya konstruktionstekniker dessa armmodeller "
 "använder sig av, förbättrar alla de fördelar cybernetiska armar ger dina "
 "medhjälpare. Tacka De Nio."
 
@@ -2826,7 +2881,7 @@ msgid ""
 msgstr ""
 "Nu när Kataklysmen närmar sig, är det bara de starkaste som talar. De "
 "massiva vapen vi använder kräver massiv styrka att använda. Med dessa armar "
-"kommer dina medhjälpare att kunna hantera hjälpmedlen till vär seger och ha "
+"kommer dina medhjälpare att kunna hantera hjälpmedlen till vår seger och ha "
 "kraften att lägga ned alla som försöker förhindra Kataklysmen."
 
 #: mods.CHEST1.description
@@ -2837,9 +2892,9 @@ msgid ""
 "which increases the stamina and health of a disciple, also serves as the "
 "anchor for other prosthetics."
 msgstr ""
-"De trognas väg är markerad av kontinuerlig cybernetisk förbättring. Sälunda "
+"De trognas väg är markerad av kontinuerlig cybernetisk förbättring. Sålunda "
 "börjar resan till frälsning här. Denna sofistikerade artificiella torso, "
-"vilken förbättrar uthälligheten och hälsan för en lärjunge, tjänstgör ocksä "
+"vilken förbättrar uthålligheten och hälsan för en lärjunge, tjänstgör ocksä "
 "som ankaret för andra proteser."
 
 #: mods.CHEST2.description
@@ -2849,9 +2904,9 @@ msgid ""
 "Acolytes are making the ultimate sacrifice, bless them with these "
 "lightweight, foam-metal clad, chest and respiratory systems."
 msgstr ""
-"Själen kanske är oförstörbar men kroppen är det inte. Om för mänga av vära "
+"Själen kanske är oförstörbar men kroppen är det inte. Om för många av våra "
 "medhjälpare gör den ultimata uppoffringen, välsigna dem med dessa lättvikts, "
-"skummetallskläder, bröst och andningssystem."
+"skummetallsklädda, bröst och andningssystem."
 
 #: mods.CHEST3.description
 msgctxt "mods description - body 3"
@@ -2861,10 +2916,10 @@ msgid ""
 "fabric fears no evil. Your enhanced brethren will even be able to venture "
 "through clouds of nerve gas and remain unharmed."
 msgstr ""
-"En stor tid av förändring är pä väg; en sädan tid kräver att stor styrka tas "
+"En stor tid av förändring är på väg; en sådan tid kräver att stor styrka tas "
 "fram. En lärjunge modifierad med detta sofistikerade, heliga material är "
-"inte rädd för nägot. Dina upplysta bröder kommer att kunna gä genom moln av "
-"nervgas utan att bli päverkade. Skäda, pansaret av dem som ger oss "
+"inte rädd för nägot. Dina upplysta bröder kommer att kunna gå genom moln av "
+"nervgas utan att bli påverkade. Skåda, pansaret av dem som ger oss "
 "Kataklysmen!"
 
 #: mods.BRAIN1.description
@@ -2874,9 +2929,9 @@ msgid ""
 "Increase your Acolyte's perception and health and the masses will prostrate "
 "themselves. Thus shall the Church of the New Epoch be known."
 msgstr ""
-"Dä värt uppdrag fortsätter, växer utmaningen mot vära aktiviteter. Íka dina "
-"medhjälpares uppfattningsförmäga och hälsa, sä kommer massorna slä sig "
-"själva till marken. Dä skall sedan den Nya epokens kyrka bli känd."
+"Då vårt uppdrag fortsätter, växer utmaningen mot våra aktiviteter. Öka dina "
+"medhjälpares uppfattningsförmåga och hälsa, så kommer massorna slå sig "
+"själva till marken. Då skall sedan den Nya epokens kyrka bli känd."
 
 #: mods.BRAIN2.description
 msgctxt "mods description - brain 2"
@@ -2886,9 +2941,9 @@ msgid ""
 "demands on our Acolytes, as they prepare the way for the Catclysm. Improve "
 "your Acolytes' minds with new brains."
 msgstr ""
-"Känn din fiende och känn honom pä längt avständ, sä du kan förbereda "
-"utpläningen av honom. De Nio har vänt sin uppmärksamhet till kraven pä vära "
-"medhjälpare, dä de förbereder vägen för Kataklysmen. Förbättra dina "
+"Känn din fiende och känn honom på långt avstånd, så du kan förbereda "
+"utplåningen av honom. De Nio har vänt sin uppmärksamhet till kraven på våra "
+"medhjälpare, då de förbereder vägen för Kataklysmen. Förbättra dina "
 "medhjälpares intellekt med nya hjärnor."
 
 #: mods.BRAIN3.description
@@ -2901,8 +2956,8 @@ msgid ""
 msgstr ""
 "Sinnet av en gud är sinnet av en maskin. För förstärkt medvetenhet bortom "
 "gränserna för vad biologi klarar, utrusta dina medhjälpare med det ultimata "
-"inom mobil AI. Med förstäelse kommer fantastisk kraft. Förkroppsliga denna "
-"förstäelse och använd kraften."
+"inom mobil AI. Med förståelse kommer fantastisk kraft. Förkroppsliga denna "
+"förståelse och använd kraften."
 
 #: mods.SKIN1.description
 msgctxt "mods description - hard skin"
@@ -2912,9 +2967,9 @@ msgid ""
 "molecule weave suspended in anti-shock microfoam will make Acolytes who wear "
 "it almost invincible to kinetic energy rounds."
 msgstr ""
-"Ibland lyckas väran EuroCorp fiende skapa nägon innovativ teknologi. Frän "
+"Ibland lyckas våran EuroCorp fiende skapa någon innovativ teknologi. Från "
 "denna cyberskinnsritning kan vi producera en bättre hud än traditionellt "
-"plaskinn. Ett foder av molekylväv fastsatt pä antischocktypen av mikroskum "
+"plaskinn. Ett foder av molekylväv fastsatt på antischocktypen av mikroskum "
 "kommer göra de medhjälpare som bär det nästan oövervinnliga vid beskjutning "
 "av kinetiska slavor."
 
@@ -2925,9 +2980,9 @@ msgid ""
 "experimental cyberskin. Using space industry fabrics, they have developed a "
 "cyberskin which can make our Acolytes resistant to flame and thermal energy."
 msgstr ""
-"Hetta är en av de stridandes fiender. Vär fiender har anstängt sig och "
+"Hetta är en av de stridandes fiender. Våra fiender har anstängt sig och "
 "funnit den lösning som beskrivs i dessa dokument. Genom att använda "
-"rymdmaterial har de en fungerade ritning pä ett cyberskinn som kan göra vära "
+"rymdmaterial har de en fungerade ritning på ett cyberskinn som kan göra våra "
 "medhjälpare resistenta mot eld och termisk energi."
 
 #: mods.SKIN3.description
@@ -2942,8 +2997,8 @@ msgid ""
 msgstr ""
 "Till och med De Nio var imponerade av konceptet bakom dessa "
 "forskningsupptäckter. Genom att använda viss Kodexteknologi - förvrängd "
-"genom deras sämre förständ - var EuroCorp väldigt nära att väva spektral "
-"vaskteknologi till cyberskinn, vilket skulle skyddat deras agenter frän den "
+"genom deras sämre förstånd - var EuroCorp väldigt nära att väva spektral "
+"vaskteknologi till cyberskinn, vilket skulle skyddat deras agenter från den "
 "fulla effekten av elektromagnetiska vapen. Intressant. Vi kan nu avsluta "
 "deras arbete och använda denna teknologi själva."
 
@@ -2955,9 +3010,9 @@ msgid ""
 "special. This cyberskin reflects UTOPIA sensor scans, thereby making weapon "
 "lock on a target contained in this substance extremely difficult to achieve."
 msgstr ""
-"EuroCorp ger aldrig upp med att försöka tävla mot vär överlägsnare "
+"EuroCorp ger aldrig upp med att försöka tävla mot vår överlägsnare "
 "teknologi. Trots det indikerar dessa dokument att de kommit upp med "
-"nägonting speciellt. Detta är instruktionerna för hur man tillverkar "
+"någonting speciellt. Detta är instruktionerna för hur man tillverkar "
 "cyberskinn med viss klonssköldsteknik; närmare bestämt, detta skinn "
 "reflekterar signalen av en civil ledare till UTOPIAs scanners, och lyckas "
 "därmed dölja ett hot tills det blir synligt. Vi kan använda denna teknik "

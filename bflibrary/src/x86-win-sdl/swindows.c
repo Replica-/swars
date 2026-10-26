@@ -44,8 +44,7 @@ TbIdleControl lbIdleHandlers[LB_IDLE_HANDLERS_MAX] = {0};
 void LbRegisterStandardVideoModes(void);
 TbResult MEvent(const SDL_Event *ev);
 TbResult KEvent(const SDL_Event *ev);
-
-extern SDL_Color lbPaletteColors[];
+TbResult LbIPaletteRestoreLost(void);
 
 TbResult LbBaseInitialise(void)
 {
@@ -58,7 +57,7 @@ TbResult LbBaseInitialise(void)
     lbDrawSurface = NULL;
     LbMemorySet(lbIdleHandlers, 0, sizeof(lbIdleHandlers));
     lbAppActive = true;
-    LbMouseChangeMoveRatio(256, 256);
+    LbMouseChangeMoveRatio(NORMAL_MOUSE_MOVE_RATIO, NORMAL_MOUSE_MOVE_RATIO);
     // Register default video modes
     if (lbScreenModeInfoNum == 0) {
         LbRegisterStandardVideoModes();
@@ -110,8 +109,7 @@ TbResult WEvent(const SDL_Event *ev)
         }
         if ((lbAppActive) && (lbDisplay.Palette != NULL)) {
             // Switching windows in 8-bit modes often leads to palette loss
-            // Below is the faster version of LbPaletteSet(lbDisplay.Palette);
-            SDL_SetColors(lbDrawSurface,lbPaletteColors, 0, PALETTE_8b_COLORS);
+            LbIPaletteRestoreLost();
         }
         return Lb_SUCCESS;
     case SDL_SYSWMEVENT:

@@ -2,7 +2,7 @@
 // Bullfrog Engine Emulation Library - for use to remake classic games like
 // Syndicate Wars, Magic Carpet, Genewars or Dungeon Keeper.
 /******************************************************************************/
-/** @file gerrorlg.cpp
+/** @file gerrorlg.c
  *     Implementation of related functions.
  * @par Purpose:
  *     Unknown.
@@ -116,6 +116,11 @@ TbResult LbErrorLogReset(void)
     result = LbLogClose(&error_log);
     error_log_initialised = false;
     return result;
+}
+
+TbBool LbErrorLogReady(void)
+{
+    return error_log_initialised;
 }
 
 /******************************************************************************/

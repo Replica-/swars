@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file feoptions.h
  *     Header file for feoptions.c.
@@ -33,9 +33,15 @@ extern "C" {
 extern char options_title_text[];
 
 void init_options_audio_screen_boxes(void);
-void init_options_visual_screen_boxes(void);
+void init_options_gfx_screen_boxes(void);
 void update_options_screen_state(void);
-void reset_options_screen_boxes_flags(void);
+void reset_options_audio_boxes_flags(void);
+void reset_options_gfx_boxes_flags(void);
+void skip_flashy_draw_audio_screen_boxes(void);
+void skip_flashy_draw_gfx_screen_boxes(void);
+
+ubyte show_options_audio_screen(void);
+ubyte show_options_visual_screen(void);
 
 /******************************************************************************/
 #ifdef __cplusplus

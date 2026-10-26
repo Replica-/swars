@@ -32,10 +32,13 @@
 #include "aildebug.h"
 #include "drv_oal.h"
 /******************************************************************************/
-extern size_t sound_free_buffer_count;
 
 static uint32_t SS_serve_entry = 0;
 static int32_t SS_serve_flags = 0;
+
+extern size_t sound_free_buffer_count;
+
+/******************************************************************************/
 
 /** Call device I/O verification function using current detection policy.
  */
@@ -101,7 +104,11 @@ DIG_DRIVER *SS_construct_DIG_driver(AIL_DRIVER *drvr, const SNDCARD_IO_PARMS *io
 
     // Ensure that all AIL code and data is locked into memory
     AIL2OAL_start();
+#if !defined(LBS_ENABLE_STRUCTS_EXPAND)
     assert(sizeof(SNDSAMPLE) == 0x894);
+#else
+    assert(sizeof(SNDSAMPLE) >= 0x894);
+#endif
 
     // Allocate memory for DIG_DRIVER structure
     digdrv = (DIG_DRIVER *)AIL_MEM_alloc_lock(sizeof(*digdrv));
@@ -539,7 +546,7 @@ int32_t AIL2OAL_API_install_DIG_INI(DIG_DRIVER **digdrv)
 
 #if defined(DOS)||defined(GO32)
     // Attempt to read DIG_INI file
-    if (!AIL_read_INI(&ini, "DIG.INI"))
+    if (!AIL_read_INI(&ini, "dig.ini"))
     {
         AIL_set_error("Unable to open file DIG.INI.");
         return AIL_NO_INI_FILE;
@@ -547,7 +554,7 @@ int32_t AIL2OAL_API_install_DIG_INI(DIG_DRIVER **digdrv)
 #else
     // Pretend we have a generic driver from DIG_INI
     memset(&ini, 0, sizeof(ini));
-    sprintf(ini.driver_name, "%s", "SB16.DIG");
+    sprintf(ini.driver_name, "%s", "sb16.dig");
 #endif
 
     *digdrv = AIL_install_DIG_driver_file(ini.driver_name,

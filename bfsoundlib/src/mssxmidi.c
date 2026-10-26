@@ -33,13 +33,10 @@
 #include "drv_oal.h"
 #include "msssys.h"
 #include "miscutil.h"
-#include "wildmidi_lib.h"
+#if LBS_ENABLE_WILDMIDI
+#  include "wildmidi_lib.h"
+#endif
 /******************************************************************************/
-extern char GTL_prefix[128];
-extern char SoundDriverPath[144];
-
-extern MDI_DRIVER *MDI_first;
-extern uint32_t MDI_entry;
 const uint8_t *MDI_ptr;
 const uint8_t *MDI_event;
 uint32_t MDI_status, MDI_len;
@@ -49,8 +46,16 @@ int32_t MDI_i, MDI_j, MDI_n;
 int32_t MDI_q, MDI_t;
 int32_t MDI_sequence_done;
 
-extern int32_t MDI_locked;
 static uint32_t XMI_serve_entry = 0;
+
+char GTL_prefix[128] = "SAMPLE";
+extern char SoundDriverPath[144];
+
+extern MDI_DRIVER *MDI_first;
+uint32_t MDI_entry = 0;
+int32_t MDI_use_locked = 0;
+
+/******************************************************************************/
 
 void AILXMIDI_end(void);
 
@@ -58,7 +63,7 @@ void AILXMIDI_end(void);
  */
 void AILXMIDI_start(void)
 {
-    if (MDI_locked)
+    if (MDI_use_locked)
         return;
     AIL_VMM_lock_range(AILXMIDI_start, AILXMIDI_end);
 
@@ -78,7 +83,7 @@ void AILXMIDI_start(void)
     AIL_vmm_lock(&MDI_ptr, sizeof(MDI_ptr));
     AIL_vmm_lock(&MDI_event, sizeof(MDI_event));
 
-    MDI_locked = 1;
+    MDI_use_locked = 1;
 }
 
 /** Initialize state table entries.
@@ -131,7 +136,9 @@ static void XMI_rewind_sequence(SNDSEQUENCE *seq)
     seq->EVNT_ptr = (uint8_t *)seq->EVNT + 8;
 
     wildpos = 0;
+#if LBS_ENABLE_WILDMIDI
     WildMidi_FastSeek(seq->ICA, &wildpos);
+#endif
 }
 
 /** Force transmission of any buffered MIDI traffic.
@@ -429,7 +436,9 @@ void XMI_destroy_MDI_driver(MDI_DRIVER *mdidrv)
 
     OPENAL_free_buffers(mdidrv->n_sequences);
 
+#if LBS_ENABLE_WILDMIDI
     WildMidi_Shutdown();
+#endif
 
     // Release memory resources
     AIL_MEM_free_lock(mdidrv->sequences, mdidrv->n_sequences * sizeof(SNDSEQUENCE));
@@ -690,6 +699,7 @@ MDI_DRIVER *XMI_construct_MDI_driver(AIL_DRIVER *drvr, const SNDCARD_IO_PARMS *i
 
     smp_rate = 22050;
 
+#if LBS_ENABLE_WILDMIDI
     i = WildMidi_Init("conf/midipats.cfg", smp_rate, WM_MO_ENHANCED_RESAMPLING);
     if (i < 0) {
         AIL_set_error("Cannot init music - invalid/missing WildMIDI config");
@@ -701,8 +711,9 @@ MDI_DRIVER *XMI_construct_MDI_driver(AIL_DRIVER *drvr, const SNDCARD_IO_PARMS *i
         return NULL;
     }
     WildMidi_MasterVolume(100);
+#endif
 
-    mdidrv->system_data[0] = smp_rate;
+    mdidrv->system_data[MdiSD_SAMPLE_RATE] = smp_rate;
 
     // Allocate timer for XMIDI sequencing
     mdidrv->timer = AIL_register_timer(XMI_serve);
@@ -1539,9 +1550,11 @@ void AIL2OAL_API_release_sequence_handle(SNDSEQUENCE *seq)
     AIL_stop_sequence(seq);
     // Set 'free' flag
     seq->status = SNDSEQ_FREE;
+#if LBS_ENABLE_WILDMIDI
     // Release the WildMidi handle
     if (seq->ICA != NULL)
         WildMidi_Close(seq->ICA);
+#endif
     if (seq->FOR_ptrs[0] != NULL)
         AIL_MEM_free_lock(seq->FOR_ptrs[0], SOUND_MAX_BUFSIZE);
 }
@@ -1606,7 +1619,7 @@ MDI_DRIVER *AIL2OAL_API_open_XMIDI_driver(uint32_t flags)
 {
     // Since both Windows and old DOS API should work, there is no reason
     // not to call the DOS initialization here
-    return AIL2OAL_API_install_MDI_driver_file("OPL3.MDI", NULL);
+    return AIL2OAL_API_install_MDI_driver_file("opl3.mdi", NULL);
 }
 
 void AIL2OAL_API_close_XMIDI_driver(MDI_DRIVER *mdidrv)
@@ -1621,7 +1634,7 @@ int32_t AIL2OAL_API_init_sequence(SNDSEQUENCE *seq, const void *start,  int32_t 
     uint32_t len;
     int32_t i;
 #if ENABLE_TIMBRE
-    TIMB_chunk *T;
+    struct TIMB_chunk *T;
     static uint8_t TIMB[sizeof(seq->driver->DST->MIDI_data)];
     uint32_t bank, patch;
     VDI_CALL VDI;
@@ -1636,7 +1649,7 @@ int32_t AIL2OAL_API_init_sequence(SNDSEQUENCE *seq, const void *start,  int32_t 
     // Find requested sequence in XMIDI image
     image = XMI_find_sequence(start, sequence_num);
     if (image == NULL) {
-        AIL_set_error("Invalid XMIDI sequence.");
+        AIL_set_error("Invalid XMIDI sequence, cannot find num.");
         return 0;
     }
 
@@ -1667,13 +1680,15 @@ int32_t AIL2OAL_API_init_sequence(SNDSEQUENCE *seq, const void *start,  int32_t 
 
     // Sequence must contain EVNT chunk
     if (seq->EVNT == NULL) {
-        AIL_set_error("Invalid XMIDI sequence.");
+        AIL_set_error("Invalid XMIDI sequence, EVNT missing.");
         return 0;
     }
 
+#if LBS_ENABLE_WILDMIDI
     // Release the previous WildMidi handle
     if (seq->ICA != NULL)
         WildMidi_Close(seq->ICA);
+#endif
 
     // Initialize sequence callback and state data
     seq->ICA = NULL;
@@ -1698,6 +1713,7 @@ int32_t AIL2OAL_API_init_sequence(SNDSEQUENCE *seq, const void *start,  int32_t 
     seq->tempo_error = 0;
 
     len = XMI_whole_size(start);
+#if LBS_ENABLE_WILDMIDI
     // The (otherwise unused) ICA pointer will be our WildMIDI handle
     seq->ICA = WildMidi_OpenBuffer(start, len);
     if (seq->ICA == NULL) {
@@ -1705,13 +1721,16 @@ int32_t AIL2OAL_API_init_sequence(SNDSEQUENCE *seq, const void *start,  int32_t 
         AIL_set_error(WildMidi_GetError());
         return 0;
     }
+#endif
 
+#if LBS_ENABLE_WILDMIDI
     // Move to the selected sequence
     i = sequence_num;
     while (i > 0) {
         WildMidi_SongSeek(seq->ICA, 1);
         i--;
     }
+#endif
 
     // Reuse one of (otherwise unused) FOR_ptrs for sw synth buffer
     if (seq->FOR_ptrs[0] == NULL)
@@ -1728,7 +1747,7 @@ int32_t AIL2OAL_API_init_sequence(SNDSEQUENCE *seq, const void *start,  int32_t 
         len = sizeof(seq->driver->DST->MIDI_data);
     memcpy(TIMB, seq->TIMB, len);
 
-    T = (TIMB_chunk*)TIMB;
+    T = (struct TIMB_chunk *)TIMB;
 
     // If timbre-request callback function registered, pass each bank/patch
     // pair to the function to see if it has to be requested from the driver
@@ -2003,7 +2022,43 @@ int32_t AIL2OAL_API_sequence_loop_count(SNDSEQUENCE *seq)
 
 void AIL2OAL_API_branch_index(SNDSEQUENCE *seq, uint32_t marker)
 {
-    // Not implemented in this wrapper
+    int32_t n,i;
+    struct RBRN_entry *rb;
+
+    if (seq == NULL)
+        return;
+
+    // Make sure RBRN block is present
+    if (seq->RBRN == NULL)
+        return;
+
+    // Get number of RBRN entries
+    n = *(int16_t *) ((uint8_t *)seq->RBRN + 8);
+
+    // Get pointer to RBRN entry list
+    rb = (struct RBRN_entry *) ((uint8_t *)seq->RBRN + 10);
+
+    // Search RBRN list for specified index
+    for (i = 0; i < n; i++) {
+        if ((uint16_t)rb[i].bnum == marker)
+            break;
+    }
+    if (i == n) // index not found
+        return;
+
+    // Move sequence pointer to branch point. First event at the new
+    // location will be the Sequence Branch Index controller.
+    seq->EVNT_ptr = (uint8_t *)seq->EVNT + 8 + rb[i].offset;
+    // Clear interval count, so next event will be fetched immediately
+    seq->interval_count = 0;
+
+    // Cancel all FOR...NEXT loops unless application specifies otherwise
+    if (!AIL_preference[MDI_ALLOW_LOOP_BRANCHING])
+    {
+        for (n=0; n < AIL_FOR_NEST; n++) {
+            seq->FOR_loop_count[n] = -1;
+        }
+    }
 }
 
 AILTRIGGERCB AIL2OAL_API_register_trigger_callback(SNDSEQUENCE *seq, AILTRIGGERCB callback)
@@ -2282,7 +2337,7 @@ void AIL2OAL_API_send_channel_voice_message(MDI_DRIVER *mdidrv, SNDSEQUENCE *seq
  */
 void AILXMIDI_end(void)
 {
-    if (!MDI_locked)
+    if (!MDI_use_locked)
         return;
     AIL_VMM_unlock_range(AILXMIDI_start, AILXMIDI_end);
 
@@ -2302,7 +2357,7 @@ void AILXMIDI_end(void)
     AIL_vmm_unlock(&MDI_ptr, sizeof(MDI_ptr));
     AIL_vmm_unlock(&MDI_event, sizeof(MDI_event));
 
-    MDI_locked = 0;
+    MDI_use_locked = 0;
 }
 
 /******************************************************************************/

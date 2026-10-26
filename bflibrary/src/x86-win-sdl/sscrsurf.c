@@ -33,6 +33,8 @@ OSSurfaceHandle lbDrawSurface;
 extern SDL_Color lbPaletteColors[256];
 
 TbResult LbIScreenDrawSurfaceCheck(void);
+int LbI_SDL_BlitScaled(SDL_Surface *src, const SDL_Rect *srcrect,
+  SDL_Surface *dst, SDL_Rect *dstrect);
 /******************************************************************************/
 void LbScreenSurfaceInit(struct SSurface *surf)
 {
@@ -112,7 +114,7 @@ TbResult LbScreenSurfaceBlit(struct SSurface *surf, ulong x, ulong y,
       //to access front buffer in SDL
     }
 
-    if ((blflags & SSBlt_FLAG4) != 0) {
+    if ((blflags & SSBlt_TRANSPRN) != 0) {
         // enable color key
         SDL_SetColorKey(to_SDLSurf(surf->surf_data), SDL_SRCCOLORKEY, 255);
     }
@@ -138,7 +140,7 @@ TbResult LbScreenSurfaceBlit(struct SSurface *surf, ulong x, ulong y,
 
     int blresult;
     // the blit
-    if ((blflags & SSBlt_FLAG8) != 0) {
+    if ((blflags & SSBlt_TO_SCREEN) != 0) {
         // surface to screen
         blresult = SDL_BlitSurface(to_SDLSurf(surf->surf_data),
           &srcRect, to_SDLSurf(lbDrawSurface), &destRect);
@@ -146,6 +148,77 @@ TbResult LbScreenSurfaceBlit(struct SSurface *surf, ulong x, ulong y,
     else {
         // screen to surface
         blresult = SDL_BlitSurface(to_SDLSurf(lbDrawSurface),
+          &destRect, to_SDLSurf(surf->surf_data), &srcRect);
+    }
+
+    // restore palette
+    if (to_SDLSurf(surf->surf_data)->format->BitsPerPixel == 8) {
+        to_SDLSurf(surf->surf_data)->format->palette = paletteBackup;
+    }
+
+    if (blresult == -1) {
+        // Blitting mouse cursor will occasionally fail, so there's no point in logging this
+        LOGERR("Blit failed: %s", SDL_GetError());
+        return Lb_FAIL;
+    }
+    return Lb_SUCCESS;
+}
+
+TbResult LbScreenSurfaceBlitScaled(struct SSurface *surf, struct TbRect *scrn_rect,
+    struct TbRect *surf_rect, ulong blflags)
+{
+    // Convert TbRect to SDL rectangles
+    SDL_Rect srcRect;
+    SDL_Rect destRect;
+    Uint32 clkey;
+
+    LbIScreenDrawSurfaceCheck();
+
+    if (lbDrawSurface == NULL) {
+        LOGERR("DrawSurface pixel format must be known to blit other surfaces.");
+        return Lb_FAIL;
+    }
+
+    srcRect.x = surf_rect->left;
+    srcRect.y = surf_rect->top;
+    srcRect.w = surf_rect->right - surf_rect->left;
+    srcRect.h = surf_rect->bottom - surf_rect->top;
+
+    destRect.x = scrn_rect->left;
+    destRect.y = scrn_rect->top;
+    destRect.w = scrn_rect->right - scrn_rect->left;
+    destRect.h = scrn_rect->bottom - scrn_rect->top;
+
+    // Set blit parameters
+
+    if ((blflags & SSBlt_TRANSPRN) != 0) {
+        // enable color key
+        SDL_SetColorKey(to_SDLSurf(surf->surf_data), SDL_SRCCOLORKEY, 255);
+    }
+    else {
+        // disable color key
+        SDL_SetColorKey(to_SDLSurf(surf->surf_data), 0, 255);
+    }
+
+    // SDL has a per-surface palette for 8 bit surfaces. But the engine assumes palette
+    // to be required only for screen surface. To make off-screen surface working,
+    // we must manually set the palette for it. So temporarily change palette.
+    SDL_Palette *paletteBackup = NULL;
+    if (to_SDLSurf(surf->surf_data)->format->BitsPerPixel == 8) {
+        paletteBackup = to_SDLSurf(surf->surf_data)->format->palette;
+        to_SDLSurf(surf->surf_data)->format->palette = to_SDLSurf(lbDrawSurface)->format->palette;
+    }
+
+    int blresult;
+    // the blit
+    if ((blflags & SSBlt_TO_SCREEN) != 0) {
+        // surface to screen
+        blresult = LbI_SDL_BlitScaled(to_SDLSurf(surf->surf_data),
+          &srcRect, to_SDLSurf(lbDrawSurface), &destRect);
+    }
+    else {
+        // screen to surface
+        blresult = LbI_SDL_BlitScaled(to_SDLSurf(lbDrawSurface),
           &destRect, to_SDLSurf(surf->surf_data), &srcRect);
     }
 

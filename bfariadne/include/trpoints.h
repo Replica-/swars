@@ -33,6 +33,10 @@ extern "C" {
  */
 typedef int TrCoord;
 
+/** Type for storing fine-grained coord (coord shifted left 8 bits).
+ */
+typedef int TrFineCoord;
+
 /** Type for storing point index.
  */
 typedef short TrPointId;
@@ -56,9 +60,19 @@ TrPointId point_new(void);
  */
 void point_dispose(TrPointId pt);
 
+/** Returns if given point is allocated (is not free and is not invalid).
+ */
+TbBool point_is_allocated(TrPointId pt);
+
+/** Clear all properties of the point.
+ */
+void point_clear(TrPointId pt);
+
 TrPointId point_set_new_or_reuse(TrCoord pt_x, TrCoord pt_y);
 
 TbBool point_equals(TrPointId pt, TrCoord pt_x, TrCoord pt_y);
+TbBool points_equal(TrPointId pt1, TrPointId pt2);
+
 TbBool point_within_rect_coords(TrPointId pt, TrCoord x1,
   TrCoord y1, TrCoord x2, TrCoord y2);
 /******************************************************************************/

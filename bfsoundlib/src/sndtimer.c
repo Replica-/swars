@@ -30,7 +30,7 @@
 #include "aildebug.h"
 /******************************************************************************/
 
-extern struct sound_timer_inf sound_timer[5];
+struct sound_timer_inf sound_timer[5];
 
 extern TbBool MusicInstalled;
 extern TbBool SoundInstalled;
@@ -44,7 +44,7 @@ void InitAllBullfrogSoundTimers(void)
     LbMemorySet(&sound_timer, 0, 5 * sizeof(struct sound_timer_inf));
 }
 
-ushort SetupBullfrogSoundTimer(ushort freq, void (*cb)())
+ushort SetupBullfrogSoundTimer(ushort freq, void (*cb)(void*))
 {
     struct sound_timer_inf *stinf;
     ushort st;

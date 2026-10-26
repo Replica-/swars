@@ -26,9 +26,11 @@
 #include "snderr.h"
 
 #include "bftypes.h"
+#include "bflog.h"
 /******************************************************************************/
+char SoundProgressMessage[256];
 
-extern TbBool DebugAudio;
+TbBool DebugAudio = false;
 
 /******************************************************************************/
 
@@ -40,8 +42,14 @@ void InitDebugAudio(void)
 
 void SoundProgressLog(const char *msg)
 {
-    if (DebugAudio)
+    if (!DebugAudio)
+        return;
+
+    if (LbErrorLogReady()) {
+        LbSyncLog("Bfsnd: %s", msg);
+    } else {
         fputs(msg, stdout);
+    }
 }
 
 

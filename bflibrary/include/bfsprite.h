@@ -166,8 +166,8 @@ TbResult LbSpriteDrawScaled(long xpos, long ypos, const TbSprite *sprite,
 
 #define LbSpriteDrawResized(xpos, ypos, un_per_px, sprite) \
   LbSpriteDrawScaled(xpos, ypos, sprite, \
-    ((sprite)->SWidth * un_per_px + 8) / 16, \
-    ((sprite)->SHeight * un_per_px + 8) / 16)
+    ((sprite)->SWidth * (un_per_px) + 8) / 16, \
+    ((sprite)->SHeight * (un_per_px) + 8) / 16)
 
 /**
  * Draws a scaled sprite with one colour on current graphics window at given position.
@@ -186,8 +186,8 @@ TbResult LbSpriteDrawScaledOneColour(long xpos, long ypos, const TbSprite *sprit
 
 #define LbSpriteDrawResizedOneColour(xpos, ypos, un_per_px, sprite, colour) \
   LbSpriteDrawScaledOneColour(xpos, ypos, sprite, \
-    ((sprite)->SWidth * un_per_px + 8) / 16, \
-    ((sprite)->SHeight * un_per_px + 8) / 16, colour)
+    ((sprite)->SWidth * (un_per_px) + 8) / 16, \
+    ((sprite)->SHeight * (un_per_px) + 8) / 16, colour)
 
 /**
  * Draws a scaled sprite with remapped colours on current graphics window at given position.
@@ -206,8 +206,17 @@ TbResult LbSpriteDrawScaledRemap(long xpos, long ypos, const TbSprite *sprite,
 
 #define LbSpriteDrawResizedRemap(xpos, ypos, un_per_px, sprite, cmap) \
   LbSpriteDrawScaledRemap(xpos, ypos, sprite, \
-    ((sprite)->SWidth * un_per_px + 8) / 16, \
-    ((sprite)->SHeight * un_per_px + 8) / 16, cmap)
+    ((sprite)->SWidth * (un_per_px) + 8) / 16, \
+    ((sprite)->SHeight * (un_per_px) + 8) / 16, cmap)
+
+/**
+ * Encodes draw window area into a sprite.
+ *
+ * @param p_spr The sprite struct to be filled.
+ * @param p_spr_data Destination buffer to be used.
+ * @return Length of the sprite data.
+ */
+int LbScreenSpriteEncode(TbSprite *p_spr, TbSpriteData p_spr_data);
 
 #ifdef __cplusplus
 };

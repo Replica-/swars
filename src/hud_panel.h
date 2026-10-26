@@ -1,0 +1,197 @@
+/******************************************************************************/
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
+/******************************************************************************/
+/** @file hud_panel.h
+ *     Header file for hud_panel.c.
+ * @par Purpose:
+ *     Ingame Heads-Up Display panel draw.
+ * @par Comment:
+ *     Just a header file - #defines, typedefs, function prototypes etc.
+ * @author   Tomasz Lis
+ * @date     19 Apr 2022 - 27 Aug 2023
+ * @par  Copying and copyrights:
+ *     This program is free software; you can redistribute it and/or modify
+ *     it under the terms of the GNU General Public License as published by
+ *     the Free Software Foundation; either version 2 of the License, or
+ *     (at your option) any later version.
+ */
+/******************************************************************************/
+#ifndef HUD_PANEL_H
+#define HUD_PANEL_H
+
+#include "bftypes.h"
+#include "game_bstype.h"
+#include "guiboxes.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+/******************************************************************************/
+#pragma pack(1)
+
+#define PANEL_STATE_NORMAL        0
+#define PANEL_STATE_WEP_SEL_ONE   1
+#define PANEL_STATE_WEP_SEL_GRP   5
+#define PANEL_STATE_MOOD_SET_ONE  9
+#define PANEL_STATE_MOOD_SET_GRP 13
+#define PANEL_STATE_SEND_MESSAGE 17
+
+enum PanelType {
+    PanT_NONE = 0,
+    PanT_AgentBadge,
+    PanT_AgentMood,
+    PanT_AgentHealth,
+    PanT_AgentEnergy,
+    PanT_AgentWeapon,
+    PanT_AgentMedi,
+    PanT_UNKN07,
+    PanT_WeaponEnergy,
+    PanT_UNKN09,
+    PanT_Grouping,
+    PanT_Scanner,
+    PanT_Objective,
+};
+
+enum PanelFlags {
+    PanF_ENABLED = 0x0001,
+    /** The panel has more than one sprite, to merge into horizontal line. */
+    PanF_SPRITES_IN_LINE_HORIZ = 0x0020,
+    /** The panel has more than one sprite, to merge into vertical line. */
+    PanF_SPRITES_IN_LINE_VERTC = 0x0040,
+    PanF_SPR_TOGGLED_ON = 0x0080,
+    /** Strech the panel to new resolution in the dimension in which sprites make up a line, but accumulate the whole streching in middle sprite. */
+    PanF_RESIZE_MIDDLE_SPR = 0x0100,
+    PanF_REPOSITION_HORIZ = 0x0200,
+    PanF_REPOSITION_VERTC = 0x0400,
+    /** If owining panel gets moved, move position of the flagged panel with it. */
+    PanF_REPOSITION_WITH_PARENT = 0x0800,
+    /** If owining panel gets resized, strech the flagged one by that size change. */
+    PanF_STRECH_TO_PARENT_SIZE = 0x1000,
+    /** If owining panel gets resized, move position of the flagged panel by that size change. */
+    PanF_REPOSITION_TO_AFTER = 0x2000,
+    /** Strech the panel to new resolution horizontally. */
+    PanF_RESIZE_PROPOR_HORIZ = 0x4000,
+    /** Strech the panel to new resolution vertically. */
+    PanF_RESIZE_PROPOR_VERTC = 0x8000,
+    /** Strech the panel vertically, but only to values for displaying a line of text. */
+    PanF_RESIZE_TEXT_ONLY_VERTC = 0x00010000,
+    /** When resizing the panel vertically, keep the bottom position unchanged. */
+    PanF_RESIZE_ANCHOR_END_VERTC = 0x00040000,
+    /** After resizing all the other panels vertically, make this panel fill the remaining space. */
+    PanF_FILL_REMAINING_VERTC = 0x00080000,
+};
+
+enum PanelShift {
+    PaSh_AGENT_UNUSED0 = 0,
+    PaSh_AGENT_WEAPON_TO_LIST = 4,
+    PaSh_GROUP_PANE_TO_THERMAL_BOX = 11,
+    PaSh_GROUP_PANE_TO_THERMAL_SPR = 12,
+    PaSh_GROUP_PANE_AGENTS = 13,
+    PaSh_WEP_CURR_BTN_TO_SYMBOL = 16,
+    PaSh_WEP_FRST_BTN_TO_SYMBOL = 17,
+    PaSh_WEP_NEXT_BTN_TO_SYMBOL = 18,
+    PaSh_WEP_CURR_BTN_TO_DECOR =  19,
+    PaSh_WEP_FRST_BTN_TO_DECOR = 20,
+    PaSh_WEP_NEXT_BTN_TO_DECOR = 21,
+    PaSh_WEP_NEXT_DISTANCE = 22,
+    PaSh_WEP_CURR_BUTTON_AREA = 23,
+    PaSh_WEP_NEXT_BUTTON_AREA = 24,
+    PaSh_WEP_FOURPACK_BASE_SH = 25,
+    PaSh_WEP_FOURPACK_SIZE = 26,
+    PaSh_WEP_FOURPACK_SLOTS = 27,
+};
+
+enum PanelColour {
+    PanColr_Text = 0,
+    PanColr_Roadway,
+    PanColr_Liquid,
+    PanColr_Outline,
+    PanColr_Frame,
+    PanColr_TOTAL_COUNT,
+};
+
+struct GamePanel
+{
+    /** Rectange representing area active for mouse events and sprite drawing. */
+    struct ScreenRect pos;
+    /** Rectange representing area of dynamically generated content (text/value/bar). */
+    struct ScreenRect dyn;
+    /** Panel sprite decoration; only first is used, unless flags state otherwise. */
+    short Spr[3];
+    /** Panel sprite decorations to switch to on toggle event, or additional sprites
+     * to draw on top. */
+    short ExtraSpr[3];
+    short OwningPanel;
+    short SprWidth;
+    short SprHeight;
+    ushort Use;
+    u32 Flags;
+    ubyte ID;
+    ubyte Type;
+};
+
+struct PanelStyle
+{
+    /** Colors used for various parts of the panel. */
+    TbPixel Colours[PanColr_TOTAL_COUNT];
+    /** Agent number animations, beginning of an array with 4 entries for each detail level. */
+    ushort AgentNumAnim;
+    /** Amount of detail levels for the agent number animations */
+    ushort AgentNumDetails;
+};
+
+struct Thing;
+struct TbPoint;
+
+#pragma pack()
+/******************************************************************************/
+extern struct GamePanel *game_panel;
+extern struct PanelStyle *game_panel_style;
+extern struct TbPoint *game_panel_shifts;
+extern ubyte byte_153198;
+
+/** Scale factor for figuring out GUI size.
+ */
+extern short gui_scale;
+
+void panel_conclusion_info_set(const char *text);
+void panel_conclusion_info_draw(void);
+
+/** Resets panel text scrolling to the beginning.
+ */
+void panel_objective_info_start(void);
+
+TbBool panel_any_visible(void);
+void draw_new_panel(void);
+
+void player_chat_clear(void);
+void player_message_clear(PlayerIdx plyr);
+void player_message_fmt(PlayerIdx plyr, const char *fmt, ...);
+TbBool player_message_add_allowed(PlayerIdx plyr);
+
+TbResult load_pop_sprites_for_current_mode(void);
+
+TbResult load_small_font_for_current_ingame_mode(void);
+
+void srm_scanner_size_update(void);
+void init_scanner_colour(void);
+void init_scanner(void);
+
+/** Returns if a game panel is active, considering the target which it controls.
+ */
+TbBool panel_active_based_on_target(short panel);
+
+/** Returns if current mouse move position is over the given game panel.
+ */
+TbBool mouse_move_over_panel(short panel);
+
+TbBool mouse_over_infrared_slant_box(short panel);
+
+TbBool process_panel_state(void);
+TbBool check_panel_button(void);
+
+/******************************************************************************/
+#ifdef __cplusplus
+}
+#endif
+#endif

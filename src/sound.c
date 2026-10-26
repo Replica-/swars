@@ -1,16 +1,39 @@
+/******************************************************************************/
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
+/******************************************************************************/
+/** @file sound.c
+ *     Sound related routines.
+ * @par Purpose:
+ *     Implements routines which help adjust functions from bfsoundlib to
+ *     the games needs.
+ * @par Comment:
+ *     Just a header file - #defines, typedefs, function prototypes etc.
+ * @author   Tomasz Lis
+ * @date     22 Apr 2023 - 02 Nov 2025
+ * @par  Copying and copyrights:
+ *     This program is free software; you can redistribute it and/or modify
+ *     it under the terms of the GNU General Public License as published by
+ *     the Free Software Foundation; either version 2 of the License, or
+ *     (at your option) any later version.
+ */
+/******************************************************************************/
+
+#include "sound.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include "bfwindows.h"
 #include "bffile.h"
 #include "bfmemory.h"
 #include "bfmemut.h"
 #include "bfmusic.h"
 #include "bfsound.h"
+#include "bfaudio.h"
 #include "bfscd.h"
-#include "drv_oal.h"
+#include "ailss.h"
+#include "aila.h"
 #include "sb16.h"
 #include "awe32.h"
 #include "streamfx.h"
@@ -18,13 +41,33 @@
 #include "snderr.h"
 #include "ssampply.h"
 #include "ssamplst.h"
-#include "oggvorbis.h"
-#include "sound.h"
-#include "ailss.h"
-#include "aila.h"
+
+#include "display.h"
 #include "game_data.h"
+#include "game_options.h"
+#include "game_speed.h"
 #include "game.h"
+#include "thing.h"
 #include "util.h"
+#include "swlog.h"
+
+/******************************************************************************/
+
+#pragma pack(1)
+
+struct HeapMgrHeader { // sizeof=0x24
+    void *field_0;
+    void *field_4;
+    int field_8;
+    int samples_count;
+    int field_10;
+    int field_14;
+    int field_18;
+    int field_1C;
+    int field_20;
+};
+
+#pragma pack()
 
 extern long sound_heap_size;
 extern struct SampleTable *sound_heap_memory;
@@ -33,33 +76,137 @@ extern struct HeapMgrHeader *hmhead;
 extern long samples_in_bank;
 extern struct SampleTable *sample_table;
 
-struct SampleInfo *play_sample_using_heap(ulong a1, short smptbl_id, ulong a3, ulong a4, ulong a5, char a6, ubyte type)
+short startscr_samplevol;
+short startscr_midivol;
+short startscr_cdvolume;
+
+/******************************************************************************/
+
+void set_default_sfx_settings(void)
+{
+    startscr_samplevol = STARTSCR_VOLUME_MAX;
+    startscr_midivol = STARTSCR_VOLUME_MAX;
+    startscr_cdvolume = STARTSCR_VOLUME_MAX * 71 / 100;
+}
+
+void sfx_apply_samplevol(void)
+{
+    if (startscr_samplevol < 0)
+        startscr_samplevol = 0;
+    if (startscr_samplevol > STARTSCR_VOLUME_MAX)
+        startscr_samplevol = STARTSCR_VOLUME_MAX;
+    SetSoundMasterVolume(127 * startscr_samplevol / STARTSCR_VOLUME_MAX);
+}
+
+void sfx_apply_midivol(void)
+{
+    if (startscr_midivol < 0)
+        startscr_midivol = 0;
+    if (startscr_midivol > STARTSCR_VOLUME_MAX)
+        startscr_midivol = STARTSCR_VOLUME_MAX;
+    SetMusicMasterVolume(127 * startscr_midivol / STARTSCR_VOLUME_MAX);
+}
+
+void sfx_apply_cdvolume(void)
+{
+    if (startscr_cdvolume < 0)
+        startscr_cdvolume = 0;
+    if (startscr_cdvolume > STARTSCR_VOLUME_MAX)
+        startscr_cdvolume = STARTSCR_VOLUME_MAX;
+    SetCDVolume(70 * (127 * startscr_cdvolume / STARTSCR_VOLUME_MAX) / 100);
+}
+
+struct SampleInfo *play_sample_using_heap(ulong bank_id, short smptbl_id,
+  ulong volume, ulong pan, ulong pitch, sbyte loop_count, ubyte stype)
 {
     struct SampleInfo *ret;
+    // Pushed through a register holding them: a "g" operand may be placed
+    // relative to the stack pointer, which each push moves.
+    int stkargs[3];
+
+    stkargs[0] = (int)(intptr_t)pitch;
+    stkargs[1] = (int)(intptr_t)loop_count;
+    stkargs[2] = (int)(intptr_t)stype;
+
     asm volatile (
-      "push %7\n"
-      "push %6\n"
-      "push %5\n"
+      "push 8(%5)\n"
+      "push 4(%5)\n"
+      "push 0(%5)\n"
       "call ASM_play_sample_using_heap\n"
-        : "=r" (ret) : "a" (a1), "d" (smptbl_id), "b" (a3), "c" (a4), "g" (a5), "g" (a6), "g" (type));
+        : "=r" (ret)
+        : "a" (bank_id), "d" (smptbl_id), "b" (volume), "c" (pan), "S" (stkargs)
+        : "cc", "memory");
     return ret;
 }
 
-void stop_sample_using_heap(struct SNDSEQUENCE *source, ulong sample_number)
+void stop_sample_using_heap(long source_id, ulong sample_number)
 {
     asm volatile (
       "call ASM_stop_sample_using_heap\n"
-        : : "a" (source), "d" (sample_number));
+        : : "a" (source_id), "d" (sample_number));
 }
 
-void play_dist_sample(struct Thing *p_thing, ushort smptbl_id, ushort vol, ushort pan, int pitch, int loop, ubyte type)
+int play_dist_speech(struct Thing *p_thing, ushort speech_no, ushort vol,
+  ushort pan, int pitch, int loop, ubyte stype)
 {
+    if ((p_thing <= &things[0]) || (p_thing >= &things[THINGS_LIMIT])) {
+        LOGERR("Speech %hu playback requested on invalid thing", speech_no);
+        return -1;
+    }
+    play_dist_sample(p_thing, 129 + speech_no,  vol, pan, pitch, loop, stype);
+    return 0;
+}
+
+void play_disk_sample(short id, ushort sample, short vol,
+  short pan, int pitch, int loop, int stype)
+{
+    play_sample_using_heap(9999, 129 + sample, vol, pan, pitch, loop, stype);
+}
+
+void play_dist_sample(struct Thing *p_thing, ushort smptbl_id, ushort vol,
+  ushort pan, int pitch, int loop, ubyte stype)
+{
+    // Pushed through a register holding them: a "g" operand may be placed
+    // relative to the stack pointer, which each push moves.
+    int stkargs[3];
+
+    stkargs[0] = (int)(intptr_t)pitch;
+    stkargs[1] = (int)(intptr_t)loop;
+    stkargs[2] = (int)(intptr_t)stype;
+
     asm volatile (
-      "push %6\n"
-      "push %5\n"
-      "push %4\n"
+      "push 8(%4)\n"
+      "push 4(%4)\n"
+      "push 0(%4)\n"
       "call ASM_play_dist_sample\n"
-        : : "a" (p_thing), "d" (smptbl_id), "b" (vol), "c" (pan), "g" (pitch), "g" (loop), "g" (type));
+        : : "a" (p_thing), "d" (smptbl_id), "b" (vol), "c" (pan), "S" (stkargs)
+        : "cc", "memory");
+}
+
+void play_dist_ssample(struct SimpleThing *p_sthing, ushort smptbl_id, ushort vol,
+  ushort pan, int pitch, int loop, ubyte stype)
+{
+    // Pushed through a register holding them: a "g" operand may be placed
+    // relative to the stack pointer, which each push moves.
+    int stkargs[3];
+
+    stkargs[0] = (int)(intptr_t)pitch;
+    stkargs[1] = (int)(intptr_t)loop;
+    stkargs[2] = (int)(intptr_t)stype;
+
+    asm volatile (
+      "push 8(%4)\n"
+      "push 4(%4)\n"
+      "push 0(%4)\n"
+      "call ASM_play_dist_ssample\n"
+        : : "a" (p_sthing), "d" (smptbl_id), "b" (vol), "c" (pan), "S" (stkargs)
+        : "cc", "memory");
+}
+
+void stop_looped_weapon_sample(struct Thing *p_person, short weapon)
+{
+    asm volatile ("call ASM_stop_looped_weapon_sample\n"
+        : : "a" (p_person), "d" (weapon));
 }
 
 //TODO better name?
@@ -67,6 +214,13 @@ void fill_ail_sample_ids(void)
 {
     asm volatile ("call ASM_fill_ail_sample_ids\n"
         :  :  : "eax" );
+}
+
+void monitor_all_samples(void)
+{
+    asm volatile ("call ASM_monitor_all_samples\n"
+        :  :  : "eax" );
+    return;
 }
 
 void snd_unkn1_volume_all_samples(void)
@@ -77,31 +231,45 @@ void snd_unkn1_volume_all_samples(void)
 
 void wait_for_sound_sample_finish(ushort smpl_id)
 {
-    TbClockMSec last_loop_time = LbTimerClock();
     while (IsSamplePlaying(0, smpl_id, NULL)) {
+        swap_wscreen();
         game_update();
-        TbClockMSec sleep_end = last_loop_time + 1000/GAME_FPS;
-        LbSleepUntil(sleep_end);
-        last_loop_time = LbTimerClock();
     }
 }
 
-struct HeapMgrHeader *heapmgr_init(struct HeapMgrHeader *head, int a2, int a3)
-{
-    struct HeapMgrHeader *ret;
-    asm volatile ("call ASM_heapmgr_init\n"
-        : "=r" (ret) : "a" (head), "d" (a2), "b" (a3));
-    return ret;
-}
-
-int setup_heap_manager(struct SampleTable *smptable, size_t smptb_len, const char *fname, ushort sndtype)
+struct HeapMgrHeader *heapmgr_init(void *p_buf, int buf_size, int n_samples)
 {
 #if 0
-    int ret;
-    asm volatile ("call ASM_setup_heap_manager\n"
-        : "=r" (ret) : "a" (smptable), "d" (smptb_len), "b" (fname), "c" (sndtype));
+    struct HeapMgrHeader *ret;
+    asm volatile ("call ASM_heapmgr_init\n"
+        : "=r" (ret) : "a" (p_buf), "d" (buf_size), "b" (n_samples));
     return ret;
 #endif
+    struct HeapMgrHeader *p_hmhead;
+    uint offs_after_samples;
+    int offs3;
+
+    p_hmhead = (struct HeapMgrHeader *)p_buf;
+    offs_after_samples = 0x1C * n_samples + sizeof(struct HeapMgrHeader);
+    offs3 = buf_size - offs_after_samples;
+    if (offs3 <= 0)
+        return NULL;
+
+    p_hmhead->field_10 = 0;
+    p_hmhead->field_14 = 0;
+    p_hmhead->field_18 = 0;
+    p_hmhead->field_1C = 0;
+    p_hmhead->field_20 = 0;
+    p_hmhead->field_8 = offs3;
+    p_hmhead->samples_count = n_samples;
+    p_hmhead->field_0 = (ubyte *)p_hmhead + offs_after_samples;
+    p_hmhead->field_4 = (ubyte *)p_hmhead + buf_size;
+    return p_hmhead;
+}
+
+int setup_heap_manager(struct SampleTable *smptable, size_t smptb_len,
+  const char *fname, ushort sndtype)
+{
     TbFileHandle fh;
     ubyte tpno;
     long totlen;
@@ -165,7 +333,7 @@ int setup_heap_manager(struct SampleTable *smptable, size_t smptb_len, const cha
     p_smptb_end = (ubyte *)smptable + tab_smptb_len;
     if (smptb_len_diff <= 0)
         return 0;
-    hmhead = heapmgr_init((struct HeapMgrHeader *)p_smptb_end, smptb_len_diff, samples_in_bank);
+    hmhead = heapmgr_init(p_smptb_end, smptb_len_diff, samples_in_bank);
     if (hmhead == NULL) {
         reset_heaps();
         return 0;
@@ -178,29 +346,48 @@ void reset_heaps(void)
 {
 }
 
-void setup_heaps(int a1)
+TbResult sound_banks_fname(char *fname, const char *dir, const char *lang)
 {
-#if 0
-    size_t ret;
-    asm volatile ("call ASM_setup_heaps\n"
-        : "=r" (ret) : "a" (a1));
-    return ret;
-#endif
+    sprintf(fname, "%s/sound_%s.dat", dir, lang);
+    if (LbFileExists(fname)) {
+        return Lb_OK;
+    }
+    // If no language-specific version found, use the english as default
+    sprintf(fname, "%s/sound_%s.dat", dir, "eng");
+    if (LbFileExists(fname)) {
+        return Lb_OK;
+    }
+
+    // As last effort, try the old file name from original game
+    sprintf(fname, "%s/sound.dat", dir);
+    if (LbFileExists(fname)) {
+        return Lb_OK;
+    }
+
+    return Lb_FAIL;
+}
+
+void setup_heaps(short setup_cmd, const char *lang)
+{
+    char locstr[DISKPATH_SIZE];
+    PathInfo *pinfo;
     long sz;
     unsigned int n;
 
     if ((ingame.Flags & GamF_Unkn00020000) == 0)
         return;
+    pinfo = &game_dirs[DirPlace_Sound];
 
-    switch (a1)
+    switch (setup_cmd)
     {
-    case 100:
+    case SHSC_CreditsSnd:
+        sprintf(locstr, "%s/syncreds.dat", pinfo->directory);
         sz = sound_heap_size;
-        setup_heap_manager(sound_heap_memory, sz, "sound/syncreds.dat", 1622);
+        setup_heap_manager(sound_heap_memory, sz, locstr, 1622);
         break;
     case 99:
         break;
-    case 0:
+    case SHSC_GameSndAutoQ:
         sz = 1500000;
         while ((sound_heap_memory == NULL) && (sz > 100))
         {
@@ -209,24 +396,34 @@ void setup_heaps(int a1)
                 sz -= 30000;
         }
         if ((sound_heap_memory == NULL) || sz < 120000) {
-            ingame.Flags &= GamF_Unkn00020000;
+            ingame.Flags &= ~GamF_Unkn00020000;
             break;
         }
         if (sz <= 500000)
             n = 822;
         else
             n = 1622;
-        if (!setup_heap_manager(sound_heap_memory, sz, "sound/sound.dat", n))
-            ingame.Flags &= GamF_Unkn00020000;
+        if (sound_banks_fname(locstr, pinfo->directory, lang) == Lb_FAIL) {
+            LOGERR("Matching sound banks file not found.");
+            ingame.Flags &= ~GamF_Unkn00020000;
+            break;
+        }
+        if (!setup_heap_manager(sound_heap_memory, sz, locstr, n))
+            ingame.Flags &= ~GamF_Unkn00020000;
         sound_heap_size = sz;
         break;
-    case 2:
+    case SHSC_GameSndBestQ:
         sz = 1500000;
-        if (!setup_heap_manager(sound_heap_memory, sz, "sound/sound.dat", 1622))
-            ingame.Flags &= GamF_Unkn00020000;
+        if (sound_banks_fname(locstr, pinfo->directory, lang) == Lb_FAIL) {
+            LOGERR("Matching sound banks file not found.");
+            ingame.Flags &= ~GamF_Unkn00020000;
+            break;
+        }
+        if (!setup_heap_manager(sound_heap_memory, sz, locstr, 1622))
+            ingame.Flags &= ~GamF_Unkn00020000;
         sound_heap_size = sz;
         break;
-    case 1:
+    case SHSC_ResetGameSnd:
     default:
         sz = 1500000;
         reset_heaps();
@@ -236,3 +433,10 @@ void setup_heaps(int a1)
     }
 }
 
+void process_sound_heap(void)
+{
+    asm volatile ("call ASM_process_sound_heap\n"
+        :  :  : "eax" );
+}
+
+/******************************************************************************/

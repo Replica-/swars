@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file guitext.c
  *     GUI text for menu and in-game display.
@@ -19,12 +19,28 @@
 /******************************************************************************/
 #include "guitext.h"
 
+#include <string.h>
 #include "bffile.h"
 #include "bfmemory.h"
+#include "bfmemut.h"
+
+#include "cybmod.h"
+#include "display.h"
+#include "game_data.h"
+#include "mydraw.h"
 #include "swlog.h"
+#include "wadfile.h"
+#include "weapon.h"
 /******************************************************************************/
-char *gui_strings_data;
-char *gui_strings_data_end;
+char *gui_strings[STRINGS_MAX];
+char *gui_strings_data = NULL;
+char *gui_strings_data_end = NULL;
+
+char *memload_wep_mod_desc_text = NULL;
+ushort weapon_text_index[WEP_TYPES_COUNT] = {0};
+ushort cybmod_text_index[MOD_TYPES_COUNT] = {0};
+
+u32 text_buf_pos = 0;
 
 void snprint_dh_time_duration(char *out, ulong outlen, long ndays, short nhours)
 {
@@ -44,18 +60,43 @@ void snprint_dh_time_duration(char *out, ulong outlen, long ndays, short nhours)
     snprintf(out, outlen, "%ld %s %hd %s", ndays, gui_strings[days_strid], nhours, gui_strings[hours_strid]);
 }
 
+const char *loctext_to_gtext(const char *ltext)
+{
+    char *gtext;
+    u32 len;
+
+    len = strlen(ltext) + 1;
+    gtext = (char *)back_buffer + text_buf_pos;
+    text_buf_pos += len;
+    LbMemoryCopy(gtext, ltext, len);
+
+    return gtext;
+}
+
 /** Read file with all the language-specific texts.
  */
 void read_strings_file(void)
 {
-    char *text_fname = "data/text.dat";
+    char datfname[DISKPATH_SIZE];
+    PathInfo *pinfo;
     int text_len;
 
-    text_len = LbFileLength(text_fname);
-    gui_strings_data = (char *)LbMemoryAlloc(text_len);
+    pinfo = &game_dirs[DirPlace_LangData];
+    snprintf(datfname, DISKPATH_SIZE, "%s/guitext.dat", pinfo->directory);
+
+    text_len = LbFileLength(datfname);
+    if (text_len > 0) {
+        gui_strings_data = (char *)LbMemoryAlloc(text_len);
+        gui_strings_data[text_len - 1] = '\0';
+    } else {
+        gui_strings_data = NULL;
+    }
     if (gui_strings_data != NULL) {
         gui_strings_data_end = gui_strings_data + text_len;
-        LbFileLoadAt(text_fname, gui_strings_data);
+        LbFileLoadAt(datfname, gui_strings_data);
+    } else {
+        gui_strings_data_end = gui_strings_data;
+        LOGERR("Failed checking strings file '%s', size=%d", datfname, text_len);
     }
 }
 
@@ -81,19 +122,161 @@ TbBool create_strings_list(char **strings, char *strings_data, char *strings_dat
       } while ((chr_prev != '\0') && (text_ptr < strings_data_end));
       text_idx--;
   }
-  return (text_idx < STRINGS_MAX);
+  if (text_idx < 0) {
+      LOGERR("Overflow on listing text strings; something got corrupted (%d bad writes)", -text_idx);
+      return false;
+  }
+  if (text_idx >= STRINGS_MAX) {
+      LOGERR("Listing strings found no text entries");
+      return false;
+  }
+  LOGSYNC("Listed text strings (%d entries)", STRINGS_MAX - text_idx);
+  return true;
 }
 
-TbBool flashy_draw_text(int x, int y, const char *text, ubyte speed, int top_line, short *textpos, int cyan_flag)
+const char *weapon_description_text(ushort wtype)
 {
-    TbBool ret;
-    asm volatile (
-      "push %7\n"
-      "push %6\n"
-      "push %5\n"
-      "call ASM_flashy_draw_text\n"
-        : "=r" (ret) : "a" (x), "d" (y), "b" (text), "c" (speed), "g" (top_line), "g" (textpos), "g" (cyan_flag));
-    return ret;
+    if (wtype >= WEP_TYPES_COUNT)
+        return "";
+    return memload_wep_mod_desc_text + weapon_text_index[wtype];
 }
 
+const char *cybmod_description_text(ushort mtype)
+{
+    if (mtype >= MOD_TYPES_COUNT)
+        return "";
+    return memload_wep_mod_desc_text + cybmod_text_index[mtype];
+}
+
+void load_wep_mod_desc_text(void)
+{
+    char locstr[512];
+    int weptxt_pos;
+    int totlen;
+    char *s;
+    int i, n;
+
+    totlen = load_file_alltext("textdata/wms.txt", memload_wep_mod_desc_text);
+    if (totlen == Lb_FAIL)
+        return;
+    if (totlen >= memload_wep_mod_desc_text_len) {
+        LOGERR("Insufficient memory for wep_mod_desc_text - %d instead of %d", memload_wep_mod_desc_text_len, totlen);
+        totlen = memload_wep_mod_desc_text_len - 1;
+    }
+
+    // TODO change the format to use our INI parser
+    s = memload_wep_mod_desc_text;
+    memload_wep_mod_desc_text[totlen] = '\0';
+
+    for (i = 0; i < WEP_TYPES_COUNT; i++) {
+        weapon_text_index[i] = totlen;
+    }
+    for (i = 0; i < MOD_TYPES_COUNT; i++) {
+        cybmod_text_index[i] = totlen;
+    }
+
+    // section_start = s;
+    weptxt_pos = 0;
+
+    s = strchr(s, '[');
+    s++;
+    s = strchr(s, ']'); // position at start of WEAPONS section
+    s++;
+
+    s += 2;
+    while (1)
+    {
+        if (*s == '[')
+            break;
+
+        // Read weapon name
+        n = 0;
+        while ((*s != '\r') && (*s != '\n'))
+        {
+            locstr[n] = *s++;
+            n++;
+        }
+        locstr[n] = '\0';
+        s += 2;
+
+        // Recognize the weapon name
+        for (i = 1; i < WEP_TYPES_COUNT; i++)
+        {
+            const char *codename;
+            codename = weapon_codename(i);
+            if (strcmp(codename, locstr) == 0) {
+                break;
+            }
+        }
+        if (i < WEP_TYPES_COUNT)
+        {
+            weapon_text_index[i] = weptxt_pos;
+
+            while ((*s != '\r') && (*s != '\n')) {
+                memload_wep_mod_desc_text[weptxt_pos] = *s++;
+                weptxt_pos++;
+            }
+            memload_wep_mod_desc_text[weptxt_pos] = '\0';
+            weptxt_pos++;
+            s += 2;
+
+            n = weapon_text_index[i];
+            my_preprocess_text(&memload_wep_mod_desc_text[n]);
+        } else {
+            LOGERR("Weapon name not recognized: \"%s\"", locstr);
+            if (s) s = strpbrk(s, "\r\n");
+            if (s) s += 2;
+        }
+    }
+
+    s = strchr(s, '[');
+    s++;
+    s = strchr(s, ']'); // position at start of MODS section
+    s++;
+
+    s += 2;
+    while (1)
+    {
+        if ((*s == '[') || (*s == '\0'))
+            break;
+
+        // Read mod name
+        n = 0;
+        while ((*s != '\r') && (*s != '\n') && (*s != '\0'))
+        {
+            locstr[n] = *s++;
+            n++;
+        }
+        locstr[n] = '\0';
+        s += 2;
+
+        for (i = 1; i < MOD_TYPES_COUNT; i++)
+        {
+            const char *codename;
+            codename = cybmod_codename(i);
+            if (strcmp(codename, locstr) == 0) {
+                break;
+            }
+        }
+        if (i < MOD_TYPES_COUNT)
+        {
+            cybmod_text_index[i] = weptxt_pos;
+
+            while ((*s != '\r') && (*s != '\n') && (*s != '\0')) {
+                memload_wep_mod_desc_text[weptxt_pos] = *s++;
+                weptxt_pos++;
+            }
+            memload_wep_mod_desc_text[weptxt_pos] = '\0';
+            weptxt_pos++;
+            s += 2;
+
+            n = cybmod_text_index[i];
+            my_preprocess_text(&memload_wep_mod_desc_text[n]);
+        } else {
+            LOGERR("Cyb Mod name not recognized: \"%s\"", locstr);
+            if (s) s = strpbrk(s, "\r\n");
+            if (s) s += 2;
+        }
+    }
+}
 /******************************************************************************/

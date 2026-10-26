@@ -36,8 +36,6 @@ long alpha_scale_up;
 // TODO move these to rendering/trig data module
 TbPixel *render_ghost = NULL;
 TbPixel *render_alpha = NULL;
-//TODO currently, render_ghost is unused; but to make it ready to use, we need to set:
-//render_ghost = lbSpriteReMapPtr;
 
 
 void LbSpriteSetScalingWidthClippedArray(long * xsteps_arr, long x, long swidth, long dwidth, long gwidth)
@@ -45,15 +43,16 @@ void LbSpriteSetScalingWidthClippedArray(long * xsteps_arr, long x, long swidth,
     long *pwidth;
     long pxpos;
     pwidth = xsteps_arr;
-    long factor = (dwidth<<16)/swidth;
-    long tmp = (factor >> 1) + (x << 16);
+    long factor = ((dwidth << 16) | 0x7fff) / swidth;
+    long tmp = (x << 16) | 0x7fff;
     pxpos = tmp >> 16;
     long w = swidth;
     do {
+        long pxstart, pxend;
+
         tmp += factor;
-        long pxstart,pxend;
         pxstart = pxpos;
-        pxend = tmp>>16;
+        pxend = (tmp >> 16);
         // Remember unclipped difference
         long wdiff = pxend - pxstart;
         // Now clip to graphics line bounds
@@ -62,7 +61,7 @@ void LbSpriteSetScalingWidthClippedArray(long * xsteps_arr, long x, long swidth,
             pxend = pxstart;
         } else
         if (pxstart >= gwidth) {
-            pxstart = gwidth-1;
+            pxstart = gwidth - 1;
             pxend = pxstart;
         } else
         if (pxend < 0) {
@@ -79,11 +78,22 @@ void LbSpriteSetScalingWidthClippedArray(long * xsteps_arr, long x, long swidth,
         w--;
         pwidth += 2;
     } while (w > 0);
+    // If we are one pixel short due to rounding, add it at center of the sprite
+    if (pxpos < x + dwidth) {
+        pwidth = &xsteps_arr[swidth/2];
+        pwidth[1]++;
+        w = swidth - (swidth/2);
+        while (w > 0) {
+            pwidth += 2;
+            pwidth[0]++;
+            w--;
+        }
+    }
 }
 
 void LbSpriteSetScalingWidthClipped(long x, long swidth, long dwidth, long gwidth)
 {
-    LOGDBG("starting %d -> %d at %d",(int)swidth,(int)dwidth,(int)x);
+    LOGNO("starting %d -> %d at %d",(int)swidth,(int)dwidth,(int)x);
     if (swidth > SPRITE_SCALING_XSTEPS)
         swidth = SPRITE_SCALING_XSTEPS;
     LbSpriteSetScalingWidthClippedArray(xsteps_array, x, swidth, dwidth, gwidth);
@@ -91,7 +101,7 @@ void LbSpriteSetScalingWidthClipped(long x, long swidth, long dwidth, long gwidt
 
 void LbSpriteSetAlphaScalingWidthClipped(long x, long swidth, long dwidth, long gwidth)
 {
-    LOGDBG("starting %d -> %d at %d",(int)swidth,(int)dwidth,(int)x);
+    LOGNO("starting %d -> %d at %d",(int)swidth,(int)dwidth,(int)x);
     if (swidth > SPRITE_SCALING_XSTEPS)
         swidth = SPRITE_SCALING_XSTEPS;
     LbSpriteSetScalingWidthClippedArray(alpha_xsteps_array, x, swidth, dwidth, gwidth);
@@ -100,31 +110,42 @@ void LbSpriteSetAlphaScalingWidthClipped(long x, long swidth, long dwidth, long 
 void LbSpriteSetScalingWidthSimpleArray(long * xsteps_arr, long x, long swidth, long dwidth)
 {
     long *pwidth;
-    long cwidth;
+    long pxpos;
     pwidth = xsteps_arr;
-    long factor = (dwidth<<16)/swidth;
-    long tmp = (factor >> 1) + (x << 16);
-    cwidth = tmp >> 16;
+    long factor = ((dwidth << 16) | 0x7fff) / swidth;
+    long tmp = (x << 16) | 0x7fff;
+    pxpos = tmp >> 16;
     long w = swidth;
     do {
-      int i;
-      for (i=0; i < 16; i+=2)
-      {
-          pwidth[i] = cwidth;
-          tmp += factor;
-          pwidth[i+1] = (tmp>>16) - cwidth;
-          cwidth = (tmp>>16);
-          w--;
-          if (w <= 0)
-              break;
-      }
-      pwidth += 16;
+        long pxstart, pxend;
+
+        tmp += factor;
+        pxstart = pxpos;
+        pxend = (tmp >> 16);
+        // Set difference to be drawn, no need for clipping
+        pwidth[0] = pxstart;
+        pwidth[1] = pxend - pxstart;
+        // Store position for next iteration
+        pxpos = pxend;
+        w--;
+        pwidth += 2;
     } while (w > 0);
+    // If we are one pixel short due to rounding, add it at center of the sprite
+    if (pxpos < x + dwidth) {
+        pwidth = &xsteps_arr[swidth/2];
+        pwidth[1]++;
+        w = swidth - (swidth/2);
+        while (w > 0) {
+            pwidth += 2;
+            pwidth[0]++;
+            w--;
+        }
+    }
 }
 
 void LbSpriteSetScalingWidthSimple(long x, long swidth, long dwidth)
 {
-    LOGDBG("starting %d -> %d at %d",(int)swidth,(int)dwidth,(int)x);
+    LOGNO("starting %d -> %d at %d",(int)swidth,(int)dwidth,(int)x);
     if (swidth > SPRITE_SCALING_XSTEPS)
         swidth = SPRITE_SCALING_XSTEPS;
     LbSpriteSetScalingWidthSimpleArray(xsteps_array, x, swidth, dwidth);
@@ -132,7 +153,7 @@ void LbSpriteSetScalingWidthSimple(long x, long swidth, long dwidth)
 
 void LbSpriteSetAlphaScalingWidthSimple(long x, long swidth, long dwidth)
 {
-    LOGDBG("starting %d -> %d at %d",(int)swidth,(int)dwidth,(int)x);
+    LOGNO("starting %d -> %d at %d",(int)swidth,(int)dwidth,(int)x);
     if (swidth > SPRITE_SCALING_XSTEPS)
         swidth = SPRITE_SCALING_XSTEPS;
     LbSpriteSetScalingWidthSimpleArray(alpha_xsteps_array, x, swidth, dwidth);
@@ -166,19 +187,16 @@ void LbSpriteSetScalingHeightClippedArray(long * ysteps_arr, long y, long sheigh
     long *pheight;
     long lnpos;
     pheight = ysteps_arr;
-    long factor = (dheight<<16)/sheight;
-    long tmp = (factor >> 1) + (y << 16);
+    long factor = ((dheight << 16) | 0x7fff) / sheight;
+    long tmp = (y << 16) | 0x7fff;
     lnpos = tmp >> 16;
-    if (lnpos < 0)
-        lnpos = 0;
-    if (lnpos >= gheight)
-        lnpos = gheight;
     long h = sheight;
     do {
+        long lnstart, lnend;
+
         tmp += factor;
-        long lnstart,lnend;
         lnstart = lnpos;
-        lnend = tmp>>16;
+        lnend = (tmp >> 16);
         // Remember unclipped difference
         long hdiff = lnend - lnstart;
         // Now clip to graphics line bounds
@@ -187,7 +205,7 @@ void LbSpriteSetScalingHeightClippedArray(long * ysteps_arr, long y, long sheigh
             lnend = lnstart;
         } else
         if (lnstart >= gheight) {
-            lnstart = gheight-1;
+            lnstart = gheight - 1;
             lnend = lnstart;
         } else
         if (lnend < 0) {
@@ -204,11 +222,22 @@ void LbSpriteSetScalingHeightClippedArray(long * ysteps_arr, long y, long sheigh
         h--;
         pheight += 2;
     } while (h > 0);
+    // If we are one pixel short due to rounding, add it at center of the sprite
+    if (lnpos < y + dheight) {
+        pheight = &ysteps_arr[sheight/2];
+        pheight[1]++;
+        h = sheight - (sheight/2);
+        while (h > 0) {
+            pheight += 2;
+            pheight[0]++;
+            h--;
+        }
+    }
 }
 
 void LbSpriteSetScalingHeightClipped(long y, long sheight, long dheight, long gheight)
 {
-    LOGSYNC("starting %d -> %d at %d",(int)sheight,(int)dheight,(int)y);
+    LOGNO("starting %d -> %d at %d",(int)sheight,(int)dheight,(int)y);
     if (sheight > SPRITE_SCALING_YSTEPS)
         sheight = SPRITE_SCALING_YSTEPS;
     LbSpriteSetScalingHeightClippedArray(ysteps_array, y, sheight, dheight, gheight);
@@ -216,7 +245,7 @@ void LbSpriteSetScalingHeightClipped(long y, long sheight, long dheight, long gh
 
 void LbSpriteSetAlphaScalingHeightClipped(long y, long sheight, long dheight, long gheight)
 {
-    LOGDBG("starting %d -> %d at %d",(int)sheight,(int)dheight,(int)y);
+    LOGNO("starting %d -> %d at %d",(int)sheight,(int)dheight,(int)y);
     if (sheight > SPRITE_SCALING_YSTEPS)
         sheight = SPRITE_SCALING_YSTEPS;
     LbSpriteSetScalingHeightClippedArray(alpha_ysteps_array, y, sheight, dheight, gheight);
@@ -225,31 +254,42 @@ void LbSpriteSetAlphaScalingHeightClipped(long y, long sheight, long dheight, lo
 void LbSpriteSetScalingHeightSimpleArray(long * ysteps_arr, long y, long sheight, long dheight)
 {
     long *pheight;
-    long cheight;
+    long lnpos;
     pheight = ysteps_arr;
-    long factor = (dheight<<16)/sheight;
-    long tmp = (factor >> 1) + (y << 16);
-    cheight = tmp >> 16;
+    long factor = ((dheight << 16) | 0x7fff) / sheight;
+    long tmp = (y << 16) | 0x7fff;
+    lnpos = tmp >> 16;
     long h = sheight;
     do {
-      int i=0;
-      for (i=0; i < 16; i+=2)
-      {
-        pheight[i] = cheight;
+        long lnstart, lnend;
+
         tmp += factor;
-        pheight[i+1] = (tmp>>16) - cheight;
-        cheight = (tmp>>16);
+        lnstart = lnpos;
+        lnend = (tmp >> 16);
+        // Set difference to be drawn, no need for clipping
+        pheight[0] = lnstart;
+        pheight[1] = lnend - lnstart;
+        // Store position for next iteration
+        lnpos = lnend;
         h--;
-        if (h <= 0)
-          break;
-      }
-      pheight += 16;
+        pheight += 2;
     } while (h > 0);
+    // If we are one pixel short due to rounding, add it at center of the sprite
+    if (lnpos < y + dheight) {
+        pheight = &ysteps_arr[sheight/2];
+        pheight[1]++;
+        h = sheight - (sheight/2);
+        while (h > 0) {
+            pheight += 2;
+            pheight[0]++;
+            h--;
+        }
+    }
 }
 
 void LbSpriteSetScalingHeightSimple(long y, long sheight, long dheight)
 {
-    LOGDBG("starting %d -> %d at %d",(int)sheight,(int)dheight,(int)y);
+    LOGNO("starting %d -> %d at %d",(int)sheight,(int)dheight,(int)y);
     if (sheight > SPRITE_SCALING_YSTEPS)
         sheight = SPRITE_SCALING_YSTEPS;
     LbSpriteSetScalingHeightSimpleArray(ysteps_array, y, sheight, dheight);
@@ -257,7 +297,7 @@ void LbSpriteSetScalingHeightSimple(long y, long sheight, long dheight)
 
 void LbSpriteSetAlphaScalingHeightSimple(long y, long sheight, long dheight)
 {
-    LOGDBG("starting %d -> %d at %d",(int)sheight,(int)dheight,(int)y);
+    LOGNO("starting %d -> %d at %d",(int)sheight,(int)dheight,(int)y);
     if (sheight > SPRITE_SCALING_YSTEPS)
         sheight = SPRITE_SCALING_YSTEPS;
     LbSpriteSetScalingHeightSimpleArray(alpha_ysteps_array, y, sheight, dheight);
@@ -294,6 +334,7 @@ void LbSpriteSetScalingData(long x, long y, long swidth, long sheight,
     scale_up = true;
     if ((dwidth <= swidth) && (dheight <= sheight))
         scale_up = false;
+
     // Checking whether to select simple scaling creation,
     // or more comprehensive one - with clipping
     if ((swidth <= 0) || (dwidth <= 0)) {
@@ -308,6 +349,7 @@ void LbSpriteSetScalingData(long x, long y, long swidth, long sheight,
     } else {
         LbSpriteSetScalingWidthSimple(x, swidth, dwidth);
     }
+
     if ((sheight <= 0) || (dheight <= 0)) {
         LOGWARN("tried scaling height %ld -> %ld", sheight, dheight);
         LbSpriteClearScalingHeight();

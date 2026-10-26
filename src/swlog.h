@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file swlog.h
  *     Application debug logging macros.
@@ -24,16 +24,20 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+/******************************************************************************/
 
 /** Macro for logging messages of error severity within this module. */
-#define LOGERR(format,args...) LbErrorLog("SWars: %s: " format "\n", __func__ , ## args)
+#define LOGERR(format,args...) LbErrorLog("SWFX: %s: " format "\n", __func__ , ## args)
 
 /** Macro for logging messages of warning severity within this module. */
-#define LOGWARN(format,args...) LbWarnLog("SWars: %s: " format "\n", __func__ , ## args)
+#define LOGWARN(format,args...) LbWarnLog("SWFX: %s: " format "\n", __func__ , ## args)
+
+/** Macro for logging sync messages, but forced - print pressure equals errors. */
+#define LOGSYNC_F(format,args...) LbSyncLog("SWFX: %s: " format "\n", __func__ , ## args)
 
 #ifdef DEBUG
-#define LOGSYNC(format,args...) LbSyncLog("SWars: %s: " format "\n", __func__ , ## args)
-#define LOGDBG(format,args...) LbDbgLog("SWars: %s: " format "\n", __func__ , ## args)
+#define LOGSYNC(format,args...) LbSyncLog("SWFX: %s: " format "\n", __func__ , ## args)
+#define LOGDBG(format,args...) LbDbgLog("SWFX: %s: " format "\n", __func__ , ## args)
 #else
 #define LOGSYNC(format,args...)
 #define LOGDBG(format,args...)
@@ -42,9 +46,9 @@ extern "C" {
 /** Macro for messages which are only for developers and disabled in normal builds. */
 #define LOGNO(format,args...)
 
+/******************************************************************************/
 #ifdef __cplusplus
 };
 #endif
 
 #endif // SWLOG_H_
-/******************************************************************************/

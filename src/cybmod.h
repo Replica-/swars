@@ -1,5 +1,5 @@
 /******************************************************************************/
-// Syndicate Wars Port, source port of the classic strategy game from Bullfrog.
+// Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file cybmod.h
  *     Header file for cybmod.c.
@@ -93,6 +93,7 @@ union Mod
 extern struct ModDef mod_defs[];
 extern struct TbNamedEnum mod_names[33];
 extern ubyte mod_tech_level[17];
+extern ushort mod_group_type_strid[];
 
 void read_cybmods_conf_file(void);
 const char *cybmod_codename(ushort mtype);
@@ -112,7 +113,9 @@ ubyte cybmod_level(union Mod *p_umod, ubyte mgroup);
 ushort cybmodflags_prev_mod(ulong modflags, ushort last_mtype);
 ushort cybmod_group_type(ushort mtype);
 ushort cybmod_version(ushort mtype);
+ushort cybmod_type(ushort mgroup, ushort mver);
 
+TbBool check_mod_allowed_to_flags(union Mod *p_umod, ushort mtype);
 void add_mod_to_flags(union Mod *p_umod, ushort mtype);
 TbBool add_mod_to_flags_no_replace(union Mod *p_umod, ushort mtype);
 

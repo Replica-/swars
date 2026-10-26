@@ -26,8 +26,10 @@
 #include <assert.h>
 
 #include "ailss.h"
+
 #include "aildebug.h"
 #include "ail.h"
+#include "memfile.h"
 #include "mssdig.h"
 #include "drv_oal.h"
 /******************************************************************************/
@@ -39,7 +41,35 @@ enum SampleFileTypes {
     SMP_FTYP_ASI = 2,
 };
 
-extern uint8_t byte_15AA50[128];
+/******************************************************************************/
+
+static int32_t SS_use_locked;
+
+static const uint8_t volume_pan_table[128] = {
+    0,   2,   4,   6,   8,  10,  12,  14,  16,  18,  20,  22,  24,  26,  28,  30,
+   32,  34,  36,  38,  40,  42,  44,  46,  48,  50,  52,  54,  56,  58,  60,  62,
+   64,  66,  68,  70,  72,  74,  76,  78,  80,  82,  84,  86,  88,  90,  92,  94,
+   96,  98, 100, 102, 104, 106, 108, 110, 112, 114, 116, 118, 120, 122, 124, 128,
+  128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128,
+  128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128,
+  128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128,
+  128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128,
+};
+
+/******************************************************************************/
+
+void AILSFILE_end(void);
+
+/** Lock function, doubling as start of locked code.
+ */
+void AILSFILE_start(void)
+{
+    if (SS_use_locked)
+        return;
+
+    AIL_VMM_lock_range(AILSFILE_start, AILSFILE_end);
+    SS_use_locked = 1;
+}
 
 void SS_build_amplitude_tables(SNDSAMPLE *s)
 {
@@ -70,8 +100,8 @@ void SS_build_amplitude_tables(SNDSAMPLE *s)
 
         vscale0 = s->vol_scale[0];
         vscale1 = s->vol_scale[1];
-        vamp1 = byte_15AA50[s->pan];
-        vamp0 = byte_15AA50[127 - s->pan];
+        vamp1 = volume_pan_table[s->pan];
+        vamp0 = volume_pan_table[127 - s->pan];
 
         vscale0[0] = final_volume * vamp0 / 127;
         vscale1[0] = final_volume * vamp1 / 127;
@@ -127,8 +157,8 @@ void SS_build_amplitude_tables(SNDSAMPLE *s)
 
         vscale0 = s->vol_scale[0];
         vscale1 = s->vol_scale[1];
-        vamp1 = byte_15AA50[s->pan];
-        vamp0 = byte_15AA50[127 - s->pan];
+        vamp1 = volume_pan_table[s->pan];
+        vamp0 = volume_pan_table[127 - s->pan];
         if (s->flags & DIG_PCM_SIGN)
         {
             nxval = 0;
@@ -199,7 +229,7 @@ int32_t SS_configure_buffers(DIG_DRIVER *digdrv)
         {
             // use one of system_data[] slots for temporary storage,
             // the storage place becomes free again when this function ends
-            digdrv->samples[i].system_data[7] =
+            digdrv->samples[i].system_data[SmpSD_TEMP] =
                 digdrv->samples[i].status;
 
             if (digdrv->samples[i].status == SNDSMP_PLAYING)
@@ -239,6 +269,7 @@ int32_t SS_configure_buffers(DIG_DRIVER *digdrv)
         pref[3] = DIG_F_MONO_16;
         break;
 
+    default:
     case DIG_F_STEREO_16:
         pref[0] = DIG_F_STEREO_16;
         pref[1] = DIG_F_STEREO_8;
@@ -286,6 +317,8 @@ int32_t SS_configure_buffers(DIG_DRIVER *digdrv)
             digdrv->DDT->format_data[digdrv->hw_format].nominal_physical_sample_rate;
         pref[2] =
             digdrv->DDT->format_data[digdrv->hw_format].maximum_physical_sample_rate;
+
+        match = DIG_F_STEREO_16;
         delta = LONG_MAX;
         for (i = 0; i < 3; i++)
         {
@@ -336,6 +369,7 @@ int32_t SS_configure_buffers(DIG_DRIVER *digdrv)
     // Round half-buffer size to nearest binary power between 8 and
     // DIG_DMA_RESERVE / 2; ensure result within driver limits
     delta = LONG_MAX;
+    match = bsmax;
 
     for (n = 8; n <= (AIL_preference[DIG_DMA_RESERVE] / 2); n <<= 1)
     {
@@ -365,7 +399,7 @@ int32_t SS_configure_buffers(DIG_DRIVER *digdrv)
         // Resume any interrupted samples
         for (i = 0; i < digdrv->n_samples; i++)
             digdrv->samples[i].status =
-                digdrv->samples[i].system_data[7];
+                digdrv->samples[i].system_data[SmpSD_TEMP];
 
         // Flush new DMA buffers with silence and resume DMA playback
         SS_flush(digdrv);
@@ -550,6 +584,48 @@ void AIL2OAL_API_end_sample(SNDSAMPLE *s)
     }
 }
 
+void AIL2OAL_API_stop_sample(SNDSAMPLE *s)
+{
+    if (s == NULL)
+        return;
+
+    // Make sure sample is currently playing
+    if (s->status != SNDSMP_PLAYING)
+        return;
+
+    // Mask 'playing' status
+    s->status = SNDSMP_STOPPED;
+}
+
+void AIL2OAL_API_resume_sample(SNDSAMPLE *s)
+{
+    if (s == NULL)
+        return;
+
+    if (s->status == SNDSMP_FREE)
+        return;
+
+    // See if sample has been previously stopped or not managed to start yet
+    if ((s->status != SNDSMP_STOPPED) && (s->status != SNDSMP_FREE))
+        return;
+
+    // Extra checks if resume got called before start (good for non-zero start offsets)
+    if (s->status == SNDSMP_FREE)
+    {
+        // Make sure valid sample data exists
+        if ((s->len[s->current_buffer] == 0) ||
+         (s->start[s->current_buffer] == NULL))
+            return;
+    }
+
+    // Start reverb if parameters say it is needed - NO SUPPORT
+
+    s->status = SNDSMP_PLAYING;
+
+    // If driver is not already transmitting data, start it
+    SS_start_DIG_driver_playback(s->driver);
+}
+
 uint32_t AIL2OAL_API_sample_status(SNDSAMPLE *s)
 {
     assert(s != NULL);
@@ -633,15 +709,21 @@ int32_t AIL2OAL_API_set_sample_file(SNDSAMPLE *s, const void *file_image, int32_
     switch (ftype)
     {
     case SMP_FTYP_WAV:
-        s->system_data[6] = 0;
+        s->system_data[SmpSD_RELEASE] = 0;
         AIL_process_WAV_image(file_image, s);
         break;
     case SMP_FTYP_VOC:
+#if !defined(LBS_ENABLE_STRUCTS_EXPAND)
+        AIL_set_error("VOC samples are not compatible with OpenAL unless STRUCTS_EXPAND is used.");
+#endif
         // Store pointer to sample data
-        s->system_data[1] = (uintptr_t)file_image + *(uint16_t *)(file_image + 20);
-        //s->system_data[4] = block; // used by OpenAL
-        s->system_data[6] = 0;
-        //s->system_data[5] = (block == -1); // used by OpenAL
+        s->system_data[SmpSD_VOC_BLK_PTR] =
+          (uintptr_t)file_image + *(uint16_t *)(file_image + 20);
+        s->system_data[SmpSD_RELEASE] = 0;
+#if defined(LBS_ENABLE_STRUCTS_EXPAND) // without extra fields, these are used by OpenAL
+        s->system_data[SmpSD_VOC_MRKR] = block;
+        s->system_data[SmpSD_VOC_MRKR_FND] = (block != -1);
+#endif
         AIL_process_VOC_block(s, 0);
         break;
     default: // s->system_data[6] == -1
@@ -853,4 +935,16 @@ void AIL2OAL_API_set_sample_loop_count(SNDSAMPLE *s, int32_t loop_count)
 
     s->loop_count = loop_count;
 }
+
+/** Unlock function, doubling as end of locked code.
+ */
+void AILSFILE_end(void)
+{
+    if (!SS_use_locked)
+        return;
+
+    AIL_VMM_unlock_range(AILSFILE_start, AILSFILE_end);
+    SS_use_locked = 0;
+}
+
 /******************************************************************************/
