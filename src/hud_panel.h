@@ -185,6 +185,11 @@ TbBool panel_active_based_on_target(short panel);
  */
 TbBool mouse_move_over_panel(short panel);
 
+/** Returns if current mouse move position is over the scanner or any panel
+ * controlling an agent, ie. if a click there is not meant for the map.
+ */
+TbBool mouse_move_over_any_hud_element(void);
+
 TbBool mouse_over_infrared_slant_box(short panel);
 
 TbBool process_panel_state(void);

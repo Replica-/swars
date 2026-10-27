@@ -41,6 +41,11 @@
 
 static ALCdevice *oal_sound_device = NULL;
 
+/** If set before the sound starts, everything is played with the volume of zero.
+ * Used to run the game next to other tasks without disturbing them.
+ */
+int lbSoundMuted = 0;
+
 size_t sound_total_buffer_count = 0;
 size_t sound_free_buffer_count = 0;
 static ALuint sound_free_buffers[SOUND_MAX_BUFFERS];
@@ -112,6 +117,9 @@ int32_t OPENAL_startup(void)
     alcMakeContextCurrent(sound_context);
     if (!check_alc("alcMakeContextCurrent"))
         goto err;
+
+    // The listener gain applies to all sources, both the samples and the music streams
+    alListenerf(AL_GAIN, lbSoundMuted ? 0.0f : 1.0f);
 
     return 1;
 

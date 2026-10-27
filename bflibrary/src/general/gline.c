@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include "bfline.h"
 #include "bfscreen.h"
+#include "bfhwrend.h"
 
 //static - temporarly public, as it is used in ASM
 void draw_b_line(long x1, long y1, long x2, long y2, TbPixel colour)
@@ -162,6 +163,11 @@ void draw_b_line(long x1, long y1, long x2, long y2, TbPixel colour)
 TbResult LbDrawLine(long X1, long Y1, long X2, long Y2, TbPixel colour)
 {
     TbResult result = Lb_OK;
+
+    if (lbHwRecording && LbHwRecordLine(X1 + lbDisplay.GraphicsWindowX, Y1 + lbDisplay.GraphicsWindowY,
+      X2 + lbDisplay.GraphicsWindowX, Y2 + lbDisplay.GraphicsWindowY, colour,
+      (lbDisplay.DrawFlags & (Lb_SPRITE_TRANSPAR4 | Lb_SPRITE_TRANSPAR8)) != 0))
+        return Lb_SUCCESS;
     // Adjusting X-dimension coordinates
     long width_max = lbDisplay.GraphicsWindowWidth - 1;
     if ( X1 >= 0 )

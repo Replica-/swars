@@ -30,6 +30,7 @@
 #include "enginprops.h"
 #include "engintrns.h"
 #include "engintxtrmap.h"
+#include "bfhwrend.h"
 #include "privrdlog.h"
 /******************************************************************************/
 const short waft_table2[] = {
@@ -228,7 +229,10 @@ void draw_falling_rain(int bckt)
     if (bckt < 3000) h += m;
     if (bckt < 1000) h += m;
     coltb = &pixmap.ghost_table[256 * pixmap.fade_table[15*PALETTE_8b_COLORS + 63 + icol]];
-    draw_droplet(o, scanln, w, h, coltb);
+    // The droplet mixes its colour with what is on the screen; the GPU does that itself
+    if (!(lbHwRecording && LbHwRecordBox(x, y, x + w, y + h,
+      pixmap.fade_table[15*PALETTE_8b_COLORS + 63 + icol], true)))
+        draw_droplet(o, scanln, w, h, coltb);
 
     lbDisplay.DrawFlags = 0;
     lbSeed = seed_bkp;

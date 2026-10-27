@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file game_speed.h
@@ -72,6 +72,30 @@ void render_clock_set_turn(ulong turn);
 ubyte get_speed_control_inputs(void);
 
 void wait_next_gameturn(void);
+/** Microsecond clock used for the frame pacing. */
+ulong game_now_us(void);
+/** Start of the current frame period, and its length; 0 length if the frames are not paced. */
+ulong game_period_start_us(void);
+ulong game_period_length_us(void);
+/** Waits (sleeping, then spinning) until the given time of game_now_us(). */
+void game_wait_until_us(ulong target_us);
+
+/** Limit of frames per second, 0 for no limit. Game logic runs once per frame,
+ * so this also sets the game speed; 16 is the original pace. */
+extern short game_fps_cap;
+
+/** Counts a drawn frame and draws the FPS counter in the top right corner. */
+void fps_counter_show(void);
+
+/** Phases of a frame which have their duration measured for the FPS counter. */
+enum PerfPhase {
+    PerfPhase_Draw,
+    PerfPhase_Swap,
+    PerfPhase_COUNT,
+};
+
+void perf_phase_begin(enum PerfPhase phase);
+void perf_phase_end(enum PerfPhase phase);
 
 TbBool display_needs_redraw_this_turn(void);
 void update_tick_time(void);

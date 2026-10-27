@@ -1988,6 +1988,22 @@ void panel_get_size(short *p_width, short *p_height, short panel)
    *p_height = h;
 }
 
+TbBool mouse_move_over_any_hud_element(void)
+{
+    short panel;
+
+    if (mouse_move_over_scanner())
+        return true;
+    for (panel = GAME_PANELS_LIMIT - 1; panel >= 0; panel--)
+    {
+        if (!panel_exists(panel))
+            continue;
+        if (mouse_move_over_panel(panel))
+            return true;
+    }
+    return false;
+}
+
 TbBool mouse_move_over_panel(short panel)
 {
     struct GamePanel *p_panel;

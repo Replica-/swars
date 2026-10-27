@@ -516,6 +516,8 @@ void person_enter_vehicle(struct Thing *p_person, struct Thing *p_vehicle);
 void thing_shoot_at_thing(struct Thing *p_thing, short target);
 ubyte person_attempt_to_leave_vehicle(struct Thing *p_thing);
 void thing_shoot_at_point(struct Thing *p_thing, short x, short y, short z, uint fast_flag);
+/** Makes the protector follow and guard the leader. */
+void make_peep_protect_peep(struct Thing *p_protector, struct Thing *p_leader);
 void call_protect(struct Thing *p_thing, ushort plyr);
 ushort count_protect(struct Thing *p_thing, ushort plyr);
 void call_unprotect(struct Thing *p_thing, ushort plyr, ubyte flag);

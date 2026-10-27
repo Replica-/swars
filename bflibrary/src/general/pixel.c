@@ -20,6 +20,7 @@
 #include <assert.h>
 #include "bfpixel.h"
 #include "bfscreen.h"
+#include "bfhwrend.h"
 
 TbResult LbDrawPixelClip(long x, long y, TbPixel colour)
 {
@@ -29,6 +30,11 @@ TbResult LbDrawPixelClip(long x, long y, TbPixel colour)
         return Lb_FAIL;
     if ((y < 0) || (y >= lbDisplay.GraphicsWindowHeight))
         return Lb_FAIL;
+
+    if (lbHwRecording && LbHwRecordBox(x + lbDisplay.GraphicsWindowX, y + lbDisplay.GraphicsWindowY,
+      x + lbDisplay.GraphicsWindowX + 1, y + lbDisplay.GraphicsWindowY + 1, colour,
+      (lbDisplay.DrawFlags & (Lb_SPRITE_TRANSPAR4 | Lb_SPRITE_TRANSPAR8)) != 0))
+        return Lb_SUCCESS;
 
     ptr = &lbDisplay.GraphicsWindowPtr[lbDisplay.GraphicsScreenWidth * y + x];
     if (lbDisplay.DrawFlags & Lb_SPRITE_TRANSPAR4)

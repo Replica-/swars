@@ -15,6 +15,8 @@ libbullfrog_a_headers_src = \
   include/bfexe_key.h \
   include/bffile.h \
   include/bfflic.h \
+  include/bfgl.h \
+  include/bfhwrend.h \
   include/bffnuniq.h \
   include/bffont.h \
   include/bfgentab.h \
@@ -79,6 +81,7 @@ libbullfrog_a_SOURCES = \
   src/general/gfont.c \
   src/general/ggenf.c \
   src/general/ggengh.c \
+  src/general/ghwrend.c \
   src/general/giff.c \
   src/general/gini.c \
   src/general/gkeybd.c \
@@ -126,7 +129,10 @@ libbullfrog_a_SOURCES += \
   src/x86-win-sdl2/sdir.c \
   src/x86-win-sdl2/sdrive.c \
   src/x86-win-sdl2/sffind.c \
+  src/x86-win-sdl2/privgl.h \
   src/x86-win-sdl2/sfile.c \
+  src/x86-win-sdl2/sgl.c \
+  src/x86-win-sdl2/sglrend.c \
   src/x86-win-sdl2/sjoyst.c \
   src/x86-win-sdl2/skeybd.cpp \
   src/x86-win-sdl2/slog.c \

@@ -27,6 +27,8 @@
 #endif
 
 #include "bfscrsurf.h"
+#include "bfgl.h"
+#include "privgl.h"
 #include "bfpalette.h"
 #include "bfmemut.h"
 #include "bfmouse.h"
@@ -67,6 +69,13 @@ extern char lbDrawAreaTitle[128];
 extern short lbIconIndex;
 extern ResourceMappingFunc userResourceMapping;
 extern SDL_Color lbPaletteColors[256];
+
+/** @internal
+ * Stand-in for the window surface while the window is presented through GL.
+ * A GL window has no window surface, but the rest of the library expects
+ * a screen surface of the window size and a 32-bit format.
+ */
+static SDL_Surface *lbGlScreenSurface = NULL;
 
 /** @internal
  * Handle to the graphics window.
@@ -517,7 +526,20 @@ TbResult LbScreenSetupAnyMode(TbScreenMode mode, TbScreenCoord width,
 
     // Set SDL video mode and create window, if not created before
     if (lbWindow == NULL) {
-        lbWindow = SDL_CreateWindow(lbDrawAreaTitle, windowpos, windowpos, mdWidth, mdHeight, sdlFlags);
+        // Prefer a window which is presented through GL; if that is not
+        // possible, create the plain one, as the game always did
+        if (LbGlIsWanted()) {
+            LbGlSetWindowAttributes();
+            lbWindow = SDL_CreateWindow(lbDrawAreaTitle, windowpos, windowpos, mdWidth, mdHeight,
+              sdlFlags | SDL_WINDOW_OPENGL);
+            if ((lbWindow != NULL) && !LbGlCreateContext(lbWindow)) {
+                SDL_DestroyWindow(lbWindow);
+                lbWindow = NULL;
+            }
+        }
+        if (lbWindow == NULL) {
+            lbWindow = SDL_CreateWindow(lbDrawAreaTitle, windowpos, windowpos, mdWidth, mdHeight, sdlFlags);
+        }
     }
 
     if (lbWindow == NULL) {
@@ -525,7 +547,15 @@ TbResult LbScreenSetupAnyMode(TbScreenMode mode, TbScreenCoord width,
         return Lb_FAIL;
     }
 
-    lbScreenSurface = lbDrawSurface = SDL_GetWindowSurface(lbWindow);
+    if (LbGlIsActive()) {
+        if (lbGlScreenSurface != NULL)
+            SDL_FreeSurface(lbGlScreenSurface);
+        lbGlScreenSurface = SDL_CreateRGBSurfaceWithFormat(0, mdWidth, mdHeight, 32,
+          SDL_PIXELFORMAT_RGB888);
+        lbScreenSurface = lbDrawSurface = lbGlScreenSurface;
+    } else {
+        lbScreenSurface = lbDrawSurface = SDL_GetWindowSurface(lbWindow);
+    }
 
     if (lbScreenSurface == NULL) {
         LOGERR("failed to get window surface for mode %d: %s", (int)mode, SDL_GetError());
@@ -581,6 +611,7 @@ TbResult LbScreenSetupAnyMode(TbScreenMode mode, TbScreenCoord width,
     LOGSYNC("mode %dx%dx%d setup succeeded", (int)to_SDLSurf(lbScreenSurface)->w,
       (int)to_SDLSurf(lbScreenSurface)->h,
       (int)to_SDLSurf(lbScreenSurface)->format->BitsPerPixel);
+    LbGlSetPalette((const ubyte *)lbPaletteColors);
     if (palette != NULL)
     {
         TbResult ret;
@@ -761,6 +792,9 @@ static TbResult LbIPhysicalScreenUnlock(void)
  */
 TbResult LbIScreenSurfaceRestoreLost(void)
 {
+    // GL window has no surface which could get lost
+    if (LbGlIsActive())
+        return Lb_SUCCESS;
     lbScreenSurface = SDL_GetWindowSurface(lbWindow);
     if (lbScreenSurface == NULL) {
         LOGERR("surface restore failed: %s", SDL_GetError());
@@ -1151,10 +1185,48 @@ TbResult LbIScreenDrawSurfaceCheck(void)
 #endif
 }
 
+/** @internal
+ * Shows the content of the draw surface in the window.
+ *
+ * Presents through GL if the window has a GL context. Otherwise copies
+ * the draw surface to the window surface and updates the window.
+ */
+static TbResult LbIPresentScreen(void)
+{
+    int blresult;
+
+    if (LbGlIsActive())
+    {
+        SDL_Surface *draw = to_SDLSurf(lbDrawSurface);
+
+        if (draw->format->BitsPerPixel != 8) {
+            LOGERR("cannot present a %d bpp surface through GL", (int)draw->format->BitsPerPixel);
+            return Lb_FAIL;
+        }
+        return LbGlPresentIndexed(draw->pixels, draw->w, draw->h, draw->pitch);
+    }
+    if (lbHasSecondSurface)
+    {
+        blresult = LbI_SDL_BlitScaled(to_SDLSurf(lbDrawSurface), NULL,
+          to_SDLSurf(lbScreenSurface), NULL);
+        if (blresult < 0) {
+            LOGERR("blit failed: %s", SDL_GetError());
+            return Lb_FAIL;
+        }
+    }
+    // Copy the window surface to the screen
+    blresult = SDL_UpdateWindowSurface(lbWindow);
+    if (blresult < 0) {
+        // In some cases this situation seems to be quite common
+        LOGERR("flip failed: %s", SDL_GetError());
+        return Lb_FAIL;
+    }
+    return Lb_SUCCESS;
+}
+
 TbResult LbScreenSwap(void)
 {
     TbResult ret;
-    int blresult;
 
     LOGDBG("starting");
     assert(!lbDisplay.VesaIsSetUp); // video mem paging not supported with SDL
@@ -1165,26 +1237,7 @@ TbResult LbScreenSwap(void)
     LbMouseOnBeginSwap();
     ret = Lb_SUCCESS;
 
-    // Put the data from Draw Surface onto Screen Surface
-    if ((ret == Lb_SUCCESS) && (lbHasSecondSurface))
-    {
-        blresult = LbI_SDL_BlitScaled(to_SDLSurf(lbDrawSurface), NULL,
-          to_SDLSurf(lbScreenSurface), NULL);
-        if (blresult < 0) {
-            LOGERR("blit failed: %s", SDL_GetError());
-            ret = Lb_FAIL;
-        }
-    }
-    // Flip the image displayed on Screen Surface
-    if (ret == Lb_SUCCESS) {
-        // Copy the window surface to the screen
-        blresult = SDL_UpdateWindowSurface(lbWindow);
-        if (blresult < 0) {
-            // In some cases this situation seems to be quite common
-            LOGERR("flip failed: %s", SDL_GetError());
-            ret = Lb_FAIL;
-        }
-    }
+    ret = LbIPresentScreen();
     LbMouseOnEndSwap();
     return ret;
 }
@@ -1192,7 +1245,6 @@ TbResult LbScreenSwap(void)
 TbResult LbScreenSwapClear(TbPixel colour)
 {
     TbResult ret;
-    int blresult;
 
     LOGDBG("starting");
     assert(!lbDisplay.VesaIsSetUp); // video mem paging not supported with SDL
@@ -1203,26 +1255,7 @@ TbResult LbScreenSwapClear(TbPixel colour)
     LbMouseOnBeginSwap();
     ret = Lb_SUCCESS;
 
-    // Put the data from Draw Surface onto Screen Surface
-    if ((ret == Lb_SUCCESS) && (lbHasSecondSurface))
-    {
-        blresult = LbI_SDL_BlitScaled(to_SDLSurf(lbDrawSurface), NULL,
-          to_SDLSurf(lbScreenSurface), NULL);
-        if (blresult < 0) {
-            LOGERR("blit failed: %s", SDL_GetError());
-            ret = Lb_FAIL;
-        }
-    }
-    // Flip the image displayed on Screen Surface
-    if (ret == Lb_SUCCESS) {
-        // Copy the window surface to the screen
-        blresult = SDL_UpdateWindowSurface(lbWindow);
-        if (blresult < 0) {
-            // In some cases this situation seems to be quite common
-            LOGERR("flip failed: %s", SDL_GetError());
-            ret = Lb_FAIL;
-        }
-    }
+    ret = LbIPresentScreen();
     LbMouseOnEndSwap();
     SDL_FillRect(lbDrawSurface, NULL, colour);
     return ret;
@@ -1259,18 +1292,23 @@ TbResult LbScreenSwapBox(ubyte *sourceBuf, long sourceX, long sourceY,
     // Put the data from Draw Surface onto Screen Surface
     if ((ret == Lb_SUCCESS) && (lbHasSecondSurface))
     {
-        SDL_Rect clipRect = {destX, destY, width, height};
-        SDL_SetClipRect(to_SDLSurf(lbScreenSurface), &clipRect);
-        blresult = LbI_SDL_BlitScaled(to_SDLSurf(lbDrawSurface), NULL,
-          to_SDLSurf(lbScreenSurface), NULL);
-        SDL_SetClipRect(to_SDLSurf(lbScreenSurface), NULL);
-        if (blresult < 0) {
-            LOGERR("blit failed: %s", SDL_GetError());
-            ret = Lb_FAIL;
+        if (LbGlIsActive()) {
+            // The whole screen is presented, GL has no use for the clipping
+            ret = LbIPresentScreen();
+        } else {
+            SDL_Rect clipRect = {destX, destY, width, height};
+            SDL_SetClipRect(to_SDLSurf(lbScreenSurface), &clipRect);
+            blresult = LbI_SDL_BlitScaled(to_SDLSurf(lbDrawSurface), NULL,
+              to_SDLSurf(lbScreenSurface), NULL);
+            SDL_SetClipRect(to_SDLSurf(lbScreenSurface), NULL);
+            if (blresult < 0) {
+                LOGERR("blit failed: %s", SDL_GetError());
+                ret = Lb_FAIL;
+            }
         }
     }
     // Flip the image displayed on Screen Surface
-    if (ret == Lb_SUCCESS) {
+    if ((ret == Lb_SUCCESS) && !LbGlIsActive()) {
         // Copy the window surface to the screen
         blresult = SDL_UpdateWindowSurface(lbWindow);
         if (blresult < 0) {

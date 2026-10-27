@@ -56,6 +56,9 @@ struct AudioInitOptions {
 #pragma pack()
 /******************************************************************************/
 
+/** Set to non-zero before the sound starts, to play everything silently. */
+extern int lbSoundMuted;
+
 void EnsureAILStartup(void);
 void InitAudio(AudioInitOptions *audOpts);
 void FreeAudio(void);

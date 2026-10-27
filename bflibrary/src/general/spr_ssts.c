@@ -25,6 +25,7 @@
 #include "bftypes.h"
 #include "insspr.h"
 #include "bfscreen.h"
+#include "bfhwrend.h"
 #include "bfgentab.h"
 #include "privbflog.h"
 
@@ -2616,6 +2617,8 @@ TbResult DrawSpriteWthShadowUsingScalingData(long posx, long posy, const TbSprit
   long *xstep;
   long v339;
 
+    if (lbHwRecording && LbHwRecordSpriteDrawAlphaScaled(sprite, posx, posy))
+        return Lb_SUCCESS;
     //TODO set this in higher level function instead, when possible
     render_alpha = lbSpriteReMapPtr;
     assert(render_alpha != NULL);

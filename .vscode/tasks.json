@@ -1,0 +1,50 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build-debug",
+            "type": "shell",
+            "command": "D:/development/msys64/usr/bin/bash.exe",
+            "args": [
+                "-lc",
+                "cd /d/development/swars/debug && make -j$(nproc)"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/debug",
+                "env": {
+                    "MSYSTEM": "MINGW32",
+                    "CHERE_INVOKING": "1"
+                }
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": ["relative", "${workspaceFolder}/debug/src"]
+            }
+        },
+        {
+            "label": "build-release",
+            "type": "shell",
+            "command": "D:/development/msys64/usr/bin/bash.exe",
+            "args": [
+                "-lc",
+                "cd /d/development/swars/release && make -j$(nproc)"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/release",
+                "env": {
+                    "MSYSTEM": "MINGW32",
+                    "CHERE_INVOKING": "1"
+                }
+            },
+            "group": "build",
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": ["relative", "${workspaceFolder}/release/src"]
+            }
+        }
+    ]
+}

@@ -28,6 +28,9 @@
 
 #define to_SDLSurf(h) ((SDL_Surface  *)h)
 
+void LbMouseOnPaletteChange(void);
+void LbGlSetPalette(const ubyte *palette_rgba);
+
 /** Colour palette buffer, to be used inside lbDisplay. */
 ubyte lbPalette[PALETTE_8b_SIZE];
 /** Driver-specific colour palette buffer. */
@@ -87,6 +90,8 @@ TbResult LbPaletteSet(const ubyte *palette)
         }
     }
     lbDisplay.Palette = lbPalette;
+    LbMouseOnPaletteChange();
+    LbGlSetPalette((const ubyte *)lbPaletteColors);
     // Set to draw buffer as well, if it is required
     if ((lbHasSecondSurface) && (lbEngineBPP <= 8)) {
         if (SDL_SetPaletteColors(to_SDLSurf(lbDrawSurface)->format->palette,

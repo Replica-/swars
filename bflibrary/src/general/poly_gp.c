@@ -28,6 +28,14 @@
 
 #define PITCH_SH VEC_MAP_PITCH_SH
 
+/* This file is the textured polygon rasterizer, which makes most of the frame
+ * time. It is plain C (no inline assembly), so it is safe to optimize even when
+ * the rest of the project is built without optimizations for debugging.
+ */
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC optimize ("O2")
+#endif
+
 const long gpoly_reptable[] = {
          0x0,0x7FFFFFFF,0x3FFFFFFF,0x2AAAAAAA,0x1FFFFFFF,0x19999999,0x15555555,0x12492492,
   0x0FFFFFFF,0x0E38E38E,0x0CCCCCCC,0x0BA2E8BA,0x0AAAAAAA, 0x9D89D89, 0x9249249, 0x8888888,
@@ -382,63 +390,85 @@ static int gpoly_mul_rot_2(int a1, int a2)
     return val;
 }
 
-static TbPixel gpoly_pixel_shaded(struct gpoly_blends *p_bld, const struct gpoly_factors *p_inc)
+
+
+/** Writes `count` consecutive shaded pixels, stepping the blends as it goes.
+ *
+ * Same result as repeating gpoly_pixel_shaded(), but the blend state and
+ * increments are kept in locals. With the state in memory the compiler has to
+ * assume that every pixel store changes it, and reloads it for each pixel.
+ */
+static void gpoly_span_shaded(ubyte *o, int count, struct gpoly_blends *p_bld, const struct gpoly_factors *p_inc)
 {
-    int loc_2d;
-    ubyte a3b_h, a3b_l;
-    ubyte loc_carry;
-    ubyte ret_h, ret_l;
+    const ubyte *map = vec_map;
+    const ubyte *fade = pixmap.fade_table;
+    unsigned b0 = p_bld->B[0], b1 = p_bld->B[1], b2 = p_bld->B[2];
+    const unsigned s1 = p_inc->S[1], s2 = p_inc->S[2], s3 = p_inc->S[3];
 
-    ret_h = p_bld->B[2] >> 8;
-    a3b_l = p_bld->B[0];
-    a3b_h = p_bld->B[1] >> 8;
-    loc_2d = p_bld->B[2];
+    for (; count > 0; count--)
+    {
+        ubyte ret_h = b2 >> 8;
+        ubyte a3b_l = b0;
+        ubyte a3b_h = b1 >> 8;
+        unsigned t, n;
+        ubyte carry, ret_l;
 
-    loc_carry = __CFADDL__(loc_2d, p_inc->S[1]);
-    p_bld->B[2] = loc_2d + p_inc->S[1];
-    loc_2d = p_bld->B[0] + loc_carry;
+        n = b2 + s1;
+        carry = (b2 > n);
+        b2 = n;
+        t = b0 + carry;
 
-    ret_l = vec_map[(a3b_h << PITCH_SH) | a3b_l];
+        ret_l = map[(a3b_h << PITCH_SH) | a3b_l];
 
-    loc_carry = __CFADDL__(loc_2d, p_inc->S[2]);
-    p_bld->B[0] = loc_2d + p_inc->S[2];
-    loc_2d = a3b_h + loc_carry;
+        n = t + s2;
+        carry = (t > n);
+        b0 = n;
+        t = a3b_h + carry;
 
-    a3b_h = loc_2d + p_inc->S[3];
+        a3b_h = t + s3;
+        b1 = (a3b_h << 8) | a3b_l;
 
-    p_bld->B[1] = (a3b_h << 8) | a3b_l;
-
-    return pixmap.fade_table[(ret_h << 8) | ret_l];
+        *o++ = fade[(ret_h << 8) | ret_l];
+    }
+    p_bld->B[0] = b0;
+    p_bld->B[1] = b1;
+    p_bld->B[2] = b2;
 }
 
-static TbPixel gpoly_pixel_noshade(struct gpoly_blends *p_bld, const struct gpoly_factors *p_inc)
+/** Writes `count` consecutive unshaded pixels; see gpoly_span_shaded().
+ */
+static void gpoly_span_noshade(ubyte *o, int count, struct gpoly_blends *p_bld, const struct gpoly_factors *p_inc)
 {
-    int loc_2d;
-    ubyte a3b_h, a3b_l;
-    ubyte loc_carry;
-    ubyte ret_l;
+    const ubyte *map = vec_map;
+    unsigned b0 = p_bld->B[0], b1 = p_bld->B[1], b2 = p_bld->B[2];
+    const unsigned s1 = p_inc->S[1], s2 = p_inc->S[2], s3 = p_inc->S[3];
 
-    a3b_l = p_bld->B[0];
-    a3b_h = p_bld->B[1] >> 8;
-    loc_2d = p_bld->B[2];
+    for (; count > 0; count--)
+    {
+        ubyte a3b_l = b0;
+        ubyte a3b_h = b1 >> 8;
+        unsigned t, n;
+        ubyte carry;
 
-    loc_carry = __CFADDL__(loc_2d, p_inc->S[1]);
-    p_bld->B[2] = loc_2d + p_inc->S[1];
-    loc_2d = p_bld->B[0] + loc_carry;
+        n = b2 + s1;
+        carry = (b2 > n);
+        b2 = n;
+        t = b0 + carry;
 
-    ret_l = vec_map[(a3b_h << PITCH_SH) | a3b_l];
+        *o++ = map[(a3b_h << PITCH_SH) | a3b_l];
 
-    loc_carry = __CFADDL__(loc_2d, p_inc->S[2]);
-    p_bld->B[0] = loc_2d + p_inc->S[2];
-    loc_2d = a3b_h + loc_carry;
+        n = t + s2;
+        carry = (t > n);
+        b0 = n;
+        t = a3b_h + carry;
 
-    a3b_h = loc_2d + p_inc->S[3];
-
-    p_bld->B[1] = (a3b_h << 8) | a3b_l;
-
-    return ret_l;
+        a3b_h = t + s3;
+        b1 = (a3b_h << 8) | a3b_l;
+    }
+    p_bld->B[0] = b0;
+    p_bld->B[1] = b1;
+    p_bld->B[2] = b2;
 }
-
 static void gpoly_stb_drw_incr4(struct gpoly_blends *p_bld, const struct gpoly_factors *p_inc)
 {
     int loc_2d;
@@ -983,7 +1013,7 @@ void gpoly_rasterize_shaded_bound(struct gpoly_state *st)
     int loc_180, ln_len, loc_0FC, loc_0F8;
     int loc_12C, loc_128;
     ubyte *loc_0F4;
-    int range_remain, loc_0C0;
+    int loc_0C0;
     int curr_X, curr_Y;
 
     ln_len = vec_screen_width;
@@ -1072,19 +1102,11 @@ void gpoly_rasterize_shaded_bound(struct gpoly_state *st)
 
             if (range_len > 0)
             {
-                ubyte *o;
 
                 // Writes range_len consecutive pixels. This used to be a
                 // variable trip count loop entered at an offset through
                 // gpoly_countdown[], which no compiler can unroll.
-                o = &loc_0F4[curr_X];
-                range_remain = range_len;
-                while (range_remain > 0)
-                {
-                    *o = gpoly_pixel_shaded(&bld, &st->incB);
-                    o++;
-                    range_remain--;
-                }
+                gpoly_span_shaded(&loc_0F4[curr_X], range_len, &bld, &st->incB);
             }
             range_end = loc_128 + loc_0F8;
             curr_X -= (loc_0FC >> 16);
@@ -1140,7 +1162,7 @@ void gpoly_rasterize_shaded_nobound(struct gpoly_state *st)
     int loc_180, ln_len, loc_0FC, loc_0F8;
     int loc_12C, loc_128;
     ubyte *loc_0F4;
-    int range_remain, loc_0C0;
+    int loc_0C0;
     int curr_X, curr_Y;
 
     ln_len = vec_screen_width;
@@ -1207,19 +1229,11 @@ void gpoly_rasterize_shaded_nobound(struct gpoly_state *st)
             range_len = range_end_scr - range_beg_scr;
             if (range_len > 0)
             {
-                ubyte *o;
 
                 // Writes range_len consecutive pixels. This used to be a
                 // variable trip count loop entered at an offset through
                 // gpoly_countdown[], which no compiler can unroll.
-                o = &loc_0F4[range_beg_scr];
-                range_remain = range_len;
-                while (range_remain > 0)
-                {
-                    *o = gpoly_pixel_shaded(&bld, &st->incB);
-                    o++;
-                    range_remain--;
-                }
+                gpoly_span_shaded(&loc_0F4[range_beg_scr], range_len, &bld, &st->incB);
             }
             range_beg = loc_12C + loc_0FC;
             range_end = loc_128 + loc_0F8;
@@ -1272,7 +1286,7 @@ void gpoly_rasterize_noshade_bound(struct gpoly_state *st)
     int loc_180, ln_len, loc_0FC, loc_0F8;
     int loc_12C, loc_128;
     ubyte *loc_0F4;
-    int range_remain, loc_0C0;
+    int loc_0C0;
     int curr_X, curr_Y;
 
     ln_len = vec_screen_width;
@@ -1307,7 +1321,6 @@ void gpoly_rasterize_noshade_bound(struct gpoly_state *st)
     else
         curr_Y = st->ptA.Y;
 
-    ubyte *o;
     int range_beg_scr, range_end_scr;
     int range_len;
 
@@ -1357,14 +1370,7 @@ void gpoly_rasterize_noshade_bound(struct gpoly_state *st)
                 // Writes range_len consecutive pixels. This used to be a
                 // variable trip count loop entered at an offset through
                 // gpoly_countdown[], which no compiler can unroll.
-                o = &loc_0F4[curr_X];
-                range_remain = range_len;
-                while (range_remain > 0)
-                {
-                    *o = gpoly_pixel_noshade(&bld, &st->incB);
-                    o++;
-                    range_remain--;
-                }
+                gpoly_span_noshade(&loc_0F4[curr_X], range_len, &bld, &st->incB);
             }
             range_beg = loc_12C + loc_0FC;
             range_end = loc_128 + loc_0F8;
@@ -1416,7 +1422,7 @@ void gpoly_rasterize_noshade_nobound(struct gpoly_state *st)
     int loc_180, ln_len, loc_0FC, loc_0F8;
     int loc_12C, loc_128;
     ubyte *loc_0F4;
-    int range_remain, loc_0C0;
+    int loc_0C0;
     int curr_X, curr_Y;
 
     ln_len = vec_screen_width;
@@ -1451,7 +1457,6 @@ void gpoly_rasterize_noshade_nobound(struct gpoly_state *st)
     else
         curr_Y = st->ptA.Y;
 
-    ubyte *o;
     int range_beg_scr, range_end_scr;
     int range_len;
 
@@ -1493,14 +1498,7 @@ void gpoly_rasterize_noshade_nobound(struct gpoly_state *st)
                 // Writes range_len consecutive pixels. This used to be a
                 // variable trip count loop entered at an offset through
                 // gpoly_countdown[], which no compiler can unroll.
-                o = &loc_0F4[curr_X];
-                range_remain = range_len;
-                while (range_remain > 0)
-                {
-                    *o = gpoly_pixel_noshade(&bld, &st->incB);
-                    o++;
-                    range_remain--;
-                }
+                gpoly_span_noshade(&loc_0F4[curr_X], range_len, &bld, &st->incB);
             }
             range_beg = loc_12C + loc_0FC;
             range_end = loc_128 + loc_0F8;

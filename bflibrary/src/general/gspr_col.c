@@ -23,6 +23,7 @@
 #include <string.h>
 #include "insprite.h"
 #include "bfscreen.h"
+#include "bfhwrend.h"
 #include "privbflog.h"
 
 
@@ -393,6 +394,9 @@ TbResult LbSpriteDrawOneColour(long x, long y, const TbSprite *spr, const TbPixe
 {
     TbSpriteDrawData spd;
     TbResult ret;
+
+    if (lbHwRecording && LbHwRecordSpriteDraw(spr, x, y, 0, 0, NULL, colour))
+        return Lb_SUCCESS;
 
     LOGNO("at (%ld,%ld)",x,y);
     ret = LbSpriteDrawPrepare(&spd, x, y, spr);

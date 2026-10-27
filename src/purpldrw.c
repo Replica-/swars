@@ -40,6 +40,22 @@
 #include "sound.h"
 #include "swlog.h"
 /******************************************************************************/
+/** How many times faster than the original the box draw-in animation runs. */
+#define GUI_BOX_ANIM_MUL 3
+/** How many times faster than the original the text is revealed. */
+#define GUI_TEXT_ANIM_MUL 2
+/** Longest single animation step; Timer is a byte and phases are 24 long. */
+#define GUI_BOX_ANIM_STEP_MAX 24
+
+static ubyte box_anim_step(ubyte draw_speed)
+{
+    int step = draw_speed * GUI_BOX_ANIM_MUL;
+
+    if (step > GUI_BOX_ANIM_STEP_MAX)
+        step = GUI_BOX_ANIM_STEP_MAX;
+    return step;
+}
+
 enum ScrollBarBoxes {
     ScrlBB_AreaAbv = 0,	/**< empty area above handle */
     ScrlBB_HndlBox,	/**< draggable handle box */
@@ -349,7 +365,7 @@ ubyte flashy_draw_purple_box(struct ScreenBox *p_box)
 
         advance = p_box->Timer;
         flashy_draw_projector_reaching_target_coords(p_box->X, p_box->Y, box_w, box_h, advance, p_box->Colour);
-        p_box->Timer += p_box->DrawSpeed;
+        p_box->Timer += box_anim_step(p_box->DrawSpeed);
         return 0;
     }
 
@@ -360,7 +376,7 @@ ubyte flashy_draw_purple_box(struct ScreenBox *p_box)
 
         advance = ((p_box->Timer - 24) * box_w) / 24;
         flashy_draw_projector_horizontal_lines(p_box->X, p_box->Y, box_w, box_h, advance, advance, 0, p_box->Colour);
-        p_box->Timer += p_box->DrawSpeed;
+        p_box->Timer += box_anim_step(p_box->DrawSpeed);
         return 0;
     }
 
@@ -371,7 +387,7 @@ ubyte flashy_draw_purple_box(struct ScreenBox *p_box)
 
         advance = ((p_box->Timer - 48) * box_h) / 24;
         flashy_draw_projector_vertical_lines(p_box->X, p_box->Y, box_w, box_h, advance, advance, 0, p_box->Colour);
-        p_box->Timer += p_box->DrawSpeed;
+        p_box->Timer += box_anim_step(p_box->DrawSpeed);
         return 2;
     }
 
@@ -502,7 +518,7 @@ TbBool flashy_draw_text(int x, int y, const char *text, ubyte speed, int top_lin
     pos += 2;
     text_buf_pos += pos;
 
-    *textpos += speed;
+    *textpos += speed * GUI_TEXT_ANIM_MUL;
     draw_text_purple_list2(x, y, gtext, top_line);
     play_sample_using_heap(0, 114, 127, 64, 100, 0, 3);
     return 0;
@@ -851,7 +867,7 @@ ubyte flashy_draw_purple_text_box(struct ScreenTextBox *p_box)
 
         advance = p_box->Timer;
         flashy_draw_projector_reaching_target_coords(p_box->X, p_box->Y, box_w, box_h, advance, p_box->Colour1);
-        p_box->Timer += p_box->DrawSpeed;
+        p_box->Timer += box_anim_step(p_box->DrawSpeed);
         return 0;
     }
 
@@ -862,7 +878,7 @@ ubyte flashy_draw_purple_text_box(struct ScreenTextBox *p_box)
 
         advance = ((p_box->Timer - 24) * box_w) / 24;
         flashy_draw_projector_horizontal_lines(p_box->X, p_box->Y, box_w, box_h, advance, advance, 0, p_box->Colour1);
-        p_box->Timer += p_box->DrawSpeed;
+        p_box->Timer += box_anim_step(p_box->DrawSpeed);
         return 0;
     }
 
@@ -873,7 +889,7 @@ ubyte flashy_draw_purple_text_box(struct ScreenTextBox *p_box)
 
         advance = ((p_box->Timer - 48) * box_h) / 24;
         flashy_draw_projector_vertical_lines(p_box->X, p_box->Y, box_w, box_h, advance, advance, 0, p_box->Colour1);
-        p_box->Timer += p_box->DrawSpeed;
+        p_box->Timer += box_anim_step(p_box->DrawSpeed);
         return 2;
     }
 
@@ -1060,7 +1076,7 @@ ubyte flashy_draw_purple_info_box(struct ScreenInfoBox *p_box)
 
         advance = p_box->Timer;
         flashy_draw_projector_reaching_target_coords(p_box->X, p_box->Y, box_w, box_h, advance, p_box->Colour);
-        p_box->Timer += p_box->DrawSpeed;
+        p_box->Timer += box_anim_step(p_box->DrawSpeed);
         return 0;
     }
 
@@ -1071,7 +1087,7 @@ ubyte flashy_draw_purple_info_box(struct ScreenInfoBox *p_box)
 
         advance = ((p_box->Timer - 24) * box_w) / 24;
         flashy_draw_projector_horizontal_lines(p_box->X, p_box->Y, box_w, box_h, advance, advance, 0, p_box->Colour);
-        p_box->Timer += p_box->DrawSpeed;
+        p_box->Timer += box_anim_step(p_box->DrawSpeed);
         return 0;
     }
 
@@ -1082,7 +1098,7 @@ ubyte flashy_draw_purple_info_box(struct ScreenInfoBox *p_box)
 
         advance = ((p_box->Timer - 48) * box_h) / 24;
         flashy_draw_projector_vertical_lines(p_box->X, p_box->Y, box_w, box_h, advance, advance, 0, p_box->Colour);
-        p_box->Timer += p_box->DrawSpeed;
+        p_box->Timer += box_anim_step(p_box->DrawSpeed);
         return 2;
     }
 
@@ -1156,7 +1172,7 @@ ubyte flashy_draw_purple_button(struct ScreenButton *p_btn)
 
         advance = p_btn->Timer;
         flashy_draw_projector_reaching_target_coords(p_btn->X, p_btn->Y, box_w, box_h, advance, p_btn->Colour);
-        p_btn->Timer += p_btn->DrawSpeed;
+        p_btn->Timer += box_anim_step(p_btn->DrawSpeed);
         return 0;
     }
 
@@ -1175,7 +1191,7 @@ ubyte flashy_draw_purple_button(struct ScreenButton *p_btn)
         advance = ((p_btn->Timer - 24) * (box_w)) / 24;
         advance_p = ((p_btn->Timer - 24) * (box_w - delta_p)) / 24;
         flashy_draw_projector_horizontal_lines(p_btn->X, p_btn->Y, box_w, box_h, advance, advance_p, delta_p, p_btn->Colour);
-        p_btn->Timer += p_btn->DrawSpeed;
+        p_btn->Timer += box_anim_step(p_btn->DrawSpeed);
         return 0;
     }
 
@@ -1191,7 +1207,7 @@ ubyte flashy_draw_purple_button(struct ScreenButton *p_btn)
         advance = ((p_btn->Timer - 48) * (box_h)) / 24;
         advance_p = ((p_btn->Timer - 48) * (box_h - delta_p)) / 24;
         flashy_draw_projector_vertical_lines(p_btn->X, p_btn->Y, box_w, box_h, advance, advance_p, delta_p, p_btn->Colour);
-        p_btn->Timer += p_btn->DrawSpeed;
+        p_btn->Timer += box_anim_step(p_btn->DrawSpeed);
         return 2;
     }
 

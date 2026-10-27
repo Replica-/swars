@@ -163,7 +163,7 @@ void packet_action_immediate_local_change(ubyte cmouser, ushort action)
     case PAct_SELECT_NEXT_WEAPON:
     case PAct_SELECT_GRP_SPEC_WEAPON:
     case PAct_33:
-        ingame.UserZoom = 120;
+        ingame.UserZoom = 100;
         break;
     default:
         break;

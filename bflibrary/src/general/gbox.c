@@ -19,6 +19,7 @@
 /******************************************************************************/
 #include "bfbox.h"
 #include "bfscreen.h"
+#include "bfhwrend.h"
 #include "bfline.h"
 
 TbResult LbDrawBox(long X, long Y, long Width, long Height, TbPixel colour)
@@ -36,6 +37,11 @@ TbResult LbDrawBox(long X, long Y, long Width, long Height, TbPixel colour)
         }
     } else
     {
+        if (lbHwRecording && (Width > 0) && (Height > 0) &&
+          LbHwRecordBox(X + lbDisplay.GraphicsWindowX, Y + lbDisplay.GraphicsWindowY,
+            X + lbDisplay.GraphicsWindowX + Width, Y + lbDisplay.GraphicsWindowY + Height, colour,
+            (lbDisplay.DrawFlags & (Lb_SPRITE_TRANSPAR4 | Lb_SPRITE_TRANSPAR8)) != 0))
+            return Lb_SUCCESS;
         LbDrawBoxClip(X, Y, Width, Height, colour);
     }
     return Lb_SUCCESS;

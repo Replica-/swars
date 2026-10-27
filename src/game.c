@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file game.c
@@ -136,6 +136,8 @@
 #include "game.h"
 #include "game_data.h"
 #include "game_speed.h"
+#include "bfgl.h"
+#include "bfhwrend.h"
 #include "hud_target.h"
 #include "keyboard.h"
 #include "misstat.h"
@@ -179,8 +181,10 @@
  */
 #define CAMERA_TILT_MIN -192
 #define CAMERA_TILT_MAX -152
-#define CAMERA_ZOOM_MIN 120
-#define CAMERA_ZOOM_MAX 256
+/** Zoom change per one notch of the mouse wheel. */
+#define CAMERA_ZOOM_WHEEL_STEP 20
+#define CAMERA_ZOOM_MIN 16
+#define CAMERA_ZOOM_MAX 600
 #define CAMERA_ROTATION_INPUT_MULTIPLIER 256
 #define CAMERA_TILT_INPUT_MULTIPLIER 4
 
@@ -802,12 +806,14 @@ void process_view_inputs(int thing)
     int zoom;
 
     p_person = &things[thing];
-    zoom = get_weapon_zoom_min(p_person->U.UPerson.CurrentWeapon);
-    // User zoom is not scaled to resolution
-    if (zoom >= ingame.UserZoom)
-        ingame.UserZoom = zoom;
-    else
-        zoom = ingame.UserZoom;
+    (void)p_person;
+    // User zoom is not scaled to resolution; no weapon-range based minimum,
+    // the zoom is only kept within the sane bounds
+    if (ingame.UserZoom < user_zoom_min)
+        ingame.UserZoom = user_zoom_min;
+    else if (ingame.UserZoom > user_zoom_max)
+        ingame.UserZoom = user_zoom_max;
+    zoom = ingame.UserZoom;
 
     process_overall_scale(zoom);
 }
@@ -905,6 +911,11 @@ TbBool adjust_mission_engine_to_video_mode(void)
     TbBool ret;
 
     ret = true;
+    // Perspective projection bends the map into a sphere towards the edges of the
+    // screen, and the mouse picking is not accurate there; start every mission with
+    // the plain isometric view (the camera key still switches it on)
+    game_perspective = ProjM_Isometric;
+    LbMouseWheelTake(); // wheel turns made on other screens should not zoom the mission
     game_high_resolution = (lbDisplay.ScreenMode == screen_mode_game_hi);
     // Set scale 15% over the min, to create a nice pan effect
     overall_scale = (get_overall_scale_min() * 295) >> 8;
@@ -1022,6 +1033,27 @@ ubyte game_graphics_inputs(void)
     {
         clear_gamekey_pressed(GKey_CAMERA_PERSPECTV);
         game_option_inc(GOpt_CameraPerspective);
+        did_inp |= GINPUT_DIRECT;
+    }
+
+    // Shift+F3 switches between the software and the hardware (GPU) rendering
+    if (is_key_pressed(KC_F3, KMod_SHIFT))
+    {
+        clear_key_pressed(KC_F3);
+        if (LbGlIsActive()) {
+            LbHwRenderSetEnabled(!LbHwRenderEnabled());
+            LOGSYNC("3D scene rendering by %s", LbHwRenderEnabled() ? "hardware" : "software");
+        }
+        did_inp |= GINPUT_DIRECT;
+    }
+
+    // Shift+F4 switches the lighting of the hardware rendering between classic and enhanced
+    if (is_key_pressed(KC_F4, KMod_SHIFT))
+    {
+        clear_key_pressed(KC_F4);
+        LbHwLightingSetMode((LbHwLightingMode() + 1) % HwLight_COUNT);
+        LOGSYNC("hardware rendering lighting: %s",
+          (LbHwLightingMode() == HwLight_Enhanced) ? "enhanced" : "classic");
         did_inp |= GINPUT_DIRECT;
     }
 
@@ -1617,7 +1649,7 @@ void init_level(void)
     ingame.TrackX = engn_xc;
     ingame.TrackZ = engn_zc;
     ingame.fld_unkCA6 = 0;
-    ingame.UserZoom = 120;
+    ingame.UserZoom = 100;
     word_1AABD0 = next_floor_texture;
     init_crater_textures();
     bang_init();
@@ -3990,8 +4022,15 @@ void scroll_map_input(int *p_dx, int *p_dy)
     {
         dx = (is_gamekey_kbd_pressed(GKey_RIGHT) & 1) - (is_gamekey_kbd_pressed(GKey_LEFT) & 1);
         dy = (is_gamekey_kbd_pressed(GKey_DOWN) & 1) - (is_gamekey_kbd_pressed(GKey_UP) & 1);
+        // Arrows pan the view as well, as they did before the pan keys were moved to WASD
+        if (dx == 0)
+            dx = (lbKeyOn[KC_RIGHT] & 1) - (lbKeyOn[KC_LEFT] & 1);
+        if (dy == 0)
+            dy = (lbKeyOn[KC_DOWN] & 1) - (lbKeyOn[KC_UP] & 1);
     }
 
+    // For testing, the scrolling by the mouse at the screen edge can be switched off
+    if (getenv("SWFX_NO_EDGE_SCROLL") == NULL)
     {
         if (dx == 0)
         {
@@ -4015,6 +4054,9 @@ void scroll_map_input(int *p_dx, int *p_dy)
     *p_dx = dx;
     *p_dy = dy;
 }
+
+/** The map scrolling is faster by 1/(1 << this) than in the original game. */
+#define MAP_SCROLL_BOOST_SHIFT 1
 
 void do_scroll_map(void)
 {
@@ -4087,6 +4129,8 @@ void do_scroll_map(void)
         int wibl_x, wibl_y;
         wibl_x = dword_153194 * lbSinTable[angle] >> 8 >> dampr;
         wibl_y = dword_153194 * lbSinTable[angle + LbFPMath_PI/2] >> 8 >> dampr;
+        wibl_x += wibl_x >> MAP_SCROLL_BOOST_SHIFT;
+        wibl_y += wibl_y >> MAP_SCROLL_BOOST_SHIFT;
         ingame.TrackX -= wibl_x;
         ingame.TrackZ += wibl_y;
         engn_xc -= wibl_x;
@@ -4101,6 +4145,8 @@ void do_scroll_map(void)
         int wibl_x, wibl_y;
         wibl_x = dword_153194 * lbSinTable[angle] >> 8 >> dampr;
         wibl_y = dword_153194 * lbSinTable[angle + LbFPMath_PI/2] >> 8 >> dampr;
+        wibl_x += wibl_x >> MAP_SCROLL_BOOST_SHIFT;
+        wibl_y += wibl_y >> MAP_SCROLL_BOOST_SHIFT;
         ingame.TrackX -= wibl_x;
         ingame.TrackZ += wibl_y;
         engn_xc -= wibl_x;
@@ -4270,15 +4316,18 @@ void do_rotate_map(void)
     }
 
     short zoom_input = 0;
+    int wheel_input;
     if (is_gamekey_pressed(GKey_ZOOM_IN))
         zoom_input++;
     if (is_gamekey_pressed(GKey_ZOOM_OUT))
         zoom_input--;
+    // Mouse wheel zooms around the screen centre, same as the keys do
+    wheel_input = LbMouseWheelTake();
 
     // Update zoom level
-    if (zoom_input != 0)
+    if ((zoom_input != 0) || (wheel_input != 0))
     {
-        short new_zoom = ingame.UserZoom + (zoom_input * 8);
+        short new_zoom = ingame.UserZoom + (zoom_input * 8) + (wheel_input * CAMERA_ZOOM_WHEEL_STEP);
 
         if (new_zoom < CAMERA_ZOOM_MIN) {
             if (pktrec_mode != PktR_PLAYBACK) {
@@ -4315,6 +4364,158 @@ void do_rotate_map(void)
     engn_cam_yaw_vel = new_cam_yaw_vel;
 }
 
+/** Half size on screen of an agent, in 1/256 of overall_scale, used by the drag box selection. */
+#define BOX_SELECT_AGENT_HALF_W 14
+#define BOX_SELECT_AGENT_HALF_H 22
+
+static TbBool box_select_active = false;
+static int box_select_x0, box_select_y0, box_select_x1, box_select_y1;
+
+static TbBool agent_overlaps_screen_rect(struct Thing *p_agent, int rx1, int ry1, int rx2, int ry2)
+{
+    struct EnginePoint ep;
+    int hw, hh;
+
+    // Same body point which the target markers are drawn around
+    ep.X3d = PRCCOORD_TO_MAPCOORD(p_agent->X) - engn_xc;
+    ep.Y3d = PRCCOORD_TO_YCOORD(p_agent->Y) + 8 * 15; // engn_yc subtracted within transform_point()
+    ep.Z3d = PRCCOORD_TO_MAPCOORD(p_agent->Z) - engn_zc;
+    ep.Flags = 0;
+    transform_point(&ep);
+
+    hw = (overall_scale * BOX_SELECT_AGENT_HALF_W) >> 8;
+    hh = (overall_scale * BOX_SELECT_AGENT_HALF_H) >> 8;
+    if (hw < 5)
+        hw = 5;
+    if (hh < 8)
+        hh = 8;
+    if ((ep.pp.X + hw < rx1) || (ep.pp.X - hw > rx2))
+        return false;
+    if ((ep.pp.Y + hh < ry1) || (ep.pp.Y - hh > ry2))
+        return false;
+    return true;
+}
+
+/** Selects the agents which overlap the given screen rectangle, and only them.
+ *
+ * The game controls one agent at a time, so the first covered agent (the current
+ * one, if it is covered) gets selected, and the other covered ones are made to
+ * follow and protect it - the way the group button does it. Agents outside of the
+ * rectangle are released from any such group.
+ */
+static ubyte box_select_apply(int rx1, int ry1, int rx2, int ry2)
+{
+    PlayerInfo *p_locplayer;
+    struct Thing *covered[AGENTS_SQUAD_MAX_COUNT];
+    struct Thing *p_leader;
+    ThingIdx dcthing;
+    int n, ncov;
+
+    p_locplayer = &players[local_player_no];
+    dcthing = p_locplayer->DirectControl[0];
+    ncov = 0;
+    for (n = 0; (n < playable_agents) && (n < AGENTS_SQUAD_MAX_COUNT); n++)
+    {
+        struct Thing *p_agent;
+
+        p_agent = p_locplayer->MyAgent[n];
+        if ((p_agent == NULL) || (p_agent->Type != TT_PERSON))
+            continue;
+        if (((p_agent->Flag & TngF_Destroyed) != 0) || ((p_agent->Flag2 & TgF2_KnockedOut) != 0))
+            continue;
+        if (!person_can_accept_control(p_agent->ThingOffset))
+            continue;
+        if (agent_overlaps_screen_rect(p_agent, rx1, ry1, rx2, ry2))
+            covered[ncov++] = p_agent;
+    }
+    // A box with no agents in it changes nothing
+    if (ncov == 0)
+        return GINPUT_NONE;
+
+    p_leader = covered[0];
+    for (n = 0; n < ncov; n++)
+    {
+        if (covered[n]->ThingOffset == dcthing)
+            p_leader = covered[n];
+    }
+
+    // Grouping is changed directly, not through packets, so keep it to single player
+    if (!in_network_game)
+    {
+        for (n = 0; (n < playable_agents) && (n < AGENTS_SQUAD_MAX_COUNT); n++)
+        {
+            struct Thing *p_agent;
+
+            p_agent = p_locplayer->MyAgent[n];
+            if ((p_agent == NULL) || (p_agent->Type != TT_PERSON))
+                continue;
+            if (p_agent->State == PerSt_PROTECT_PERSON)
+            {
+                p_agent->State = PerSt_NONE;
+                p_agent->GotoThingIndex = 0;
+                p_agent->Owner = 0;
+                remove_path(p_agent);
+            }
+        }
+        for (n = 0; n < ncov; n++)
+        {
+            if (covered[n] != p_leader)
+                make_peep_protect_peep(covered[n], p_leader);
+        }
+    }
+
+    my_build_packet(&packets[local_player_no], PAct_SELECT_AGENT, dcthing, p_leader->ThingOffset, 0, 0);
+    user_input_control_flags_raise(local_player_no, 0, UInpCtrF_LBtnDown);
+    return GINPUT_PACKET;
+}
+
+/** Handles the Shift + mouse drag selection box.
+ * @return GINPUT_PACKET if the selection has made a packet.
+ */
+static ubyte box_select_input(void)
+{
+    if (!box_select_active)
+    {
+        if (((lbShift & KMod_SHIFT) == 0) || !lbDisplay.LeftButton)
+            return GINPUT_NONE;
+        if (mouse_move_over_any_hud_element())
+            return GINPUT_NONE;
+        box_select_active = true;
+        box_select_x0 = lbDisplay.MMouseX;
+        box_select_y0 = lbDisplay.MMouseY;
+    }
+    box_select_x1 = lbDisplay.MMouseX;
+    box_select_y1 = lbDisplay.MMouseY;
+    // The drag is not a click for the rest of the input code
+    lbDisplay.LeftButton = 0;
+    if (lbDisplay.MLeftButton)
+        return GINPUT_NONE;
+
+    box_select_active = false;
+    return box_select_apply(
+      min(box_select_x0, box_select_x1), min(box_select_y0, box_select_y1),
+      max(box_select_x0, box_select_x1), max(box_select_y0, box_select_y1));
+}
+
+/** Draws the selection box while it is being dragged. */
+static void box_select_draw(void)
+{
+    TbPixel col;
+    int x0, y0, x1, y1;
+
+    if (!box_select_active)
+        return;
+    col = colour_lookup[ColLU_GREEN];
+    x0 = min(box_select_x0, box_select_x1);
+    y0 = min(box_select_y0, box_select_y1);
+    x1 = max(box_select_x0, box_select_x1);
+    y1 = max(box_select_y0, box_select_y1);
+    LbDrawLine(x0, y0, x1, y0, col);
+    LbDrawLine(x0, y1, x1, y1, col);
+    LbDrawLine(x0, y0, x0, y1, col);
+    LbDrawLine(x1, y0, x1, y1, col);
+}
+
 ubyte process_mouse_inputs(void)
 {
 #if 0
@@ -4337,7 +4538,14 @@ ubyte process_mouse_inputs(void)
         user_input_control_flags_clear(local_player_no, mouser, UInpCtrF_LBtnDown);
     if (!lbDisplay.MRightButton)
         user_input_control_flags_clear(local_player_no, mouser, UInpCtrF_RBtnDown);
-    if ((ingame.DisplayMode != DpM_ENGINEPLY) && (ingame.DisplayMode != DpM_UNKN_3B))
+    if ((ingame.DisplayMode != DpM_ENGINEPLY) && (ingame.DisplayMode != DpM_UNKN_3B)) {
+        box_select_active = false;
+        return did_inp;
+    }
+    did_inp |= box_select_input();
+    if ((did_inp & GINPUT_PACKET) != 0)
+        return did_inp;
+    if (box_select_active)
         return did_inp;
     did_inp |= process_panel_state();
     if ((did_inp & GINPUT_PACKET) != 0)
@@ -4886,7 +5094,8 @@ ubyte do_user_interface(void)
     static GameKey sel_agent_gkeys[] = {
         GKey_SEL_AGENT_1, GKey_SEL_AGENT_2, GKey_SEL_AGENT_3, GKey_SEL_AGENT_4
     };
-    static GameTurn last_sel_agent_turn[AGENTS_SQUAD_MAX_COUNT] = {0};
+    static TbClockMSec last_sel_agent_time[AGENTS_SQUAD_MAX_COUNT] = {0};
+#define SEL_AGENT_DOUBLE_TAP_MS 500
     assert(sizeof(sel_agent_gkeys)/sizeof(sel_agent_gkeys[0]) <= AGENTS_SQUAD_MAX_COUNT);
     for (n = 0; n < (int)(sizeof(sel_agent_gkeys)/sizeof(sel_agent_gkeys[0])); n++)
     {
@@ -4912,7 +5121,8 @@ ubyte do_user_interface(void)
                     my_build_packet(&packets[local_player_no], PAct_SELECT_AGENT, dcthing, p_agent->ThingOffset, 0, 0);
                     user_input_control_flags_raise(local_player_no, 0, UInpCtrF_LBtnDown);
                     // Double tapping - center view on the agent
-                    if (gameturn - last_sel_agent_turn[n] < 7)
+                    // The window is measured in time, as turns are not a fixed duration
+                    if (LbTimerClock() - last_sel_agent_time[n] < SEL_AGENT_DOUBLE_TAP_MS)
                     {
                       struct Packet *p_pckt;
 
@@ -4922,13 +5132,15 @@ ubyte do_user_interface(void)
                       engn_yc = PRCCOORD_TO_MAPCOORD(p_agent->Y);
                       dcthing = p_locplayer->DirectControl[mouser];
                       build_packet(p_pckt, PAct_SELECT_AGENT, dcthing, p_agent->ThingOffset, 0, 0);
-                      if (p_agent->ThingOffset == (short)p_locplayer->DirectControl[mouser])
-                      {
-                          engn_xc = PRCCOORD_TO_MAPCOORD(p_agent->X);
-                          engn_zc = PRCCOORD_TO_MAPCOORD(p_agent->Z);
-                      }
+                      // Move the view right away, whether or not the agent was already controlled
+                      engn_xc = PRCCOORD_TO_MAPCOORD(p_agent->X);
+                      engn_zc = PRCCOORD_TO_MAPCOORD(p_agent->Z);
+                      last_sel_agent_time[n] = 0;
                     }
-                    last_sel_agent_turn[n] = gameturn;
+                    else
+                    {
+                      last_sel_agent_time[n] = LbTimerClock();
+                    }
                 }
                 did_inp |= GINPUT_PACKET;
                 return did_inp;
@@ -5740,7 +5952,7 @@ TbBool skip_redraw_this_turn(void)
     {
         return ((gameturn & 0xF) != 0);
     }
-    return false;
+    return !display_needs_redraw_this_turn();
 }
 
 void show_game_screen(void)
@@ -5756,6 +5968,10 @@ void show_game_screen(void)
 
     BAT_play();
 
+    // Drawn together with the rest of the HUD, so that it is part of the same frame
+    box_select_draw();
+    fps_counter_show();
+
     if (execute_commands)
     {
         long tmp;
@@ -5768,6 +5984,172 @@ void show_game_screen(void)
         gamep_unknval_14 = 0;
         gamep_unknval_11 = tmp;
     }
+}
+
+/** Camera values which the drawing uses; they change once per game turn. */
+struct SmoothCam {
+    s32 xc, yc, zc;
+    s32 yaw, tilt;
+    ushort scale;
+};
+
+static struct SmoothCam smooth_cam_prev;
+static TbBool smooth_cam_prev_valid = false;
+/** Set to false by SWFX_SMOOTH_CAMERA=0 */
+static TbBool game_camera_smoothing = true;
+/** How long drawing one extra frame takes, in microseconds; measured. */
+static ulong smooth_cam_frame_cost_us = 8000;
+/** Random seeds at the start of drawing the frame of the turn, and after it. The extra frames
+ * start from the first ones, so that what flickers at random does so at the pace of the turns. */
+static ulong smooth_cam_seed_beg, smooth_cam_seed_ps_beg;
+static ulong smooth_cam_seed_end, smooth_cam_seed_ps_end;
+
+static void smooth_cam_note_seeds_before_draw(void)
+{
+    smooth_cam_seed_beg = lbSeed;
+    smooth_cam_seed_ps_beg = lbSeed_ps;
+}
+
+#define SMOOTH_CAM_TARGET_FPS 60
+/** Camera movement bigger than this, in map coordinates, is a jump, not a motion. */
+#define SMOOTH_CAM_JUMP_LIMIT 4096
+
+static void smooth_cam_get(struct SmoothCam *c)
+{
+    c->xc = engn_xc;
+    c->yc = engn_yc;
+    c->zc = engn_zc;
+    c->yaw = engn_cam_yaw;
+    c->tilt = engn_cam_tilt;
+    c->scale = overall_scale;
+}
+
+static void smooth_cam_set(const struct SmoothCam *c)
+{
+    engn_xc = c->xc;
+    engn_yc = c->yc;
+    engn_zc = c->zc;
+    engn_cam_yaw = c->yaw;
+    engn_cam_tilt = c->tilt;
+    overall_scale = c->scale;
+}
+
+static s32 smooth_cam_lerp(s32 a, s32 b, int num, int den)
+{
+    return a + (s32)(((long long)(b - a) * num) / den);
+}
+
+/** Draws the scene again, with the camera set by the caller; the world is not advanced. */
+static void smooth_cam_draw_frame(void)
+{
+    TbPixel clr;
+
+    clr = (LbHwRenderEnabled() && LbGlIsActive()) ? HWREND_CLEAR_COLOUR : 0;
+    // Buildings are drawn once per drawing turn; this is a new drawing of the same turn
+    drawturn++;
+    LbHwFrameBegin();
+    LbHwSetTexturePages(vec_tmap, VEC_TMAP_LIMIT);
+    LbScreenClear(clr);
+    prepare_drawlist();
+    engine_draw_whole_screen_top_down();
+    box_select_draw();
+    fps_counter_show();
+}
+
+/**
+ * The game turns run at the frame cap, but the camera can be shown at the pace of the
+ * display. After the frame of this turn is drawn, the view between the camera of the
+ * previous turn and the one of this turn is drawn and shown as extra frames, at even
+ * times within the turn. The last frame is the one of this turn, as usual.
+ */
+static void smooth_cam_subframes(void)
+{
+    struct SmoothCam cur, mid;
+    ulong period_us, start_us, now_us;
+    int slots, k, shown;
+    long dyaw;
+    TbPixel clr;
+
+    smooth_cam_seed_end = lbSeed;
+    smooth_cam_seed_ps_end = lbSeed_ps;
+    smooth_cam_get(&cur);
+    if (!smooth_cam_prev_valid) {
+        smooth_cam_prev = cur;
+        smooth_cam_prev_valid = true;
+        return;
+    }
+    period_us = game_period_length_us();
+    slots = (period_us * SMOOTH_CAM_TARGET_FPS) / 1000000;
+    if ((period_us == 0) || (slots < 2) || (ingame.DisplayMode != DpM_ENGINEPLY)
+      || ((ingame.Flags & (GamF_Unkn0800 | GamF_RenderScene)) != GamF_RenderScene)
+      || skip_redraw_this_turn() || !game_camera_smoothing) {
+        smooth_cam_prev = cur;
+        return;
+    }
+    // A teleport of the camera is not something to move through
+    if ((abs(cur.xc - smooth_cam_prev.xc) > SMOOTH_CAM_JUMP_LIMIT)
+      || (abs(cur.zc - smooth_cam_prev.zc) > SMOOTH_CAM_JUMP_LIMIT)) {
+        smooth_cam_prev = cur;
+        return;
+    }
+    // The yaw goes around
+    dyaw = (cur.yaw - smooth_cam_prev.yaw) & 0xFFFF;
+    if (dyaw >= 0x8000)
+        dyaw -= 0x10000;
+    if ((cur.xc == smooth_cam_prev.xc) && (cur.zc == smooth_cam_prev.zc) && (dyaw == 0)
+      && (cur.scale == smooth_cam_prev.scale) && (cur.yc == smooth_cam_prev.yc)
+      && (cur.tilt == smooth_cam_prev.tilt)) {
+        return; // nothing moves, the frame as it is will do
+    }
+
+    start_us = game_period_start_us();
+    clr = (LbHwRenderEnabled() && LbGlIsActive()) ? HWREND_CLEAR_COLOUR : 0;
+    shown = 0;
+    for (k = 1; k < slots; k++)
+    {
+        ulong due_us = start_us + (period_us * k) / slots;
+
+        now_us = game_now_us();
+        // Not enough time left for this one; the next ones are later still
+        if ((long)(due_us - now_us) < (long)smooth_cam_frame_cost_us / 2)
+            continue;
+        if ((long)(due_us - now_us) > (long)period_us)
+            break; // the clock was reset
+        game_wait_until_us(due_us - smooth_cam_frame_cost_us);
+        now_us = game_now_us();
+
+        mid.xc = smooth_cam_lerp(smooth_cam_prev.xc, cur.xc, k, slots);
+        mid.yc = smooth_cam_lerp(smooth_cam_prev.yc, cur.yc, k, slots);
+        mid.zc = smooth_cam_lerp(smooth_cam_prev.zc, cur.zc, k, slots);
+        mid.yaw = smooth_cam_prev.yaw + (s32)((dyaw * k) / slots);
+        mid.tilt = smooth_cam_lerp(smooth_cam_prev.tilt, cur.tilt, k, slots);
+        mid.scale = (ushort)smooth_cam_lerp(smooth_cam_prev.scale, cur.scale, k, slots);
+        smooth_cam_set(&mid);
+
+        lbSeed = smooth_cam_seed_beg;
+        lbSeed_ps = smooth_cam_seed_ps_beg;
+        smooth_cam_draw_frame();
+        // Events are handled with the frame complete, as the screen can be shown by them
+        game_handle_sdl_events();
+        LbScreenSwapClear(clr);
+        shown++;
+        // The cost estimate follows what was measured, with some caution
+        {
+            ulong took_us = game_now_us() - now_us;
+            smooth_cam_frame_cost_us = (3 * smooth_cam_frame_cost_us + took_us) / 4;
+        }
+    }
+    smooth_cam_set(&cur);
+    smooth_cam_prev = cur;
+    if (shown > 0) {
+        // the frame of this turn; the screen was reused by the others
+        lbSeed = smooth_cam_seed_beg;
+        lbSeed_ps = smooth_cam_seed_ps_beg;
+        smooth_cam_draw_frame();
+    }
+    // What follows - the world of the turn - goes on from where the first drawing left it
+    lbSeed = smooth_cam_seed_end;
+    lbSeed_ps = smooth_cam_seed_ps_end;
 }
 
 void draw_game(void)
@@ -6165,6 +6547,20 @@ void game_process(void)
 {
     debug_multicolor_sprite(193);
     LOGDBG("WSCREEN 0x%p", (void *)lbDisplay.WScreen);
+    // The hardware scene rendering is on by default; the environment can change that:
+    // SWFX_HW=0 (or "software") starts with the software renderer,
+    // SWFX_HW=classic keeps the hardware rendering but with the classic lighting
+    if (getenv("SWFX_HW") != NULL) {
+        const char *hwval = getenv("SWFX_HW");
+
+        if ((strcmp(hwval, "0") == 0) || (strcmp(hwval, "software") == 0))
+            LbHwRenderSetEnabled(false);
+        else if (strcmp(hwval, "classic") == 0)
+            LbHwLightingSetMode(HwLight_Classic);
+    }
+
+    if ((getenv("SWFX_SMOOTH_CAMERA") != NULL) && (strcmp(getenv("SWFX_SMOOTH_CAMERA"), "0") == 0))
+        game_camera_smoothing = false;
 
     while ( !exit_game )
     {
@@ -6179,6 +6575,8 @@ void game_process(void)
         if (ingame.DisplayMode == DpM_PURPLEMNU) {
             LOGDBG("id=%d  trial alloc = %d turn %lu", 0, triangulation, gameturn);
         }
+        LbHwFrameBegin();
+        LbHwSetTexturePages(vec_tmap, VEC_TMAP_LIMIT);
         input();
         update_tick_time();
         // Faces thrown by an explosion can hit people once they land, so they
@@ -6187,7 +6585,11 @@ void game_process(void)
         if ((ingame.DisplayMode == DpM_ENGINEPLY)
           && ((ingame.Flags & TngF_ProgressAction) != 0))
             process_explode();
+        perf_phase_begin(PerfPhase_Draw);
+        smooth_cam_note_seeds_before_draw();
         draw_game();
+        perf_phase_end(PerfPhase_Draw);
+        smooth_cam_subframes();
         debug_trace_turn_bound(gameturn);
         load_packet();
         if ( ((active_flags_general_unkn01 & 0x8000) != 0) !=
@@ -6211,8 +6613,13 @@ void game_process(void)
         }
         else if (!skip_redraw_this_turn())
         {
+            perf_phase_begin(PerfPhase_Swap);
             game_update();
-            LbScreenSwapClear(0);
+            // When the GPU draws the scene, what the software draws is put over it, and
+            // everything not drawn has to be left transparent
+            LbScreenSwapClear((LbHwRenderEnabled() && LbGlIsActive() && (ingame.DisplayMode == DpM_ENGINEPLY)) ?
+              HWREND_CLEAR_COLOUR : 0);
+            perf_phase_end(PerfPhase_Swap);
         }
 
         update_unkn_changing_colors();
