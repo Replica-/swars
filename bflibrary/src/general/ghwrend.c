@@ -73,6 +73,7 @@ void LbHwPixelLightsSetEnabled(TbBool enabled)
 
 static float beam_a[HW_BEAMS_MAX * 4];
 static float beam_b[HW_BEAMS_MAX * 4];
+static float beam_c[HW_BEAMS_MAX * 4];
 static int beam_count = 0;
 
 void LbHwNoteBeam(float x1, float y1, float x2, float y2, int colour, int itime)
@@ -82,7 +83,8 @@ void LbHwNoteBeam(float x1, float y1, float x2, float y2, int colour, int itime)
     // The things are enlisted before the recording of the scene starts, so it is not checked
     if (beam_count >= HW_BEAMS_MAX)
         return;
-    // The older the beam is, the weaker; some beams have a negative time, for special effects
+    // The light which the beam throws on the ground is weaker the older the beam is; some beams have a
+    // negative time, for special effects. A flash at the muzzle shows only in the first moments.
     strength = (itime < 0) ? 0.8f : (1.0f - 0.18f * (float)itime);
     if (strength < 0.3f)
         strength = 0.3f;
@@ -91,16 +93,35 @@ void LbHwNoteBeam(float x1, float y1, float x2, float y2, int colour, int itime)
     beam_a[beam_count * 4 + 2] = x2;
     beam_a[beam_count * 4 + 3] = y2;
     beam_b[beam_count * 4 + 0] = (float)colour;
-    beam_b[beam_count * 4 + 1] = strength;
-    beam_b[beam_count * 4 + 2] = 380.0f;
+    beam_b[beam_count * 4 + 1] = strength * 0.7f;
+    beam_b[beam_count * 4 + 2] = 300.0f;
     beam_b[beam_count * 4 + 3] = 0.0f;
+    beam_c[beam_count * 4 + 0] = beam_c[beam_count * 4 + 1] = 0.0f;
     beam_count++;
 }
 
-int LbHwGetBeams(const float **p_a, const float **p_b)
+void LbHwNoteMuzzle(float sx, float sy, int colour, float strength, float radius, float dirx, float dirz)
+{
+    if (beam_count >= HW_BEAMS_MAX)
+        return;
+    beam_a[beam_count * 4 + 0] = sx;
+    beam_a[beam_count * 4 + 1] = sy;
+    beam_a[beam_count * 4 + 2] = sx;
+    beam_a[beam_count * 4 + 3] = sy;
+    beam_b[beam_count * 4 + 0] = (float)colour;
+    beam_b[beam_count * 4 + 1] = 0.0f;
+    beam_b[beam_count * 4 + 2] = radius;
+    beam_b[beam_count * 4 + 3] = strength;
+    beam_c[beam_count * 4 + 0] = dirx;
+    beam_c[beam_count * 4 + 1] = dirz;
+    beam_count++;
+}
+
+int LbHwGetBeams(const float **p_a, const float **p_b, const float **p_c)
 {
     *p_a = beam_a;
     *p_b = beam_b;
+    *p_c = beam_c;
     return pl_enabled ? beam_count : 0;
 }
 

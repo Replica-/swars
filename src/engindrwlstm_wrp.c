@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file engindrwlstm_wrp.c
@@ -16,6 +16,7 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
+#include "bfhwrend.h"
 #include "engindrwlstm_wrp.h"
 
 #include "bfendian.h"
@@ -375,8 +376,28 @@ void build_laser(int x1, int y1, int z1, int x2, int y2, int z2,
       depth_shift, itime, ofs_x, ofs_y, colour);
 }
 
+/** Gives the shift on the screen, in the units of the sprite, from the position of a person to the tip of
+ * the gun in their sprite - the place where the beams are drawn from. */
+void person_muzzle_sprite_offset(struct Thing *p_person, short *p_ofs_x, short *p_ofs_y)
+{
+    ushort mangle, frame;
+
+    mangle = (p_person->U.UPerson.Angle + 8 - byte_176D49) & 7;
+    frame = p_person->StartFrame + 1 + mangle;
+    *p_ofs_x = bul_starts[frame].OffsetX;
+    *p_ofs_y = bul_starts[frame].OffsetY;
+}
+
 void draw_bang(struct SimpleThing *p_pow)
 {
+    // The explosion lights up what is around it, red like the fire
+    {
+        struct ShEnginePoint bsp;
+
+        transform_shpoint(&bsp, (p_pow->X >> 8) - engn_xc, (p_pow->Y >> 5) - 8 * engn_yc, (p_pow->Z >> 8) - engn_zc);
+        LbHwNoteMuzzle((float)bsp.X, (float)bsp.Y, colour_lookup[ColLU_RED], 0.9f, 520.0f, 0.0f, 0.0f);
+    }
+
     if (p_pow->State != 0)
     {
         short st;

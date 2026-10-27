@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file weapon.h
@@ -353,6 +353,9 @@ int gun_out_anim(struct Thing *p_person, ubyte shoot_flag);
 
 ushort set_player_weapon_turn(struct Thing *p_person, ushort delay_turns);
 
+struct M31;
+/** Where a shot of the weapon starts, when fired by the person (the muzzle), in precise coords. */
+TbBool thing_fire_shot_start_position(struct M31 *prc_beg_pt, struct Thing *p_owner, WeaponType wtype, ushort barrel);
 s32 laser_hit_at(s32 x1, s32 y1, s32 z1, s32 *x2, s32 *y2, s32 *z2, struct Thing *p_shot);
 void finalise_razor_wire(struct Thing *p_person);
 void init_lay_razor(struct Thing *p_thing, short x, short y, short z, int flag);

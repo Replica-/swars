@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file tngobjdrw.c
@@ -16,6 +16,9 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
+#include <math.h>
+#include <stdlib.h>
+#include "bfhwrend.h"
 #include "tngobjdrw.h"
 
 #include "bfkeybd.h"
@@ -34,6 +37,7 @@
 #include "engintxtrmap.h"
 #include "enginzoom.h"
 
+#include "weapon.h"
 #include "bigmap.h"
 #include "building.h"
 #include "display.h"
@@ -390,12 +394,74 @@ void build_vehicle(struct Thing *p_thing)
     do_car_glare(p_thing);
 }
 
+void person_muzzle_sprite_offset(struct Thing *p_person, short *p_ofs_x, short *p_ofs_y);
+
 void build_person(struct Thing *p_thing)
 {
     ushort frame, brig;
     int cor_dx, cor_dy, cor_dz;
     char locstr[12];
 
+    // A weapon which is charging or firing lights up what is around the gun, from the very start;
+    // the stronger the weapon, the stronger and wider the light, and it goes in front of the agent
+    if (((p_thing->Flag & (TngF_WepCharging | TngF_TriggerUse)) != 0)
+      && (p_thing->State != PerSt_DEAD) && (p_thing->U.UPerson.AnimMode != ANIM_PERS_DEAD_BODY)
+      && (p_thing->Type == TT_PERSON))
+    {
+        struct ShEnginePoint msp;
+        short mx, my, mz, ofs_x, ofs_y;
+        float strength, radius;
+        int colour;
+        TbBool has_light;
+
+        has_light = true;
+        switch (p_thing->U.UPerson.CurrentWeapon)
+        {
+        case WEP_UZI:       strength = 0.30f; radius = 170.0f; colour = colour_lookup[ColLU_YELLOW]; break;
+        case WEP_MINIGUN:   strength = 0.70f; radius = 280.0f; colour = colour_lookup[ColLU_YELLOW]; break;
+        case WEP_LASER:     strength = 0.55f; radius = 260.0f; colour = colour_lookup[ColLU_RED]; break;
+        case WEP_ELLASER:   strength = 0.65f; radius = 280.0f; colour = colour_lookup[ColLU_CYAN]; break;
+        case WEP_RAP:       strength = 0.90f; radius = 340.0f; colour = colour_lookup[ColLU_RED]; break;
+        case WEP_FLAMER:    strength = 0.80f; radius = 300.0f; colour = colour_lookup[ColLU_RED]; break;
+        case WEP_LONGRANGE: strength = 0.85f; radius = 320.0f; colour = colour_lookup[ColLU_YELLOW]; break;
+        case WEP_BEAM:      strength = 0.90f; radius = 330.0f; colour = colour_lookup[ColLU_RED]; break;
+        case WEP_QDEVASTATOR: strength = 1.0f; radius = 360.0f; colour = colour_lookup[ColLU_BLUE]; break;
+        default:            strength = 0.0f; radius = 0.0f; colour = 0; has_light = false; break; // no weapon, or one which does not shoot
+        }
+        if (has_light)
+        {
+            float dx, dz, len;
+
+            if ((p_thing->Flag & TngF_WepCharging) != 0)
+                strength *= 0.3f + 0.7f * (float)p_thing->U.UPerson.WeaponTimer / 15.0f;
+            if (strength > 1.0f)
+                strength = 1.0f;
+            // The muzzle on the screen is where the beams are drawn from: the position of the person,
+            // shifted by where the gun is in the sprite for the way it is turned
+            get_thing_position_mapcoords(&mx, &my, &mz, p_thing->ThingOffset);
+            person_muzzle_sprite_offset(p_thing, &ofs_x, &ofs_y);
+            transform_shpoint(&msp, mx - engn_xc, 8 * (my >> 3) - 8 * engn_yc, mz - engn_zc);
+            msp.X += (ofs_x * overall_scale) >> 9;
+            msp.Y += (ofs_y * overall_scale) >> 9;
+            // The way the shots go: at the target, or straight forward in the way the agent faces
+            if (p_thing->PTarget != NULL) {
+                dx = (float)(p_thing->PTarget->X - p_thing->X);
+                dz = (float)(p_thing->PTarget->Z - p_thing->Z);
+            } else {
+                dx = (float)angle_direction[p_thing->U.UPerson.Angle & 7].DiX;
+                dz = (float)angle_direction[p_thing->U.UPerson.Angle & 7].DiY;
+            }
+            len = sqrtf(dx * dx + dz * dz);
+            if (len < 1.0f) {
+                dx = 0.0f;
+                dz = 0.0f;
+            } else {
+                dx /= len;
+                dz /= len;
+            }
+            LbHwNoteMuzzle((float)msp.X, (float)msp.Y, colour, strength, radius, dx, dz);
+        }
+    }
     if (p_thing->State == PerSt_BEING_PERSUADED)
     {
         frame = p_thing->Frame;

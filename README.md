@@ -75,11 +75,17 @@ and are covered by the same license.
   Weapon shots and lasers light what is around them in the colour of the beam, from the muzzle along the
   beam, so the light of a shot scatters across the floor and the buildings. `Shift`+`F6` turns it off;
   `SWFX_PL_GAIN`, `SWFX_PL_RADIUS`, `SWFX_PL_VCOMP` (how far the light reaches up the screen) and
-  `SWFX_BEAM_GAIN` tune it.
+  `SWFX_BEAM_GAIN` tune it. A weapon which is charging or firing also lights up the ground, the walls and the
+  people in front of the gun, as a cone, from the moment the charging starts; the stronger the weapon (uzi,
+  minigun, lasers, rockets, ...), the stronger and wider the light. The light is blended like a screen, so
+  places which are already bright do not get overexposed. Explosions light their surroundings red. `SWFX_BEAM_TEST=1` draws a fixed test beam.
 * **Smooth camera.** The game turns still run at the frame rate cap, but while the
   view is panned, zoomed or rotated, extra frames are drawn between the turns, with
   the camera moved between its previous and its current position, so the view
-  moves at about 60 frames per second (the counter shows `FPS` 60 and `TPS` 20).
+  moves at the frame rate of the application. There are two rates, and the counter at the top right shows both:
+  `APP` is the frames shown per second, with its limit (30, 60, 90 or 120; 60 by default, `Shift`+`F7`),
+  and `LOOP` is the turns of the game loop per second, with its own limit (20 by default, `[` and `]`).
+  The game, the scrolling ticker and the radar follow the game loop; the camera and the mouse follow the application.
   Nothing else moves between the turns, and the frame of the turn is shown last, so it
   adds no delay. `SWFX_SMOOTH_CAMERA=0` turns it off.
 * **Separate costumes for enemy agents.** Enemy syndicate agents (not the zealots of the
@@ -123,6 +129,7 @@ and are covered by the same license.
 | Hardware / software rendering | `Shift`+`F3` |
 | Classic / enhanced lighting | `Shift`+`F4` |
 | Smooth camera on / off | `Shift`+`F5` |
+| Limit of the application frames per second (30, 60, 90, 120) | `Shift`+`F7` |
 | Per-pixel lights on / off | `Shift`+`F6` |
 | Next costume for your agents (`pspr`) | `F10` |
 | Next costume for enemy agents (`espr`) | `F11` (screen brightness is `Shift`+`F11` down, `Ctrl`+`F11` reset) |

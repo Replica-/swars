@@ -140,7 +140,12 @@ void LbHwPixelLightsSetEnabled(TbBool enabled);
 void LbHwNoteBeam(float sx1, float sy1, float sx2, float sy2, int colour, int itime);
 /** Gives the beams of the frame: for each, four numbers (screen x1, y1, x2, y2) in `a` and four (palette
  * colour, strength, radius, 0) in `b`; returns how many. */
-int LbHwGetBeams(const float **p_a, const float **p_b);
+int LbHwGetBeams(const float **p_a, const float **p_b, const float **p_c);
+/** A weapon which is charging or firing: a flash of light at the muzzle on the screen, with the
+ * strength from 0 to 1. Not tied to a beam, so it starts as soon as the charging does. */
+/** @param radius Reach of the light on the ground, in map units.
+ * @param dirx, dirz Direction the light is thrown in, on the ground; (0,0) for a light which goes all round. */
+void LbHwNoteMuzzle(float sx, float sy, int colour, float strength, float radius, float dirx, float dirz);
 
 /** The game says where a short lived light (explosion, flash) is in the given game turn. */
 void LbHwNoteDynamicLight(long turn, float x, float z, float intensity);

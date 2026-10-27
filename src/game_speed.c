@@ -172,6 +172,24 @@ void game_fps_cap_step(int dir)
     fps_cap_change(dir);
 }
 
+ushort game_app_fps_cap = 60;
+
+void game_app_fps_cap_step(int dir)
+{
+    static const ushort caps[] = { 30, 60, 90, 120 };
+    int i, n;
+
+    n = (int)(sizeof(caps) / sizeof(caps[0]));
+    for (i = 0; i < n; i++) {
+        if (caps[i] >= game_app_fps_cap)
+            break;
+    }
+    if (i >= n)
+        i = n - 1;
+    i = (i + n + ((dir > 0) ? 1 : -1)) % n;
+    game_app_fps_cap = caps[i];
+}
+
 /** Microsecond clock for measuring short phases of the frame. */
 static ulong perf_now_us(void)
 {
@@ -358,6 +376,14 @@ static const char *fps_renderer_name(void)
     return "SW";
 }
 
+/** Frames which were shown, counted for the counter; drawing a frame which is not shown does not count. */
+static ulong fps_shown_frames = 0;
+
+void fps_counter_note_present(void)
+{
+    fps_shown_frames++;
+}
+
 void fps_counter_show(void)
 {
     static TbClockMSec window_start = 0;
@@ -370,17 +396,23 @@ void fps_counter_show(void)
     ulong dt;
 
     curr_time = LbTimerClock();
-    window_frames++;
+    window_frames = fps_shown_frames;
     dt = curr_time - window_start;
     if (dt >= 500) {
         shown_fps = (window_frames * 1000 + dt / 2) / dt;
         shown_tps = ((gameturn - window_start_turn) * 1000 + dt / 2) / dt;
-        shown_draw_us = perf_phase_acc[PerfPhase_Draw] / window_frames;
-        shown_swap_us = perf_phase_acc[PerfPhase_Swap] / window_frames;
+        {
+            // The times are measured for the turns, not for the extra frames of the smooth camera
+            ulong turns = (gameturn > window_start_turn) ? (gameturn - window_start_turn) : 1;
+
+            shown_draw_us = perf_phase_acc[PerfPhase_Draw] / turns;
+            shown_swap_us = perf_phase_acc[PerfPhase_Swap] / turns;
+        }
         perf_phase_acc[PerfPhase_Draw] = 0;
         perf_phase_acc[PerfPhase_Swap] = 0;
         window_start = curr_time;
         window_start_turn = gameturn;
+        fps_shown_frames = 0;
         window_frames = 0;
     }
 
@@ -390,8 +422,10 @@ void fps_counter_show(void)
             snprintf(capstr, sizeof(capstr), "%d", (int)game_fps_cap);
         else
             snprintf(capstr, sizeof(capstr), "OFF");
-        snprintf(locstr, sizeof(locstr), "%s FPS %lu TPS %lu SKIP %d CAP %s  DRAW %lu.%lu SWAP %lu.%lu  pspr:%d espr:%d",
-          fps_renderer_name(), shown_fps, shown_tps, (int)frameskip, capstr,
+        // Two different things: the frames shown (the application, with the camera and the mouse), and
+        // the turns of the game loop (the game, the ticker, the radar)
+        snprintf(locstr, sizeof(locstr), "%s APP %lu/%d  LOOP %lu/%s  SKIP %d  DRAW %lu.%lu SWAP %lu.%lu  pspr:%d espr:%d",
+          fps_renderer_name(), shown_fps, (int)game_app_fps_cap, shown_tps, capstr, (int)frameskip,
           shown_draw_us / 1000, (shown_draw_us / 100) % 10,
           shown_swap_us / 1000, (shown_swap_us / 100) % 10,
           (int)ingame.TrenchcoatPreference, (int)game_enemy_costume);

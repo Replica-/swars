@@ -86,6 +86,12 @@ extern short game_fps_cap;
 extern short frameskip;
 /** Changes the frame rate cap by one step, up (1) or down (-1). */
 void game_fps_cap_step(int dir);
+/** Tells that a frame was shown to the user; the counter at the top right counts these. */
+void fps_counter_note_present(void);
+/** Limit of the frames shown per second by the application (the camera, the mouse): 30, 60, 90 or 120.
+ * The game loop (the turns) has its own, game_fps_cap. */
+extern ushort game_app_fps_cap;
+void game_app_fps_cap_step(int dir);
 void frameskip_increase(void);
 void frameskip_decrease(void);
 

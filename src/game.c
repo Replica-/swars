@@ -1050,6 +1050,14 @@ ubyte game_graphics_inputs(void)
         did_inp |= GINPUT_DIRECT;
     }
 
+    // Shift+F7 changes the limit of the frames shown per second (30, 60, 90, 120)
+    if (is_key_pressed(KC_F7, KMod_SHIFT))
+    {
+        clear_key_pressed(KC_F7);
+        game_app_fps_cap_step(1);
+        did_inp |= GINPUT_DIRECT;
+    }
+
     // Shift+F6 turns the per-pixel lights of the hardware rendering on and off
     if (is_key_pressed(KC_F6, KMod_SHIFT))
     {
@@ -6031,7 +6039,6 @@ static void smooth_cam_note_seeds_before_draw(void)
     smooth_cam_seed_ps_beg = lbSeed_ps;
 }
 
-#define SMOOTH_CAM_TARGET_FPS 60
 /** Camera movement bigger than this, in map coordinates, is a jump, not a motion. */
 #define SMOOTH_CAM_JUMP_LIMIT 4096
 
@@ -6060,10 +6067,20 @@ static s32 smooth_cam_lerp(s32 a, s32 b, int num, int den)
     return a + (s32)(((long long)(b - a) * num) / den);
 }
 
-/** Draws the scene again, with the camera set by the caller; the world is not advanced. */
+extern int scrollinfo_pos, scrollinfo_vel;
+
+/** Draws the scene again, with the camera set by the caller; the world is not advanced. The things
+ * which the drawing moves on - the radar and the ticker - belong to the game loop, so they are put
+ * back as they were, and move only when the next turn is drawn. */
 static void smooth_cam_draw_frame(void)
 {
     TbPixel clr;
+    struct Scanner bkp_scanner;
+    int bkp_scroll_pos, bkp_scroll_vel;
+
+    bkp_scanner = ingame.Scanner;
+    bkp_scroll_pos = scrollinfo_pos;
+    bkp_scroll_vel = scrollinfo_vel;
 
     clr = (LbHwRenderEnabled() && LbGlIsActive()) ? HWREND_CLEAR_COLOUR : 0;
     // Buildings are drawn once per drawing turn; this is a new drawing of the same turn
@@ -6075,6 +6092,10 @@ static void smooth_cam_draw_frame(void)
     engine_draw_whole_screen_top_down();
     box_select_draw();
     fps_counter_show();
+
+    ingame.Scanner = bkp_scanner;
+    scrollinfo_pos = bkp_scroll_pos;
+    scrollinfo_vel = bkp_scroll_vel;
 }
 
 /**
@@ -6100,7 +6121,18 @@ static void smooth_cam_subframes(void)
         return;
     }
     period_us = game_period_length_us();
-    slots = (period_us * SMOOTH_CAM_TARGET_FPS) / 1000000;
+    // As many frames in the turn as the limit of the application allows; a turn does not have to
+    // hold a whole number of them - what is left is taken to the next turn
+    {
+        static float slot_carry = 0.0f;
+        float want;
+
+        want = (float)period_us * (float)game_app_fps_cap / 1000000.0f + slot_carry;
+        slots = (int)want;
+        slot_carry = want - (float)slots;
+        if (slot_carry > 1.0f)
+            slot_carry = 1.0f;
+    }
     if ((period_us == 0) || (slots < 2) || (ingame.DisplayMode != DpM_ENGINEPLY)
       || ((ingame.Flags & (GamF_Unkn0800 | GamF_RenderScene)) != GamF_RenderScene)
       || skip_redraw_this_turn() || !game_camera_smoothing) {
@@ -6153,6 +6185,7 @@ static void smooth_cam_subframes(void)
         // Events are handled with the frame complete, as the screen can be shown by them
         game_handle_sdl_events();
         LbScreenSwapClear(clr);
+        fps_counter_note_present();
         shown++;
         // The cost estimate follows what was measured, with some caution
         {
@@ -6232,7 +6265,7 @@ void pause_option_label(int opt, char *name, char *keys, int len)
     {
     case 0: n = "RENDERER";      k = "SHIFT+F3"; break;
     case 1: n = "LIGHTING";      k = "SHIFT+F4"; break;
-    case 2: n = "FRAME RATE CAP"; k = "[ AND ]"; break;
+    case 2: n = "GAME LOOP CAP"; k = "[ AND ]"; break;
     case 3: n = "FRAME SKIP";    k = "NUMPAD + AND -"; break;
     case 4: n = "SMOOTH CAMERA"; k = "SHIFT+F5"; break;
     case 5: n = "AGENT COSTUME"; k = "F10"; break;
@@ -6241,6 +6274,7 @@ void pause_option_label(int opt, char *name, char *keys, int len)
     case 8: n = "SCANNER LIGHT"; k = "NUMPAD 6 AND 4"; break;
     case 9: n = "CAMERA VIEW";   k = "F"; break;
     case 10: n = "PIXEL LIGHTS"; k = "SHIFT+F6"; break;
+    case 11: n = "APP FPS CAP";  k = "SHIFT+F7"; break;
     }
     snprintf(name, len, "%s", n);
     snprintf(keys, len, "%s", k);
@@ -6288,6 +6322,9 @@ void pause_option_value(int opt, char *buf, int len)
         break;
     case 10:
         snprintf(buf, len, "%s", LbHwPixelLightsEnabled() ? "ON" : "OFF");
+        break;
+    case 11:
+        snprintf(buf, len, "%d", (int)game_app_fps_cap);
         break;
     default:
         buf[0] = '\0';
@@ -6353,6 +6390,9 @@ void pause_option_change(int opt, int dir)
         break;
     case 10:
         LbHwPixelLightsSetEnabled(!LbHwPixelLightsEnabled());
+        break;
+    case 11:
+        game_app_fps_cap_step(dir);
         break;
     }
 }
@@ -6824,6 +6864,7 @@ void game_process(void)
             // everything not drawn has to be left transparent
             LbScreenSwapClear((LbHwRenderEnabled() && LbGlIsActive() && (ingame.DisplayMode == DpM_ENGINEPLY)) ?
               HWREND_CLEAR_COLOUR : 0);
+            fps_counter_note_present();
             perf_phase_end(PerfPhase_Swap);
         }
 

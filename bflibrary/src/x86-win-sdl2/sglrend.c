@@ -40,6 +40,7 @@ static GLuint tex_remap = 0;
 static TbBool atlas_needs_full_upload = true;
 static TbBool scene_ready = false;
 static TbBool scene_failed = false;
+static GLint loc_bc = -1;
 static GLint loc_bcount = -1, loc_bgain = -1, loc_ba = -1, loc_bb = -1;
 static GLint loc_lm0 = -1, loc_lm1 = -1, loc_lcount = -1, loc_lgain = -1, loc_lights = -1;
 static GLint loc_screen = -1, loc_pages = -1, loc_fade = -1, loc_pal = -1, loc_enh = -1, loc_atlas = -1, loc_remap = -1, loc_bias = -1, loc_skip = -1;
@@ -102,6 +103,7 @@ static const char *scene_fs_src =
     "uniform float uBeamGain;\n"
     "uniform vec4 uBeamA[16];\n"
     "uniform vec4 uBeamB[16];\n"
+    "uniform vec4 uBeamC[16];\n"
     "uniform float uUvBias;\n"
     "uniform int uSkipMode;\n"
     "\n"
@@ -154,14 +156,33 @@ static const char *scene_fs_src =
     "    for (int i = 0; i < uBeamCount; i++) {\n"
     "        vec4 A = uBeamA[i];\n"
     "        vec4 B = uBeamB[i];\n"
+    "        vec3 col = pal(int(B.x + 0.5));\n"
     "        vec2 tp = toGround(p - A.xy);\n"
     "        vec2 tb = toGround(A.zw - A.xy);\n"
+    "        // The light of the beam on the ground along it\n"
     "        float t = clamp(dot(tp, tb) / max(dot(tb, tb), 1.0), 0.0, 1.0);\n"
     "        float f = max(1.0 - length(tp - tb * t) / B.z, 0.0);\n"
-    "        f *= f;\n"
-    "        float m = max(1.0 - length(tp) / (B.z * 1.6), 0.0);\n"
-    "        f += m * m;\n"
-    "        g += pal(int(B.x + 0.5)) * (B.y * f);\n"
+    "        g += col * (B.y * f * f);\n"
+    "        // The light at the muzzle, thrown in the direction the gun points: a cone starting a bit in\n"
+    "        // front of the gun; a light with no direction goes all round\n"
+    "        if (B.w > 0.0) {\n"
+    "            vec2 dir = uBeamC[i].xy;\n"
+    "            vec2 q = tp;\n"
+    "            float cone = 1.0;\n"
+    "            if (dot(dir, dir) > 0.01) {\n"
+    "                dir = normalize(dir);\n"
+    "                q = tp - dir * (B.z * 0.3);\n"
+    "                cone = mix(0.12, 1.0, smoothstep(-0.1, 0.8, dot(normalize(q + vec2(0.001)), dir)));\n"
+    "            }\n"
+    "            float m = max(1.0 - length(q) / B.z, 0.0);\n"
+    "            vec3 fc = mix(col, vec3(1.0, 0.85, 0.55), 0.4);\n"
+    "            g += fc * (B.w * m * m * cone);\n"
+    "            // and a much weaker light from the flash in all directions\n"
+    "            if (dot(uBeamC[i].xy, uBeamC[i].xy) > 0.01) {\n"
+    "                float o = max(1.0 - length(tp) / (B.z * 0.7), 0.0);\n"
+    "                g += fc * (B.w * o * o * 0.22);\n"
+    "            }\n"
+    "        }\n"
     "    }\n"
     "    return g * uBeamGain;\n"
     "}\n"
@@ -279,8 +300,17 @@ static const char *scene_fs_src =
     "        } else {\n"
     "            rgb = shaded(tx, sh);\n"
     "        }\n"
-    "    }\n"    "    if (mode < 100 && alpha >= 1.0 && uEnhanced != 0 && uBeamCount > 0)\n"
-    "        rgb += beamGlow(vPos) * (0.35 + 1.3 * luma(rgb));\n"
+    "    }\n"    "    // The light of the shots falls on what is lit by surfaces - the tile map, walls, people - and\n"
+    "    // not on the flat colours of the effects (the beams themselves)\n"
+    "    bool flatMode = (mode == 0 || mode == 1 || mode == 4 || (mode >= 14 && mode <= 17) || mode == 102 || mode == 103);\n"
+    "    if (uEnhanced != 0 && uBeamCount > 0 && !flatMode && alpha >= 1.0) {\n"
+    "        // Not simply added: what is already bright takes less of it, and it is blended like a\n"
+    "        // screen, so it cannot go over white\n"
+    "        float lm = luma(rgb);\n"
+    "        vec3 bg = beamGlow(vPos) * (0.6 + 1.2 * lm) * (1.0 - 0.75 * smoothstep(0.25, 0.7, lm));\n"
+    "        bg = clamp(bg, 0.0, 0.92);\n"
+    "        rgb = vec3(1.0) - (vec3(1.0) - rgb) * (vec3(1.0) - bg);\n"
+    "    }\n"
     "    bool isSprite = (mode == 100 || mode == 101);\n"
     "    if (alpha < 1.0 && uEnhanced != 0 && !isSprite) {\n"
     "        // What is drawn half transparent and is bright - lights, glows, lasers - is added to\n"
@@ -339,6 +369,7 @@ static TbBool LbGlSceneInit(void)
     loc_bgain = gl.GetUniformLocation(scene_program, "uBeamGain");
     loc_ba = gl.GetUniformLocation(scene_program, "uBeamA");
     loc_bb = gl.GetUniformLocation(scene_program, "uBeamB");
+    loc_bc = gl.GetUniformLocation(scene_program, "uBeamC");
     loc_atlas = gl.GetUniformLocation(scene_program, "uAtlas");
     loc_bias = gl.GetUniformLocation(scene_program, "uUvBias");
     loc_skip = gl.GetUniformLocation(scene_program, "uSkipMode");
@@ -727,18 +758,19 @@ void LbGlSceneDraw(GLuint pal_texture, long buf_width, long buf_height)
             gl.Uniform4fv(loc_lights, n, lts);
         }
         {
-            const float *ba, *bb;
+            const float *ba, *bb, *bc;
             static float bgain = -1.0f;
             int nb;
 
             if (bgain < 0.0f)
-                bgain = (getenv("SWFX_BEAM_GAIN") != NULL) ? (float)atof(getenv("SWFX_BEAM_GAIN")) : 1.2f;
-            nb = LbHwGetBeams(&ba, &bb);
+                bgain = (getenv("SWFX_BEAM_GAIN") != NULL) ? (float)atof(getenv("SWFX_BEAM_GAIN")) : 1.0f;
+            nb = LbHwGetBeams(&ba, &bb, &bc);
             gl.Uniform1i(loc_bcount, nb);
             if (nb > 0) {
                 gl.Uniform1f(loc_bgain, bgain);
                 gl.Uniform4fv(loc_ba, nb, ba);
                 gl.Uniform4fv(loc_bb, nb, bb);
+                gl.Uniform4fv(loc_bc, nb, bc);
             }
         }
     }
