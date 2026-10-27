@@ -83,6 +83,11 @@ void game_wait_until_us(ulong target_us);
 /** Limit of frames per second, 0 for no limit. Game logic runs once per frame,
  * so this also sets the game speed; 16 is the original pace. */
 extern short game_fps_cap;
+extern short frameskip;
+/** Changes the frame rate cap by one step, up (1) or down (-1). */
+void game_fps_cap_step(int dir);
+void frameskip_increase(void);
+void frameskip_decrease(void);
 
 /** Counts a drawn frame and draws the FPS counter in the top right corner. */
 void fps_counter_show(void);

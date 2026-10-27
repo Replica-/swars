@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file lvdraw3d.c
@@ -16,6 +16,7 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
+#include <stdlib.h>
 #include "lvdraw3d.h"
 
 #include "bfgl.h"
@@ -52,6 +53,8 @@
 #include "player.h"
 #include "scanner.h"
 #include "swlog.h"
+#include "game_sprts.h"
+#include "people.h"
 #include "thing.h"
 #include "thing_expld.h"
 #include "thing_onface.h"
@@ -214,6 +217,23 @@ void screen_sorted_sprite_statc_render_callback(ushort sspr)
         else if (p_thing->SubType == 48)
             check_mouse_overlap(sspr);
     }
+}
+
+/** Tells if the person is an enemy agent, which wears the enemy costume. */
+TbBool screen_sorted_sprite_persn_alt_callback(ushort sspr)
+{
+    struct Thing *p_thing;
+
+    if (game_enemy_costume == ingame.TrenchcoatPreference)
+        return false;
+    p_thing = (struct Thing *)game_sort_sprites[sspr].SrcItem;
+    if ((p_thing == NULL) || (p_thing->Type != TT_PERSON) || (p_thing->SubType != SubTT_PERS_AGENT))
+        return false;
+    // SWFX_ESPR_ALL makes all the agents wear the enemy costume, to see how it looks
+    if (getenv("SWFX_ESPR_ALL") != NULL)
+        return true;
+    return (p_thing->Flag & TngF_PlayerAgent) == 0
+      && (p_thing->U.UPerson.EffectiveGroup != ingame.MyGroup);
 }
 
 void screen_sorted_sprite_persn_render_callback(ushort sspr)
@@ -1169,6 +1189,7 @@ void engine_draw_whole_screen_flyby(void)
     screen_position_face_render_cb = screen_position_face_render_null_callback;
     screen_sorted_sprite_statc_render_cb = screen_sorted_sprite_render_null_callback;
     screen_sorted_sprite_persn_render_cb = screen_sorted_sprite_render_null_callback;
+    screen_sorted_sprite_persn_alt_cb = NULL;
 
     slt_zmin = lvdraw_fill_bound_points(bound_pts);
 
@@ -1205,6 +1226,7 @@ void engine_draw_whole_screen_top_down(void)
     screen_position_face_render_cb = screen_position_face_render_callback;
     screen_sorted_sprite_statc_render_cb = screen_sorted_sprite_statc_render_callback;
     screen_sorted_sprite_persn_render_cb = screen_sorted_sprite_persn_render_callback;
+    screen_sorted_sprite_persn_alt_cb = screen_sorted_sprite_persn_alt_callback;
 
     player_target_clear(local_player_no); // set during HUD redraw (should be separated!)
 

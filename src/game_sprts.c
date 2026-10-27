@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file game_sprts.c
@@ -16,6 +16,7 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
+#include <stdlib.h>
 #include "game_sprts.h"
 
 #include <assert.h>
@@ -88,6 +89,10 @@ ubyte *fepanel_sprites_data;
 
 ubyte *m_sprites_data;
 ubyte *m_sprites_data_end;
+ubyte game_enemy_costume = 3;
+static ubyte *m_sprites_alt_data = NULL;
+static ubyte *m_sprites_alt_data_buf = NULL;
+static ubyte *m_sprites_alt_tab_buf = NULL;
 /******************************************************************************/
 
 /** Load sprites of given style and detail, to a preallocated area of specific size.
@@ -536,6 +541,41 @@ TbResult load_multicolor_sprites(const char *dir)
     }
     m_sprites_end = (struct TbSprite *)((ubyte *)m_sprites + len);
 
+    return ret;
+}
+
+TbResult load_multicolor_sprites_alt(const char *dir)
+{
+    char locstr[DISKPATH_SIZE];
+    long len, data_size;
+    TbResult ret;
+
+    ret = Lb_OK;
+    data_size = (m_sprites_data_end - m_sprites_data) + 1024;
+    if (m_sprites_alt_data_buf == NULL) {
+        m_sprites_alt_data_buf = (ubyte *)malloc(data_size);
+        m_sprites_alt_tab_buf = (ubyte *)malloc(64 * 1024);
+    }
+    if ((m_sprites_alt_data_buf == NULL) || (m_sprites_alt_tab_buf == NULL)) {
+        m_sprites_alt = NULL;
+        return Lb_FAIL;
+    }
+    m_sprites_alt_data = m_sprites_alt_data_buf;
+    sprintf(locstr, "%s/mspr-%d.dat", dir, (int)game_enemy_costume);
+    len = LbFileLoadAt(locstr, m_sprites_alt_data);
+    if (len == -1) {
+        m_sprites_alt = NULL;
+        return Lb_FAIL;
+    }
+    sprintf(locstr, "%s/mspr-%d.tab", dir, (int)game_enemy_costume);
+    len = LbFileLoadAt(locstr, m_sprites_alt_tab_buf);
+    if (len == -1) {
+        m_sprites_alt = NULL;
+        return Lb_FAIL;
+    }
+    m_sprites_alt = (struct TbSprite *)m_sprites_alt_tab_buf;
+    m_sprites_alt_end = (struct TbSprite *)(m_sprites_alt_tab_buf + len);
+    LbSpriteSetup(m_sprites_alt, m_sprites_alt_end, m_sprites_alt_data);
     return ret;
 }
 

@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file game_sprts.h
@@ -92,6 +92,10 @@ extern ubyte *fepanel_sprites_data;
  */
 extern ubyte *m_sprites_data;
 extern ubyte *m_sprites_data_end;
+/** Costume of the enemy agents (the player agents wear ingame.TrenchcoatPreference); 0..5. */
+extern ubyte game_enemy_costume;
+/** Loads the multicolor sprites of the enemy costume, to the alternative set. */
+TbResult load_multicolor_sprites_alt(const char *dir);
 
 extern ubyte *dword_1C6DE4;
 extern ubyte *dword_1C6DE8;

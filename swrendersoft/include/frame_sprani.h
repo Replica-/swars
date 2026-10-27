@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file frame_sprani.h
@@ -86,6 +86,9 @@ extern struct Element *mele_ani_end;
  */
 extern struct TbSprite *m_sprites;
 extern struct TbSprite *m_sprites_end;
+/** The multicolor sprites of another costume, with the same layout as m_sprites; used for some of the people. */
+extern struct TbSprite *m_sprites_alt;
+extern struct TbSprite *m_sprites_alt_end;
 
 extern ushort shield_frm[4];
 

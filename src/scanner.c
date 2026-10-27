@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file scanner.c
@@ -196,7 +196,8 @@ void SCANNER_init_people_colours(void)
     SCANNER_people_colours[SubTT_PERS_AGENT] =
       pixmap.fade_table[24 * PALETTE_8b_COLORS + colour_lookup[ColLU_RED]];
     SCANNER_people_colours[SubTT_PERS_MERCENARY] =
-      pixmap.fade_table[10 * PALETTE_8b_COLORS + colour_lookup[ColLU_PINK]];
+      // fade row 10 is almost black; the other colours use rows around the neutral 32
+      pixmap.fade_table[40 * PALETTE_8b_COLORS + colour_lookup[ColLU_PINK]];
     SCANNER_people_colours[SubTT_PERS_POLICE] =
       pixmap.fade_table[40 * PALETTE_8b_COLORS + colour_lookup[ColLU_BLUE]];
     SCANNER_people_colours[SubTT_PERS_SCIENTIST] =
@@ -215,6 +216,7 @@ void SCANNER_init_people_colours(void)
     SCANNER_people_colours[SubTT_PERS_WHITE_BRUN_F] =  SCANNER_people_colours[SubTT_PERS_BRIEFCASE_M];
     SCANNER_people_colours[SubTT_PERS_WHIT_BLOND_F] = SCANNER_people_colours[SubTT_PERS_BRIEFCASE_M];
     SCANNER_people_colours[SubTT_PERS_LETH_JACKT_M] = SCANNER_people_colours[SubTT_PERS_BRIEFCASE_M];
+
 }
 
 void SCANNER_init(void)

@@ -1,4 +1,4 @@
-#ifndef GAME_H
+﻿#ifndef GAME_H
 #define GAME_H
 
 #include <stdbool.h>
@@ -189,6 +189,23 @@ short arctan(int dx, int dz);
 
 bool game_initialise (void);
 void game_handle_sdl_events (void);
+/** The pause screen is translucent and draws over the screen content; the GPU rendering keeps the
+ * scene out of that content, so for the time of the pause the scene is drawn by the software
+ * renderer. The two functions are called at the start and at the end of the pause. */
+void game_pause_scene_backdrop_begin(void);
+void game_pause_scene_backdrop_end(void);
+/** Puts the scene drawn at the start of the pause back on the screen, so that the pause boxes
+ * can be drawn again over it. */
+void game_pause_scene_backdrop_restore(void);
+
+/** The settings which can be changed on the pause screen, and by shortcut keys during the game. */
+#define PAUSE_OPT_COUNT 10
+/** Gives the name of the setting and its shortcut key. */
+void pause_option_label(int opt, char *name, char *keys, int len);
+/** Gives the current value of the setting as text. */
+void pause_option_value(int opt, char *buf, int len);
+/** Changes the setting by one step: up (1) or down (-1). */
+void pause_option_change(int opt, int dir);
 void game_update (void);
 int game_hacky_update(void);
 void game_quit (void);

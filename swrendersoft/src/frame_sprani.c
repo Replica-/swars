@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file frame_sprani.c
@@ -34,6 +34,8 @@ struct Element *mele_ani_end = NULL;
 
 struct TbSprite *m_sprites = NULL;
 struct TbSprite *m_sprites_end = NULL;
+struct TbSprite *m_sprites_alt = NULL;
+struct TbSprite *m_sprites_alt_end = NULL;
 
 ushort *nstart_ani = NULL;
 ushort *nstart_ani_end = NULL;

@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file engindrwlstx_spr.c
@@ -72,6 +72,37 @@ ushort next_sort_sprite = 0;
 
 ScreenSortSpriteRenderCallback screen_sorted_sprite_statc_render_cb = NULL;
 ScreenSortSpriteRenderCallback screen_sorted_sprite_persn_render_cb = NULL;
+TbBool (*screen_sorted_sprite_persn_alt_cb)(ushort sspr) = NULL;
+
+void draw_sorted_sprite1b(ubyte *frv, ushort frm, short scr_x, short scr_y,
+  ubyte brig, ubyte angle);
+void draw_frame_alpha(short scr_x, short scr_y, ushort frm,
+  short scale, ubyte bright);
+
+/** Draws a person of the sprite with the alternative multicolor sprites, if the game says so. */
+static void draw_persn_with_costume(ushort sspr, struct SortSprite *p_sspr, ubyte *frv)
+{
+    struct TbSprite *bkp_spr, *bkp_end;
+    TbBool alt;
+
+    alt = (screen_sorted_sprite_persn_alt_cb != NULL) && (m_sprites_alt != NULL)
+      && screen_sorted_sprite_persn_alt_cb(sspr);
+    if (alt) {
+        bkp_spr = m_sprites;
+        bkp_end = m_sprites_end;
+        m_sprites = m_sprites_alt;
+        m_sprites_end = m_sprites_alt_end;
+    }
+    if (frv != NULL)
+        draw_sorted_sprite1b(frv, p_sspr->Frame, p_sspr->X, p_sspr->Y, p_sspr->Brightness, p_sspr->Angle);
+    else
+        draw_frame_alpha(p_sspr->X, p_sspr->Y, p_sspr->Frame,
+          overall_scale, p_sspr->Brightness);
+    if (alt) {
+        m_sprites = bkp_spr;
+        m_sprites_end = bkp_end;
+    }
+}
 
 /******************************************************************************/
 
@@ -644,7 +675,7 @@ void draw_sort_sprite_frame_pers_v(int sspr)
 
     SPR_FRAME_VERSIONS_UNPACK(frv, p_sspr->Scale);
 
-    draw_sorted_sprite1b(frv, p_sspr->Frame, p_sspr->X, p_sspr->Y, p_sspr->Brightness, p_sspr->Angle);
+    draw_persn_with_costume(sspr, p_sspr, frv);
 
     screen_sorted_sprite_persn_render_cb(sspr);
 }
@@ -657,8 +688,7 @@ void draw_sort_sprite_frame_pers_b(int sspr)
 
     anim_elem_pos_min_set(120, 120);
 
-    draw_frame_alpha(p_sspr->X, p_sspr->Y, p_sspr->Frame,
-      overall_scale, p_sspr->Brightness);
+    draw_persn_with_costume(sspr, p_sspr, NULL);
 
     screen_sorted_sprite_persn_render_cb(sspr);
 }

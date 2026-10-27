@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file engincolour.c
@@ -16,6 +16,7 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
+#include <string.h>
 #include "engincolour.h"
 
 #include "bfpalette.h"
@@ -35,6 +36,21 @@ TbPixel fade_unaffected_colours[] = {
 ubyte *display_palette = NULL;
 
 TbPixel colour_lookup[COLOUR_LOOKUP_LENGTH];
+
+/** Finds the colour of the palette which is the closest, but never the last one: the hardware
+ * rendering uses the last palette index as "nothing drawn here" in the software layer, so a
+ * colour with that index would not show (for example, the pink of mercenaries on the scanner). */
+static TbPixel colour_find(ubyte r, ubyte g, ubyte b)
+{
+    ubyte pal[PALETTE_8b_COLORS * 3];
+
+    memcpy(pal, display_palette, sizeof(pal));
+    // A colour which no palette colour can be close to (the components go up to 63)
+    pal[3 * 255 + 0] = 255;
+    pal[3 * 255 + 1] = 255;
+    pal[3 * 255 + 2] = 255;
+    return LbPaletteFindColour(pal, r, g, b);
+}
 u32 unkn_changing_color_counter1 = 0;
 int colour_lookup_lock = 0;
 
@@ -79,57 +95,57 @@ void setup_color_lookups(void)
         return;
     }
     colour_lookup_lock = 1;
-    colour_lookup[ColLU_BLACK] = LbPaletteFindColour(display_palette, 0, 0, 0);
-    colour_lookup[ColLU_WHITE] = LbPaletteFindColour(display_palette, 63, 63, 63);
-    colour_lookup[ColLU_RED] = LbPaletteFindColour(display_palette, 63, 0, 0);
-    colour_lookup[ColLU_GREEN] = LbPaletteFindColour(display_palette, 0, 63, 0);
-    colour_lookup[ColLU_BLUE] = LbPaletteFindColour(display_palette, 0, 0, 63);
-    colour_lookup[ColLU_YELLOW] = LbPaletteFindColour(display_palette, 63, 63, 0);
-    colour_lookup[ColLU_CYAN] = LbPaletteFindColour(display_palette, 0, 63, 63);
-    colour_lookup[ColLU_PINK] = LbPaletteFindColour(display_palette, 63, 0, 63);
-    colour_lookup[ColLU_GREYLT] = LbPaletteFindColour(display_palette, 50, 50, 50);
-    colour_lookup[ColLU_GREYMD] = LbPaletteFindColour(display_palette, 30, 30, 30);
-    colour_lookup[ColLU_GREYDK] = LbPaletteFindColour(display_palette, 10, 10, 10);
+    colour_lookup[ColLU_BLACK] = colour_find(0, 0, 0);
+    colour_lookup[ColLU_WHITE] = colour_find(63, 63, 63);
+    colour_lookup[ColLU_RED] = colour_find(63, 0, 0);
+    colour_lookup[ColLU_GREEN] = colour_find(0, 63, 0);
+    colour_lookup[ColLU_BLUE] = colour_find(0, 0, 63);
+    colour_lookup[ColLU_YELLOW] = colour_find(63, 63, 0);
+    colour_lookup[ColLU_CYAN] = colour_find(0, 63, 63);
+    colour_lookup[ColLU_PINK] = colour_find(63, 0, 63);
+    colour_lookup[ColLU_GREYLT] = colour_find(50, 50, 50);
+    colour_lookup[ColLU_GREYMD] = colour_find(30, 30, 30);
+    colour_lookup[ColLU_GREYDK] = colour_find(10, 10, 10);
     colour_lookup_lock = 0;
     update_unkn_changing_colors();
 
-    colour_mix_lookup[0] = LbPaletteFindColour(display_palette, 0, 63, 0);
-    colour_mix_lookup[1] = LbPaletteFindColour(display_palette, 38, 48, 63);
-    colour_mix_lookup[2] = LbPaletteFindColour(display_palette, 0, 63, 63);
-    colour_mix_lookup[3] = LbPaletteFindColour(display_palette, 63, 63, 0);
-    colour_mix_lookup[4] = LbPaletteFindColour(display_palette, 63, 0, 63);
-    colour_mix_lookup[5] = LbPaletteFindColour(display_palette, 63, 32, 32);
-    colour_mix_lookup[6] = LbPaletteFindColour(display_palette, 32, 63, 32);
-    colour_mix_lookup[7] = LbPaletteFindColour(display_palette, 32, 32, 63);
-    colour_mix_lookup[8] = LbPaletteFindColour(display_palette, 32, 32, 32);
-    colour_mix_lookup[9] = LbPaletteFindColour(display_palette, 32, 63, 63);
-    colour_mix_lookup[10] = LbPaletteFindColour(display_palette, 63, 63, 32);
-    colour_mix_lookup[11] = LbPaletteFindColour(display_palette, 63, 32, 63);
+    colour_mix_lookup[0] = colour_find(0, 63, 0);
+    colour_mix_lookup[1] = colour_find(38, 48, 63);
+    colour_mix_lookup[2] = colour_find(0, 63, 63);
+    colour_mix_lookup[3] = colour_find(63, 63, 0);
+    colour_mix_lookup[4] = colour_find(63, 0, 63);
+    colour_mix_lookup[5] = colour_find(63, 32, 32);
+    colour_mix_lookup[6] = colour_find(32, 63, 32);
+    colour_mix_lookup[7] = colour_find(32, 32, 63);
+    colour_mix_lookup[8] = colour_find(32, 32, 32);
+    colour_mix_lookup[9] = colour_find(32, 63, 63);
+    colour_mix_lookup[10] = colour_find(63, 63, 32);
+    colour_mix_lookup[11] = colour_find(63, 32, 63);
 
-    colour_sel_grey[0] = LbPaletteFindColour(display_palette, 48, 48, 48);
-    colour_sel_grey[1] = LbPaletteFindColour(display_palette, 40, 40, 40);
-    colour_sel_grey[2] = LbPaletteFindColour(display_palette, 32, 32, 32);
-    colour_sel_grey[3] = LbPaletteFindColour(display_palette, 24, 24, 24);
+    colour_sel_grey[0] = colour_find(48, 48, 48);
+    colour_sel_grey[1] = colour_find(40, 40, 40);
+    colour_sel_grey[2] = colour_find(32, 32, 32);
+    colour_sel_grey[3] = colour_find(24, 24, 24);
 
-    colour_sel_green[0] = LbPaletteFindColour(display_palette, 0, 48, 0);
-    colour_sel_green[1] = LbPaletteFindColour(display_palette, 0, 40, 0);
-    colour_sel_green[2] = LbPaletteFindColour(display_palette, 0, 32, 0);
-    colour_sel_green[3] = LbPaletteFindColour(display_palette, 0, 24, 0);
+    colour_sel_green[0] = colour_find(0, 48, 0);
+    colour_sel_green[1] = colour_find(0, 40, 0);
+    colour_sel_green[2] = colour_find(0, 32, 0);
+    colour_sel_green[3] = colour_find(0, 24, 0);
 
-    colour_sel_blue[0] = LbPaletteFindColour(display_palette, 0, 0, 48);
-    colour_sel_blue[1] = LbPaletteFindColour(display_palette, 0, 0, 40);
-    colour_sel_blue[2] = LbPaletteFindColour(display_palette, 0, 0, 32);
-    colour_sel_blue[3] = LbPaletteFindColour(display_palette, 0, 0, 24);
+    colour_sel_blue[0] = colour_find(0, 0, 48);
+    colour_sel_blue[1] = colour_find(0, 0, 40);
+    colour_sel_blue[2] = colour_find(0, 0, 32);
+    colour_sel_blue[3] = colour_find(0, 0, 24);
 
-    colour_sel_red[0] = LbPaletteFindColour(display_palette, 48, 0, 0);
-    colour_sel_red[1] = LbPaletteFindColour(display_palette, 40, 0, 0);
-    colour_sel_red[2] = LbPaletteFindColour(display_palette, 32, 0, 0);
-    colour_sel_red[3] = LbPaletteFindColour(display_palette, 24, 0, 0);
+    colour_sel_red[0] = colour_find(48, 0, 0);
+    colour_sel_red[1] = colour_find(40, 0, 0);
+    colour_sel_red[2] = colour_find(32, 0, 0);
+    colour_sel_red[3] = colour_find(24, 0, 0);
 
-    colour_sel_purple[0] = LbPaletteFindColour(display_palette, 48, 0, 48);
-    colour_sel_purple[1] = LbPaletteFindColour(display_palette, 40, 0, 40);
-    colour_sel_purple[2] = LbPaletteFindColour(display_palette, 32, 0, 32);
-    colour_sel_purple[3] = LbPaletteFindColour(display_palette, 24, 0, 24);
+    colour_sel_purple[0] = colour_find(48, 0, 48);
+    colour_sel_purple[1] = colour_find(40, 0, 40);
+    colour_sel_purple[2] = colour_find(32, 0, 32);
+    colour_sel_purple[3] = colour_find(24, 0, 24);
 }
 
 void palette_apply_brightness(ubyte *pal)

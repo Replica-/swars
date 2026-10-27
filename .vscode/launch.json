@@ -1,4 +1,4 @@
-﻿{
+{
     // Entries are grouped in the dropdown: "presentation.group" makes the dividers,
     // "order" sorts within a group.
     // "-b" opens the window without taking the focus, "-M" mutes the sound; the debug and\n    // build-and-launch entries use them, so that testing does not interrupt other work.\n    "version": "0.2.0",
@@ -98,7 +98,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "D:/development/swars/debug/src/syndwarsfx.exe",
-            "args": ["-m", "0,1", "-q", "-W", "-b", "-M"],
+            "args": ["-m", "0,1", "-q", "-W"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/debug/src",
             "environment": [

@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file engindrwlstx.h
@@ -123,6 +123,8 @@ extern short anim_el_pos_min_y;
 extern ScreenTriangleRenderCallback screen_position_face_render_cb;
 extern ScreenSortSpriteRenderCallback screen_sorted_sprite_statc_render_cb;
 extern ScreenSortSpriteRenderCallback screen_sorted_sprite_persn_render_cb;
+/** Tells if the person of the sprite is to be drawn with the alternative multicolor sprites. */
+extern TbBool (*screen_sorted_sprite_persn_alt_cb)(ushort sspr);
 /******************************************************************************/
 
 void draw_frame_unscaled(int scr_x, int scr_y, ushort frm);

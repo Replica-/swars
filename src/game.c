@@ -401,6 +401,9 @@ bool game_initialise(void)
     return true;
 }
 
+/** Extra frames between the game turns while the camera moves; SWFX_SMOOTH_CAMERA=0 and Shift+F5 turn it off. */
+static TbBool game_camera_smoothing = true;
+
 void game_handle_sdl_events(void)
 {
     TbBool contn;
@@ -1047,6 +1050,14 @@ ubyte game_graphics_inputs(void)
         did_inp |= GINPUT_DIRECT;
     }
 
+    // Shift+F5 turns the smooth camera on and off
+    if (is_key_pressed(KC_F5, KMod_SHIFT))
+    {
+        clear_key_pressed(KC_F5);
+        game_camera_smoothing = !game_camera_smoothing;
+        did_inp |= GINPUT_DIRECT;
+    }
+
     // Shift+F4 switches the lighting of the hardware rendering between classic and enhanced
     if (is_key_pressed(KC_F4, KMod_SHIFT))
     {
@@ -1170,6 +1181,8 @@ TbResult prep_multicolor_sprites(void)
     pinfo = &game_dirs[DirPlace_Data];
     ret = load_multicolor_sprites(pinfo->directory);
     setup_multicolor_sprites();
+    // The enemy agents may wear another costume
+    load_multicolor_sprites_alt(pinfo->directory);
     if (ret == Lb_FAIL) {
         LOGERR("Some files were not loaded successfully");
     }
@@ -4956,11 +4969,12 @@ ubyte do_user_interface(void)
         user_sel_brightness--;
         did_inp |= GINPUT_DIRECT;
     }
+    // F11 changes the costume of the enemy agents (the brightness has Ctrl and Shift with it)
     if (is_key_pressed(KC_F11, KMod_NONE))
     {
         clear_key_pressed(KC_F11);
-        change_brightness(1);
-        user_sel_brightness++;
+        game_enemy_costume = (game_enemy_costume + 1) % (OPT_TRENCHCOAT_PREF_MAX + 1);
+        prep_multicolor_sprites();
         did_inp |= GINPUT_DIRECT;
     }
 
@@ -5995,8 +6009,7 @@ struct SmoothCam {
 
 static struct SmoothCam smooth_cam_prev;
 static TbBool smooth_cam_prev_valid = false;
-/** Set to false by SWFX_SMOOTH_CAMERA=0 */
-static TbBool game_camera_smoothing = true;
+
 /** How long drawing one extra frame takes, in microseconds; measured. */
 static ulong smooth_cam_frame_cost_us = 8000;
 /** Random seeds at the start of drawing the frame of the turn, and after it. The extra frames
@@ -6150,6 +6163,183 @@ static void smooth_cam_subframes(void)
     // What follows - the world of the turn - goes on from where the first drawing left it
     lbSeed = smooth_cam_seed_end;
     lbSeed_ps = smooth_cam_seed_ps_end;
+}
+
+static TbBool pause_hw_was_enabled = false;
+static TbBool pause_backdrop_valid = false;
+static ubyte *pause_backdrop_buf = NULL;
+
+void game_pause_scene_backdrop_begin(void)
+{
+    long size;
+
+    pause_hw_was_enabled = false;
+    pause_backdrop_valid = false;
+    if ((ingame.DisplayMode != DpM_ENGINEPLY) || (lbDisplay.WScreen == NULL))
+        return;
+    pause_hw_was_enabled = LbHwRenderEnabled() && LbGlIsActive();
+    if (pause_hw_was_enabled)
+        LbHwRenderSetEnabled(false);
+    // The buildings are drawn once per drawing turn
+    drawturn++;
+    LbScreenClear(0);
+    prepare_drawlist();
+    engine_draw_whole_screen_top_down();
+
+    size = lbDisplay.GraphicsScreenWidth * lbDisplay.GraphicsScreenHeight;
+    if (pause_backdrop_buf != NULL)
+        free(pause_backdrop_buf);
+    pause_backdrop_buf = (ubyte *)malloc(size);
+    if (pause_backdrop_buf != NULL) {
+        memcpy(pause_backdrop_buf, lbDisplay.WScreen, size);
+        pause_backdrop_valid = true;
+    }
+}
+
+void game_pause_scene_backdrop_restore(void)
+{
+    if (!pause_backdrop_valid)
+        return;
+    memcpy(lbDisplay.WScreen, pause_backdrop_buf,
+      lbDisplay.GraphicsScreenWidth * lbDisplay.GraphicsScreenHeight);
+}
+
+void game_pause_scene_backdrop_end(void)
+{
+    if (pause_backdrop_valid) {
+        // What the pause drew is not to stay in the layer over the scene
+        LbScreenClear(pause_hw_was_enabled ? HWREND_CLEAR_COLOUR : 0);
+        pause_backdrop_valid = false;
+    }
+    if (pause_hw_was_enabled)
+        LbHwRenderSetEnabled(true);
+    pause_hw_was_enabled = false;
+}
+
+void pause_option_label(int opt, char *name, char *keys, int len)
+{
+    const char *n = "", *k = "";
+
+    switch (opt)
+    {
+    case 0: n = "RENDERER";      k = "SHIFT+F3"; break;
+    case 1: n = "LIGHTING";      k = "SHIFT+F4"; break;
+    case 2: n = "FRAME RATE CAP"; k = "[ AND ]"; break;
+    case 3: n = "FRAME SKIP";    k = "NUMPAD + AND -"; break;
+    case 4: n = "SMOOTH CAMERA"; k = "SHIFT+F5"; break;
+    case 5: n = "AGENT COSTUME"; k = "F10"; break;
+    case 6: n = "ENEMY COSTUME"; k = "F11"; break;
+    case 7: n = "BRIGHTNESS";    k = "SHIFT+F11  CTRL+F11"; break;
+    case 8: n = "SCANNER LIGHT"; k = "NUMPAD 6 AND 4"; break;
+    case 9: n = "CAMERA VIEW";   k = "F"; break;
+    }
+    snprintf(name, len, "%s", n);
+    snprintf(keys, len, "%s", k);
+}
+
+void pause_option_value(int opt, char *buf, int len)
+{
+    switch (opt)
+    {
+    case 0:
+        if (!LbGlIsActive())
+            snprintf(buf, len, "SOFTWARE");
+        else
+            snprintf(buf, len, "%s", (pause_hw_was_enabled || LbHwRenderEnabled()) ? "GPU" : "SOFTWARE");
+        break;
+    case 1:
+        snprintf(buf, len, "%s", (LbHwLightingMode() == HwLight_Enhanced) ? "ENHANCED" : "CLASSIC");
+        break;
+    case 2:
+        if (game_fps_cap > 0)
+            snprintf(buf, len, "%d", (int)game_fps_cap);
+        else
+            snprintf(buf, len, "OFF");
+        break;
+    case 3:
+        snprintf(buf, len, "%d", (int)frameskip);
+        break;
+    case 4:
+        snprintf(buf, len, "%s", game_camera_smoothing ? "ON" : "OFF");
+        break;
+    case 5:
+        snprintf(buf, len, "%d", (int)ingame.TrenchcoatPreference);
+        break;
+    case 6:
+        snprintf(buf, len, "%d", (int)game_enemy_costume);
+        break;
+    case 7:
+        snprintf(buf, len, "%d", (int)user_sel_brightness);
+        break;
+    case 8:
+        snprintf(buf, len, "%d", (int)ingame.Scanner.Brightness);
+        break;
+    case 9:
+        snprintf(buf, len, "%s", (game_perspective == ProjM_Isometric) ? "ISOMETRIC" : "PERSPECTIVE");
+        break;
+    default:
+        buf[0] = '\0';
+        break;
+    }
+}
+
+void pause_option_change(int opt, int dir)
+{
+    switch (opt)
+    {
+    case 0:
+        if (LbGlIsActive()) {
+            if (pause_backdrop_valid)
+                pause_hw_was_enabled = !pause_hw_was_enabled; // takes effect when the pause ends
+            else
+                LbHwRenderSetEnabled(!LbHwRenderEnabled());
+        }
+        break;
+    case 1:
+        LbHwLightingSetMode((LbHwLightingMode() + 1) % HwLight_COUNT);
+        break;
+    case 2:
+        game_fps_cap_step(dir);
+        break;
+    case 3:
+        if (dir > 0)
+            frameskip_increase();
+        else
+            frameskip_decrease();
+        break;
+    case 4:
+        game_camera_smoothing = !game_camera_smoothing;
+        break;
+    case 5:
+        if (dir > 0)
+            game_option_inc(GOpt_TrenchcoatPreference);
+        else
+            game_option_dec(GOpt_TrenchcoatPreference);
+        prep_multicolor_sprites();
+        break;
+    case 6:
+        game_enemy_costume = (game_enemy_costume + (dir > 0 ? 1 : OPT_TRENCHCOAT_PREF_MAX))
+          % (OPT_TRENCHCOAT_PREF_MAX + 1);
+        prep_multicolor_sprites();
+        break;
+    case 7:
+        change_brightness(dir);
+        user_sel_brightness += dir;
+        break;
+    case 8:
+        ingame.Scanner.Brightness += 4 * dir;
+        if (ingame.Scanner.Brightness < 0)
+            ingame.Scanner.Brightness = 0;
+        if (ingame.Scanner.Brightness > 64)
+            ingame.Scanner.Brightness = 64;
+        break;
+    case 9:
+        if (dir > 0)
+            game_option_inc(GOpt_CameraPerspective);
+        else
+            game_option_dec(GOpt_CameraPerspective);
+        break;
+    }
 }
 
 void draw_game(void)

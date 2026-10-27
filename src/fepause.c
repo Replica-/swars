@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file fepause.c
@@ -63,6 +63,11 @@ static struct ScreenButton detail_hi_btn;
 static struct ScreenButton detail_lo_btn;
 static struct ScreenButton continue_btn;
 static struct ScreenButton abort_btn;
+
+/** The box with the game settings, next to the pause box. */
+static struct ScreenBox options_box;
+static struct ScreenBox option_arrow_l_box[PAUSE_OPT_COUNT];
+static struct ScreenBox option_arrow_r_box[PAUSE_OPT_COUNT];
 
 ubyte draw_ingame_button(struct ScreenButton *p_button, ubyte enabled)
 {
@@ -353,8 +358,39 @@ void init_pause_screen_boxes(void)
     cutin_w = 5 * pop1_sprites_scale;
     slider_h = 9 * pop1_sprites_scale;
 
-    pause_main_box.X = (lbDisplay.GraphicsScreenWidth - pause_main_box.Width) / 2;
+    // The settings box is to the right of the pause box; they are centered together
+    options_box.Width = 124 * pop1_sprites_scale;
+    options_box.Height = pause_main_box.Height;
+    {
+        int gap, total;
+
+        gap = 4 * pop1_sprites_scale;
+        total = pause_main_box.Width + gap + options_box.Width;
+        pause_main_box.X = (lbDisplay.GraphicsScreenWidth - total) / 2;
+        if (pause_main_box.X < 0)
+            pause_main_box.X = 0;
+        options_box.X = pause_main_box.X + pause_main_box.Width + gap;
+    }
     pause_main_box.Y = (lbDisplay.GraphicsScreenHeight - pause_main_box.Height) / 2;
+    options_box.Y = pause_main_box.Y;
+    {
+        int i, pitch, row_y, arrow_h;
+
+        arrow_h = 6 * pop1_sprites_scale;
+        pitch = options_box.Height * 78 / 100 / PAUSE_OPT_COUNT;
+        row_y = options_box.Y + options_box.Height * 15 / 100;
+        for (i = 0; i < PAUSE_OPT_COUNT; i++)
+        {
+            option_arrow_l_box[i].Width = arrow_h * 4 / 3;
+            option_arrow_l_box[i].Height = arrow_h;
+            option_arrow_l_box[i].X = options_box.X + options_box.Width * 52 / 100;
+            option_arrow_l_box[i].Y = row_y + pitch * i + pitch / 8;
+            option_arrow_r_box[i].Width = arrow_h * 4 / 3;
+            option_arrow_r_box[i].Height = arrow_h;
+            option_arrow_r_box[i].X = options_box.X + options_box.Width * 88 / 100;
+            option_arrow_r_box[i].Y = option_arrow_l_box[i].Y;
+        }
+    }
 
     slider_w = pause_main_box.Width * 131 / 256;
     arrow_w = slider_w * 9 / 256;
@@ -538,11 +574,80 @@ void draw_pause_volume_bar(struct ScreenBox *p_box1, struct ScreenBox *p_box2, s
     }
 }
 
+/** Draws the box with the game settings: the name, shortcut key and current value of each. */
+static void draw_options_box(void)
+{
+    char name[32], keys[32], val[32];
+    int i, pitch, row_y, w;
+
+    draw_box_cutedge(&options_box, ingame_boxes_colr1);
+
+    lbFontPtr = small_font;
+    my_set_text_window(0, 0, lbDisplay.PhysicalScreenWidth,
+      lbDisplay.PhysicalScreenHeight);
+
+    lbDisplay.DrawFlags = 0;
+    w = my_string_width("GAME SETTINGS");
+    my_draw_text(options_box.X + (options_box.Width - w) / 2,
+      options_box.Y + options_box.Height * 4 / 100, "GAME SETTINGS", 0);
+
+    pitch = options_box.Height * 78 / 100 / PAUSE_OPT_COUNT;
+    row_y = options_box.Y + options_box.Height * 15 / 100;
+    for (i = 0; i < PAUSE_OPT_COUNT; i++)
+    {
+        int y;
+
+        y = row_y + pitch * i;
+        pause_option_label(i, name, keys, sizeof(name));
+        pause_option_value(i, val, sizeof(val));
+
+        lbDisplay.DrawFlags = 0;
+        my_draw_text(options_box.X + options_box.Width * 5 / 100, y, name, 0);
+
+        // The shortcut key, in the colour of the frames
+        lbDisplay.DrawFlags |= Lb_TEXT_ONE_COLOR;
+        lbDisplay.DrawColour = ingame_boxes_colr2;
+        my_draw_text(options_box.X + options_box.Width * 5 / 100,
+          y + pitch * 52 / 100, keys, 0);
+        lbDisplay.DrawFlags &= ~Lb_TEXT_ONE_COLOR;
+
+        draw_slant_left_arrow(&option_arrow_l_box[i], ingame_boxes_colr2);
+        draw_slant_right_arrow(&option_arrow_r_box[i], ingame_boxes_colr2);
+        w = my_string_width(val);
+        my_draw_text(options_box.X + options_box.Width * 70 / 100 - w / 2 + options_box.Width * 2 / 100,
+          y + pitch / 8, val, 0);
+    }
+    lbDisplay.DrawFlags = 0;
+}
+
+/** Applies a click on one of the arrows of the settings. */
+static void input_options_box(void)
+{
+    int i;
+
+    if (!lbDisplay.LeftButton)
+        return;
+    for (i = 0; i < PAUSE_OPT_COUNT; i++)
+    {
+        if (mouse_move_over_slant_box(&option_arrow_l_box[i])) {
+            lbDisplay.LeftButton = 0;
+            pause_option_change(i, -1);
+            return;
+        }
+        if (mouse_move_over_slant_box(&option_arrow_r_box[i])) {
+            lbDisplay.LeftButton = 0;
+            pause_option_change(i, 1);
+            return;
+        }
+    }
+}
+
 ubyte show_pause_screen(struct ScreenBox *box)
 {
     if ((box->Flags & GBxFlg_BkgndDrawn) == 0)
     {
         draw_pause_screen_static(box);
+        draw_options_box();
         box->Flags |= GBxFlg_BkgndDrawn;
     }
 
@@ -621,6 +726,7 @@ TbBool pause_screen_handle(void)
     TbBool resume_game;
 
     init_pause_screen_boxes();
+    game_pause_scene_backdrop_begin();
     start_pause_screen();
 
     // Wait for the pause key to be released
@@ -637,6 +743,7 @@ TbBool pause_screen_handle(void)
     {
         JoyUpdateInputs(&joy);
 
+        input_options_box();
         affected = input_pause_screen();
 
         if (affected == &startscr_samplevol)
@@ -658,6 +765,9 @@ TbBool pause_screen_handle(void)
             bang_set_detail(1 - ingame.DetailLevel);
         }
 
+        // The boxes are translucent, so everything is drawn again over the scene each frame
+        game_pause_scene_backdrop_restore();
+        pause_main_box.Flags &= ~GBxFlg_BkgndDrawn;
         show_pause_screen(&pause_main_box);
 
         if (input_ingame_button(&continue_btn, 0))
@@ -665,6 +775,7 @@ TbBool pause_screen_handle(void)
 
         if (input_ingame_button(&abort_btn, 0))
         {
+            game_pause_scene_backdrop_end();
             swap_wscreen();
             SetMusicVolume(100, 0);
             StopAllSamples();
@@ -683,6 +794,7 @@ TbBool pause_screen_handle(void)
         game_update();
     }
 
+    game_pause_scene_backdrop_end();
     // Wait for the pause key to be released
     wait_for_keypress_end(GKey_PAUSE, false);
 

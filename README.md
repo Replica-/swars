@@ -2,6 +2,8 @@
 
 ![Mission 1 with the hardware renderer, enhanced lighting and bloom](docs/screenshot-mission1.jpg)
 
+![The pause screen with the game settings box](docs/screenshot-pause-settings.jpg)
+
 **Video:** [Watch the fork in action on YouTube](https://www.youtube.com/watch?v=IL2CsT9U9sA)
 
 **Syndicate Wars Fan Expansion** is an Open Source remake of the classic 1996
@@ -71,6 +73,16 @@ and are covered by the same license.
   moves at about 60 frames per second (the counter shows `FPS` 60 and `TPS` 20).
   Nothing else moves between the turns, and the frame of the turn is shown last, so it
   adds no delay. `SWFX_SMOOTH_CAMERA=0` turns it off.
+* **Separate costumes for enemy agents.** Enemy syndicate agents (not the zealots of the
+  Epoch, and not your own agents) can wear another of the six costumes than yours. `F10` changes
+  your costume (`pspr`), `F11` the enemy one (`espr`); both are shown in the counter at the top right.
+  The sprites are loaded again when a costume changes, and the GPU renderer forgets its copies of
+  the old ones. The enemy costume is not saved with the settings.
+* **Game settings box on the pause screen.** The pause screen (`P`) has a second box next to it, with
+  the settings which are otherwise changed with shortcut keys: renderer, lighting, frame rate cap, frame skip,
+  smooth camera, agent and enemy costume, brightness, scanner brightness and camera view. Each shows its
+  shortcut key and current value, and the arrows change it. The scene behind the translucent boxes is drawn
+  by the software renderer while the game is paused.
 * **Faster map scrolling.** Panning with the keys or the screen edge is 1.5 times
   faster than in the original game.
 * **Faster software renderer.** The textured polygon fill (`poly_gp.c`) is
@@ -101,6 +113,10 @@ and are covered by the same license.
 | Frame rate cap | `[` lower, `]` raise (above the highest value the cap is removed) |
 | Hardware / software rendering | `Shift`+`F3` |
 | Classic / enhanced lighting | `Shift`+`F4` |
+| Smooth camera on / off | `Shift`+`F5` |
+| Next costume for your agents (`pspr`) | `F10` |
+| Next costume for enemy agents (`espr`) | `F11` (screen brightness is `Shift`+`F11` down, `Ctrl`+`F11` reset) |
+| Game settings (also in the pause screen) | `P`, then click the arrows in the "Game settings" box |
 | Sampling profiler | `Ctrl`+`F7` (also `Scroll Lock`, `Pause`); press to start and again to stop; writes `profile_samples.txt` |
 
 * **Drag selection.** The box selects the agents which it overlaps, and only them:
@@ -145,6 +161,7 @@ Environment variables:
 | `SWFX_HW=classic` | hardware rendering with the classic lighting |
 | `SWFX_SMOOTH_CAMERA=0` | turn off the smooth camera (extra frames between game turns while panning, zooming and rotating) |
 | `SWFX_SOFT_CURSOR` | draw the mouse pointer in the game image instead of the OS |
+| `SWFX_ESPR_ALL` | all agents, also yours, wear the enemy costume (to preview the costumes with `F11`) |
 | `SWFX_NO_EDGE_SCROLL` | do not scroll the view when the mouse is at the screen edge (for tests) |
 
 ### Build, tools and fixes

@@ -36,6 +36,7 @@
 #include "enginprops.h"
 #include "game.h"
 #include "game_options.h"
+#include "game_sprts.h"
 #include "keyboard.h"
 #include "swlog.h"
 
@@ -164,6 +165,11 @@ ubyte get_speed_control_inputs(void)
         did_inp |= GINPUT_DIRECT;
     }
     return did_inp;
+}
+
+void game_fps_cap_step(int dir)
+{
+    fps_cap_change(dir);
 }
 
 /** Microsecond clock for measuring short phases of the frame. */
@@ -384,11 +390,11 @@ void fps_counter_show(void)
             snprintf(capstr, sizeof(capstr), "%d", (int)game_fps_cap);
         else
             snprintf(capstr, sizeof(capstr), "OFF");
-        snprintf(locstr, sizeof(locstr), "%s FPS %lu TPS %lu SKIP %d CAP %s  DRAW %lu.%lu SWAP %lu.%lu  COSTUME %d",
+        snprintf(locstr, sizeof(locstr), "%s FPS %lu TPS %lu SKIP %d CAP %s  DRAW %lu.%lu SWAP %lu.%lu  pspr:%d espr:%d",
           fps_renderer_name(), shown_fps, shown_tps, (int)frameskip, capstr,
           shown_draw_us / 1000, (shown_draw_us / 100) % 10,
           shown_swap_us / 1000, (shown_swap_us / 100) % 10,
-          (int)ingame.TrenchcoatPreference);
+          (int)ingame.TrenchcoatPreference, (int)game_enemy_costume);
     }
     lbDisplay.DrawFlags = 0;
     draw_scaled_text_right(lbDisplay.GraphicsScreenWidth - 6, 4, locstr, colour_lookup[ColLU_WHITE]);
