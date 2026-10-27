@@ -32,6 +32,102 @@ volatile TbBool lbHwRecording = false;
 /* On by default; it only has effect when the window got a GL context */
 static TbBool hw_enabled = true;
 static int hw_lighting = HwLight_Enhanced;
+
+static float pl_affine[4];
+static float pl_lights[HW_PLIGHTS_MAX * 4];
+static int pl_count = 0;
+static TbBool pl_enabled = true;
+
+#define HW_DYNLIGHT_MAX 32
+static float dyn_lights[HW_DYNLIGHT_MAX * 3];
+static int dyn_count = 0;
+static long dyn_turn = -100;
+
+void LbHwSetPixelLights(const float *aff, const float *lights, int count)
+{
+    if (count > HW_PLIGHTS_MAX)
+        count = HW_PLIGHTS_MAX;
+    if (count < 0)
+        count = 0;
+    memcpy(pl_affine, aff, sizeof(pl_affine));
+    memcpy(pl_lights, lights, count * 4 * sizeof(float));
+    pl_count = count;
+}
+
+int LbHwGetPixelLights(const float **p_aff, const float **p_lights)
+{
+    *p_aff = pl_affine;
+    *p_lights = pl_lights;
+    return pl_enabled ? pl_count : 0;
+}
+
+TbBool LbHwPixelLightsEnabled(void)
+{
+    return pl_enabled;
+}
+
+void LbHwPixelLightsSetEnabled(TbBool enabled)
+{
+    pl_enabled = enabled;
+}
+
+static float beam_a[HW_BEAMS_MAX * 4];
+static float beam_b[HW_BEAMS_MAX * 4];
+static int beam_count = 0;
+
+void LbHwNoteBeam(float x1, float y1, float x2, float y2, int colour, int itime)
+{
+    float strength;
+
+    // The things are enlisted before the recording of the scene starts, so it is not checked
+    if (beam_count >= HW_BEAMS_MAX)
+        return;
+    // The older the beam is, the weaker; some beams have a negative time, for special effects
+    strength = (itime < 0) ? 0.8f : (1.0f - 0.18f * (float)itime);
+    if (strength < 0.3f)
+        strength = 0.3f;
+    beam_a[beam_count * 4 + 0] = x1;
+    beam_a[beam_count * 4 + 1] = y1;
+    beam_a[beam_count * 4 + 2] = x2;
+    beam_a[beam_count * 4 + 3] = y2;
+    beam_b[beam_count * 4 + 0] = (float)colour;
+    beam_b[beam_count * 4 + 1] = strength;
+    beam_b[beam_count * 4 + 2] = 380.0f;
+    beam_b[beam_count * 4 + 3] = 0.0f;
+    beam_count++;
+}
+
+int LbHwGetBeams(const float **p_a, const float **p_b)
+{
+    *p_a = beam_a;
+    *p_b = beam_b;
+    return pl_enabled ? beam_count : 0;
+}
+
+void LbHwNoteDynamicLight(long turn, float x, float z, float intensity)
+{
+    if (turn != dyn_turn) {
+        dyn_turn = turn;
+        dyn_count = 0;
+    }
+    if (dyn_count >= HW_DYNLIGHT_MAX)
+        return;
+    dyn_lights[dyn_count * 3 + 0] = x;
+    dyn_lights[dyn_count * 3 + 1] = z;
+    dyn_lights[dyn_count * 3 + 2] = intensity;
+    dyn_count++;
+}
+
+int LbHwGetDynamicLights(long turn, float *out, int max_count)
+{
+    int n;
+
+    if ((turn - dyn_turn) > 1 || (turn - dyn_turn) < -1)
+        return 0;
+    n = (dyn_count < max_count) ? dyn_count : max_count;
+    memcpy(out, dyn_lights, n * 3 * sizeof(float));
+    return n;
+}
 static struct HwVertex *rec_verts = NULL;
 static long rec_count = 0;
 static long rec_capacity = 0;
@@ -106,6 +202,8 @@ static long dbg_frames = 0;
 
 void LbHwFrameBegin(void)
 {
+    pl_count = 0;
+    beam_count = 0;
     if (getenv("SWFX_HW_FAILLOG") != NULL) {
         if ((++dbg_frames % 60) == 0) {
             LOGERR("HW fallbacks per 60 frames: tri_screen=%ld tri_page=%ld tri_grow=%ld spr_atlas=%ld spr_remap=%ld spr_grow=%ld alpha_bounds=%ld",

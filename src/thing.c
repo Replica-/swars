@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file thing.c
@@ -17,6 +17,7 @@
  */
 /******************************************************************************/
 #include "thing.h"
+#include "bfhwrend.h"
 
 #include "bfbox.h"
 #include "bfutility.h"
@@ -1011,6 +1012,8 @@ void process_temp_light(struct SimpleThing *p_sthing)
     }
     get_thing_position_mapcoords(&lgtng_x, &lgtng_y, &lgtng_z, p_sthing->ThingOffset);
     apply_full_light(lgtng_x, lgtng_y >> 3, lgtng_z, brig, 0);
+    // The GPU rendering adds this light to the pixels around it
+    LbHwNoteDynamicLight((long)gameturn, (float)lgtng_x, (float)lgtng_z, (float)brig);
 }
 
 void set_thing_frame(struct Thing *p_thing, ushort anim_start)

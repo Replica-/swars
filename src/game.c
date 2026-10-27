@@ -1050,6 +1050,14 @@ ubyte game_graphics_inputs(void)
         did_inp |= GINPUT_DIRECT;
     }
 
+    // Shift+F6 turns the per-pixel lights of the hardware rendering on and off
+    if (is_key_pressed(KC_F6, KMod_SHIFT))
+    {
+        clear_key_pressed(KC_F6);
+        LbHwPixelLightsSetEnabled(!LbHwPixelLightsEnabled());
+        did_inp |= GINPUT_DIRECT;
+    }
+
     // Shift+F5 turns the smooth camera on and off
     if (is_key_pressed(KC_F5, KMod_SHIFT))
     {
@@ -6232,6 +6240,7 @@ void pause_option_label(int opt, char *name, char *keys, int len)
     case 7: n = "BRIGHTNESS";    k = "SHIFT+F11  CTRL+F11"; break;
     case 8: n = "SCANNER LIGHT"; k = "NUMPAD 6 AND 4"; break;
     case 9: n = "CAMERA VIEW";   k = "F"; break;
+    case 10: n = "PIXEL LIGHTS"; k = "SHIFT+F6"; break;
     }
     snprintf(name, len, "%s", n);
     snprintf(keys, len, "%s", k);
@@ -6276,6 +6285,9 @@ void pause_option_value(int opt, char *buf, int len)
         break;
     case 9:
         snprintf(buf, len, "%s", (game_perspective == ProjM_Isometric) ? "ISOMETRIC" : "PERSPECTIVE");
+        break;
+    case 10:
+        snprintf(buf, len, "%s", LbHwPixelLightsEnabled() ? "ON" : "OFF");
         break;
     default:
         buf[0] = '\0';
@@ -6338,6 +6350,9 @@ void pause_option_change(int opt, int dir)
             game_option_inc(GOpt_CameraPerspective);
         else
             game_option_dec(GOpt_CameraPerspective);
+        break;
+    case 10:
+        LbHwPixelLightsSetEnabled(!LbHwPixelLightsEnabled());
         break;
     }
 }

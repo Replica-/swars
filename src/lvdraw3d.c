@@ -16,6 +16,9 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
 #include <stdlib.h>
 #include "lvdraw3d.h"
 
@@ -1217,6 +1220,117 @@ void engine_draw_whole_screen_flyby(void)
     draw_screen();
 }
 
+/** Collects the lights near the camera, for the GPU to add their light to the pixels around them: the
+ * lights placed on the map (lamp posts and so on), and the short lived ones (explosions, flashes).
+ * Each is put on the screen where it touches the ground, so that the light also falls on what stands
+ * near it on the screen, such as walls of buildings. */
+static void hw_gather_pixel_lights(void)
+{
+    float lmat[4], lights[HW_PLIGHTS_MAX * 4], dists[HW_PLIGHTS_MAX];
+    float scr_w, scr_h, scr_cx, scr_cy, radius, reach_x, reach_y;
+    int dx00, dz00, dx10, dz10, dx01, dz01;
+    int offs_y, n, i;
+    float ax, bx, az, bz, det;
+    static float radius_s = -1.0f;
+
+    if (!LbHwPixelLightsEnabled())
+        return;
+    if (radius_s < 0.0f)
+        radius_s = (getenv("SWFX_PL_RADIUS") != NULL) ? (float)atof(getenv("SWFX_PL_RADIUS")) : 700.0f;
+    radius = radius_s;
+
+    // How a distance on the screen is a distance on the ground; the same as for the mouse
+    offs_y = (engn_yc * overall_scale) >> 8;
+    transform_screen_to_map_isometric(&dx00, &dz00, 0, -offs_y);
+    transform_screen_to_map_isometric(&dx10, &dz10, 512, -offs_y);
+    transform_screen_to_map_isometric(&dx01, &dz01, 0, 512 - offs_y);
+    ax = (dx10 - dx00) / 512.0f;
+    bx = (dx01 - dx00) / 512.0f;
+    az = (dz10 - dz00) / 512.0f;
+    bz = (dz01 - dz00) / 512.0f;
+    lmat[0] = ax; lmat[1] = bx; lmat[2] = az; lmat[3] = bz;
+    det = ax * bz - bx * az;
+    if (fabsf(det) < 1.0e-6f)
+        return;
+    // How far on the screen a light reaches (a ground circle is an ellipse on the screen)
+    reach_x = radius * (fabsf(bz) + fabsf(bx)) / fabsf(det);
+    reach_y = radius * (fabsf(az) + fabsf(ax)) / fabsf(det);
+    reach_x *= 1.6f;
+    reach_y *= 1.6f;
+
+    scr_w = (float)lbDisplay.GraphicsScreenWidth;
+    scr_h = (float)lbDisplay.GraphicsScreenHeight;
+    scr_cx = scr_w * 0.5f;
+    scr_cy = scr_h * 0.5f;
+
+    n = 0;
+    // The lights of the map; the ones nearest to the middle of the screen
+    for (i = 1; i < next_full_light; i++)
+    {
+        struct FullLight *p_fl = &game_full_lights[i];
+        struct ShEnginePoint sp;
+        float sx, sy, d, inten;
+        int k, alt;
+
+        if (p_fl->Intensity <= 0)
+            continue;
+        alt = PRCCOORD_TO_YCOORD(alt_at_point(p_fl->X, p_fl->Z));
+        transform_shpoint(&sp, p_fl->X - engn_xc, alt - 8 * engn_yc, p_fl->Z - engn_zc);
+        sx = (float)sp.X;
+        sy = (float)sp.Y;
+        if ((sx < -reach_x) || (sx > scr_w + reach_x) || (sy < -reach_y) || (sy > scr_h + reach_y))
+            continue;
+        d = sqrtf((sx - scr_cx) * (sx - scr_cx) + (sy - scr_cy) * (sy - scr_cy));
+        // A few lights are very strong, for effects; they would blind the neighbourhood
+        inten = (float)((p_fl->Intensity > 96) ? 96 : p_fl->Intensity) / 64.0f;
+        // keep the list sorted, the nearest to the middle of the screen first
+        for (k = n; k > 0 && dists[k - 1] > d; k--) {
+            if (k < HW_PLIGHTS_MAX) {
+                memcpy(&lights[k * 4], &lights[(k - 1) * 4], 4 * sizeof(float));
+                dists[k] = dists[k - 1];
+            }
+        }
+        if (k < HW_PLIGHTS_MAX) {
+            lights[k * 4 + 0] = sx;
+            lights[k * 4 + 1] = sy;
+            lights[k * 4 + 2] = radius;
+            lights[k * 4 + 3] = inten;
+            dists[k] = d;
+            if (n < HW_PLIGHTS_MAX)
+                n++;
+        }
+    }
+    // Short lived lights, such as explosions, are a bit wider and always kept
+    {
+        float dyn[HW_PLIGHTS_MAX * 3];
+        int nd;
+
+        nd = LbHwGetDynamicLights((long)gameturn, dyn, 8);
+        for (i = 0; i < nd; i++)
+        {
+            struct ShEnginePoint sp;
+            int slot, alt;
+
+            alt = PRCCOORD_TO_YCOORD(alt_at_point((int)dyn[i * 3 + 0], (int)dyn[i * 3 + 1]));
+            transform_shpoint(&sp, (int)dyn[i * 3 + 0] - engn_xc, alt - 8 * engn_yc,
+              (int)dyn[i * 3 + 1] - engn_zc);
+            slot = (n < HW_PLIGHTS_MAX) ? n++ : HW_PLIGHTS_MAX - 1;
+            lights[slot * 4 + 0] = (float)sp.X;
+            lights[slot * 4 + 1] = (float)sp.Y;
+            lights[slot * 4 + 2] = radius * 1.5f;
+            lights[slot * 4 + 3] = dyn[i * 3 + 2] / 64.0f;
+        }
+    }
+    if (getenv("SWFX_PL_LOG") != NULL) {
+        static int logged = 0;
+
+        if ((logged++ % 100) == 0)
+            LOGERR("pixel lights: %d on the screen of %d on the map, first at %d,%d inten %d", n,
+              (int)next_full_light, (int)lights[0], (int)lights[1], (int)(lights[3] * 64.0f));
+    }
+    LbHwSetPixelLights(lmat, lights, n);
+}
+
 void engine_draw_whole_screen_top_down(void)
 {
     PlayerInfo *p_locplayer;
@@ -1271,6 +1385,8 @@ void engine_draw_whole_screen_top_down(void)
         lbHwRecording = LbHwRenderEnabled() && LbGlIsActive();
         draw_explode();
         draw_screen();
+        if (lbHwRecording)
+            hw_gather_pixel_lights();
         LbHwRecordingEnd();
         draw_hud(p_locplayer->DirectControl[0]);
         if (in_network_game)

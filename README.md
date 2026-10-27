@@ -67,6 +67,15 @@ and are covered by the same license.
   their place and are slightly stronger than the palette has them, and the near-white
   parts of the scene glow, with a blurred bloom pass in a floating point buffer. Only
   the map and the buildings glow - sprites such as smoke, people and effects do not.
+* **Per-pixel lights (first version).** In the enhanced lighting, the lights of the map (lamp posts and
+  so on) and short lived ones (explosion flashes) add their light to every pixel around them, with a smooth
+  round falloff, on top of the light which the level has baked into the polygon corners - so the pools of
+  light no longer follow the tile grid. Each light is placed on the screen where it touches the ground, and
+  lights the pixels around that spot, so it also falls on the walls and structures which stand near it.
+  Weapon shots and lasers light what is around them in the colour of the beam, from the muzzle along the
+  beam, so the light of a shot scatters across the floor and the buildings. `Shift`+`F6` turns it off;
+  `SWFX_PL_GAIN`, `SWFX_PL_RADIUS`, `SWFX_PL_VCOMP` (how far the light reaches up the screen) and
+  `SWFX_BEAM_GAIN` tune it.
 * **Smooth camera.** The game turns still run at the frame rate cap, but while the
   view is panned, zoomed or rotated, extra frames are drawn between the turns, with
   the camera moved between its previous and its current position, so the view
@@ -114,6 +123,7 @@ and are covered by the same license.
 | Hardware / software rendering | `Shift`+`F3` |
 | Classic / enhanced lighting | `Shift`+`F4` |
 | Smooth camera on / off | `Shift`+`F5` |
+| Per-pixel lights on / off | `Shift`+`F6` |
 | Next costume for your agents (`pspr`) | `F10` |
 | Next costume for enemy agents (`espr`) | `F11` (screen brightness is `Shift`+`F11` down, `Ctrl`+`F11` reset) |
 | Game settings (also in the pause screen) | `P`, then click the arrows in the "Game settings" box |

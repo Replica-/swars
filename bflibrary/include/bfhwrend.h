@@ -121,6 +121,31 @@ TbBool LbHwRecordBox(long x0, long y0, long x1, long y1, ubyte colour, TbBool gh
 /** Records a line, one pixel wide. */
 /** Tells that sprite data was loaded again, so the copies of it made for the GPU are outdated. */
 void LbHwSpriteCacheClear(void);
+
+/** Per-pixel lights. The game gives the lights near the camera of the frame, as positions on the
+ * screen (where the light touches the ground) with a radius on the ground and an intensity; and how
+ * the ground is seen from the camera; the GPU adds their light to the shade of the pixels around the
+ * position on the screen, which also lights what stands there, such as the walls of buildings. */
+#define HW_PLIGHTS_MAX 64
+/** @param aff Four numbers, a 2x2 matrix which takes a distance on the screen (x, y) to a distance on
+ *   the ground: ground X is aff[0] * x + aff[1] * y; ground Z is aff[2] * x + aff[3] * y.
+ * @param lights Four numbers for each light: screen X, screen Y, radius on the ground, intensity. */
+void LbHwSetPixelLights(const float *aff, const float *lights, int count);
+int LbHwGetPixelLights(const float **p_aff, const float **p_lights);
+TbBool LbHwPixelLightsEnabled(void);
+void LbHwPixelLightsSetEnabled(TbBool enabled);
+/** Beams (weapon shots, lasers): the game says where a beam is on the screen, in the frame which is being
+ * drawn. The GPU lights the ground around it with the colour of the beam, brighter near the muzzle. */
+#define HW_BEAMS_MAX 16
+void LbHwNoteBeam(float sx1, float sy1, float sx2, float sy2, int colour, int itime);
+/** Gives the beams of the frame: for each, four numbers (screen x1, y1, x2, y2) in `a` and four (palette
+ * colour, strength, radius, 0) in `b`; returns how many. */
+int LbHwGetBeams(const float **p_a, const float **p_b);
+
+/** The game says where a short lived light (explosion, flash) is in the given game turn. */
+void LbHwNoteDynamicLight(long turn, float x, float z, float intensity);
+/** Gives the short lived lights of the turn as triples x, z, intensity; returns how many. */
+int LbHwGetDynamicLights(long turn, float *out, int max_count);
 TbBool LbHwRecordLine(long x1, long y1, long x2, long y2, ubyte colour, TbBool ghost);
 
 /** The sprite atlas, 8-bit indexed picture holding the sprites which were recorded; 0 is transparent.

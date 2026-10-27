@@ -199,7 +199,7 @@ void game_pause_scene_backdrop_end(void);
 void game_pause_scene_backdrop_restore(void);
 
 /** The settings which can be changed on the pause screen, and by shortcut keys during the game. */
-#define PAUSE_OPT_COUNT 10
+#define PAUSE_OPT_COUNT 11
 /** Gives the name of the setting and its shortcut key. */
 void pause_option_label(int opt, char *name, char *keys, int len);
 /** Gives the current value of the setting as text. */

@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Bullfrog Engine Emulation Library - for use to remake classic games like
 // Syndicate Wars, Magic Carpet, Genewars or Dungeon Keeper.
 /******************************************************************************/
@@ -40,6 +40,8 @@ static GLuint tex_remap = 0;
 static TbBool atlas_needs_full_upload = true;
 static TbBool scene_ready = false;
 static TbBool scene_failed = false;
+static GLint loc_bcount = -1, loc_bgain = -1, loc_ba = -1, loc_bb = -1;
+static GLint loc_lm0 = -1, loc_lm1 = -1, loc_lcount = -1, loc_lgain = -1, loc_lights = -1;
 static GLint loc_screen = -1, loc_pages = -1, loc_fade = -1, loc_pal = -1, loc_enh = -1, loc_atlas = -1, loc_remap = -1, loc_bias = -1, loc_skip = -1;
 
 
@@ -91,6 +93,15 @@ static const char *scene_fs_src =
     "uniform sampler2D uAtlas;\n"
     "uniform sampler2D uRemap;\n"
     "uniform int uEnhanced;\n"
+    "uniform vec4 uLMat;\n"
+    "uniform float uVComp;\n"
+    "uniform int uLightCount;\n"
+    "uniform float uLightGain;\n"
+    "uniform vec4 uLights[64];\n"
+    "uniform int uBeamCount;\n"
+    "uniform float uBeamGain;\n"
+    "uniform vec4 uBeamA[16];\n"
+    "uniform vec4 uBeamB[16];\n"
     "uniform float uUvBias;\n"
     "uniform int uSkipMode;\n"
     "\n"
@@ -112,6 +123,48 @@ static const char *scene_fs_src =
     "    return dot(c, vec3(0.30, 0.59, 0.11));\n"
     "}\n"
     "// How much a colour looks like a light: bright and saturated colours are neon\n"
+    "// The shade (fade table rows) which the lights near the pixel add; the pixel position on\n"
+    "// the map comes from the screen position, as if the pixel was on the ground\n"
+    "vec2 toGround(vec2 d)\n"
+    "{\n"
+    "    // A distance on the screen as a distance on the ground; going up the screen counts a bit less,\n"
+    "    // so that the light reaches further up the walls which stand on the ground\n"
+    "    d.y *= uVComp;\n"
+    "    return vec2(uLMat.x * d.x + uLMat.y * d.y, uLMat.z * d.x + uLMat.w * d.y);\n"
+    "}\n"
+    "float lightDelta(vec2 p)\n"
+    "{\n"
+    "    if (uLightCount == 0)\n"
+    "        return 0.0;\n"
+    "    float s = 0.0;\n"
+    "    for (int i = 0; i < uLightCount; i++) {\n"
+    "        vec4 L = uLights[i];\n"
+    "        float f = max(1.0 - length(toGround(p - L.xy)) / L.z, 0.0);\n"
+    "        s += L.w * f * f;\n"
+    "    }\n"
+    "    return s * uLightGain;\n"
+    "}\n"
+    "// Coloured light which the beams (shots, lasers) throw on the ground around them, brighter near\n"
+    "// the muzzle, where the beam starts\n"
+    "vec3 beamGlow(vec2 p)\n"
+    "{\n"
+    "    if (uBeamCount == 0)\n"
+    "        return vec3(0.0);\n"
+    "    vec3 g = vec3(0.0);\n"
+    "    for (int i = 0; i < uBeamCount; i++) {\n"
+    "        vec4 A = uBeamA[i];\n"
+    "        vec4 B = uBeamB[i];\n"
+    "        vec2 tp = toGround(p - A.xy);\n"
+    "        vec2 tb = toGround(A.zw - A.xy);\n"
+    "        float t = clamp(dot(tp, tb) / max(dot(tb, tb), 1.0), 0.0, 1.0);\n"
+    "        float f = max(1.0 - length(tp - tb * t) / B.z, 0.0);\n"
+    "        f *= f;\n"
+    "        float m = max(1.0 - length(tp) / (B.z * 1.6), 0.0);\n"
+    "        f += m * m;\n"
+    "        g += pal(int(B.x + 0.5)) * (B.y * f);\n"
+    "    }\n"
+    "    return g * uBeamGain;\n"
+    "}\n"
     "float neonAmount(vec3 c)\n"
     "{\n"
     "    float mx = max(c.r, max(c.g, c.b));\n"
@@ -154,7 +207,8 @@ static const char *scene_fs_src =
     "        tx = texel(vUVS.xy, layer);\n"
     "    vec3 rgb = vec3(0.0);\n"
     "    float alpha = 1.0;\n"
-    "    float sh = vUVS.z;\n"
+    "    float ld = (uEnhanced != 0) ? lightDelta(vPos) : 0.0;\n"
+    "    float sh = vUVS.z + ld;\n"
     "    if (mode >= 100) {\n"
     "        if (mode >= 102) {\n"
     "            // flat colour\n"
@@ -189,10 +243,10 @@ static const char *scene_fs_src =
     "        if (tx == 0) discard;\n"
     "        rgb = shaded(tx, sh);\n"
     "    } else if (mode == 7 || mode == 11) {\n"
-    "        rgb = (colour == 32) ? pal(tx) : shaded(tx, float(colour) + 0.5);\n"
+    "        rgb = (colour == 32) ? pal(tx) : shaded(tx, float(colour) + 0.5 + ld);\n"
     "    } else if (mode == 8) {\n"
     "        if (tx == 0) discard;\n"
-    "        rgb = shaded(tx, float(colour) + 0.5);\n"
+    "        rgb = shaded(tx, float(colour) + 0.5 + ld);\n"
     "    } else if (mode == 9 || mode == 10) {\n"
     "        // Darkens what is below, by a fade table row: the one of the texel (mode 9), or the\n"
     "        // one given in the colour (mode 10); a texel of 0 leaves the screen as it is\n"
@@ -225,7 +279,9 @@ static const char *scene_fs_src =
     "        } else {\n"
     "            rgb = shaded(tx, sh);\n"
     "        }\n"
-    "    }\n"    "    bool isSprite = (mode == 100 || mode == 101);\n"
+    "    }\n"    "    if (mode < 100 && alpha >= 1.0 && uEnhanced != 0 && uBeamCount > 0)\n"
+    "        rgb += beamGlow(vPos) * (0.35 + 1.3 * luma(rgb));\n"
+    "    bool isSprite = (mode == 100 || mode == 101);\n"
     "    if (alpha < 1.0 && uEnhanced != 0 && !isSprite) {\n"
     "        // What is drawn half transparent and is bright - lights, glows, lasers - is added to\n"
     "        // the screen instead of mixed with it, so that it glows, as neon does\n"
@@ -274,6 +330,15 @@ static TbBool LbGlSceneInit(void)
     loc_fade = gl.GetUniformLocation(scene_program, "uFade");
     loc_pal = gl.GetUniformLocation(scene_program, "uPal");
     loc_enh = gl.GetUniformLocation(scene_program, "uEnhanced");
+    loc_lm0 = gl.GetUniformLocation(scene_program, "uLMat");
+    loc_lm1 = gl.GetUniformLocation(scene_program, "uVComp");
+    loc_lcount = gl.GetUniformLocation(scene_program, "uLightCount");
+    loc_lgain = gl.GetUniformLocation(scene_program, "uLightGain");
+    loc_lights = gl.GetUniformLocation(scene_program, "uLights");
+    loc_bcount = gl.GetUniformLocation(scene_program, "uBeamCount");
+    loc_bgain = gl.GetUniformLocation(scene_program, "uBeamGain");
+    loc_ba = gl.GetUniformLocation(scene_program, "uBeamA");
+    loc_bb = gl.GetUniformLocation(scene_program, "uBeamB");
     loc_atlas = gl.GetUniformLocation(scene_program, "uAtlas");
     loc_bias = gl.GetUniformLocation(scene_program, "uUvBias");
     loc_skip = gl.GetUniformLocation(scene_program, "uSkipMode");
@@ -640,6 +705,43 @@ void LbGlSceneDraw(GLuint pal_texture, long buf_width, long buf_height)
     gl.Uniform1i(loc_atlas, 4);
     gl.Uniform1i(loc_remap, 5);
     gl.Uniform1i(loc_enh, (LbHwLightingMode() == HwLight_Enhanced) ? 1 : 0);
+    {
+        const float *aff, *lts;
+        int n;
+        static float gain = -1.0f;
+
+        if (gain < 0.0f)
+            gain = (getenv("SWFX_PL_GAIN") != NULL) ? (float)atof(getenv("SWFX_PL_GAIN")) : 4.5f;
+        n = LbHwGetPixelLights(&aff, &lts);
+        gl.Uniform1i(loc_lcount, n);
+        {
+            static float vcomp = -1.0f;
+
+            if (vcomp < 0.0f)
+                vcomp = (getenv("SWFX_PL_VCOMP") != NULL) ? (float)atof(getenv("SWFX_PL_VCOMP")) : 0.65f;
+            gl.Uniform4fv(loc_lm0, 1, aff);
+            gl.Uniform1f(loc_lm1, vcomp);
+        }
+        if (n > 0) {
+            gl.Uniform1f(loc_lgain, gain);
+            gl.Uniform4fv(loc_lights, n, lts);
+        }
+        {
+            const float *ba, *bb;
+            static float bgain = -1.0f;
+            int nb;
+
+            if (bgain < 0.0f)
+                bgain = (getenv("SWFX_BEAM_GAIN") != NULL) ? (float)atof(getenv("SWFX_BEAM_GAIN")) : 1.2f;
+            nb = LbHwGetBeams(&ba, &bb);
+            gl.Uniform1i(loc_bcount, nb);
+            if (nb > 0) {
+                gl.Uniform1f(loc_bgain, bgain);
+                gl.Uniform4fv(loc_ba, nb, ba);
+                gl.Uniform4fv(loc_bb, nb, bb);
+            }
+        }
+    }
     gl.Enable(GL_BLEND);
     // The colours which the shader gives are already multiplied by their alpha
     gl.BlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);

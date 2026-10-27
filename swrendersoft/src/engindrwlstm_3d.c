@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file engindrwlstm_3d.c
@@ -16,6 +16,7 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
+#include "bfhwrend.h"
 #include "engindrwlstm.h"
 
 #include "bfendian.h"
@@ -965,6 +966,9 @@ void enlist_draw_laser(int cor1_x, int cor1_y, int cor1_z,
     ep2.Z3d = cor2_z - engn_zc;
     ep2.Y3d = 8 * cor2_y; // subtracted within transform_point(): - 8 * engn_yc;
     transform_point(&ep2);
+
+    // The GPU rendering lights the ground around the beam, from the muzzle where it starts
+    LbHwNoteBeam((float)(scr_x >> 8), (float)(scr_y >> 8), (float)ep2.pp.X, (float)ep2.pp.Y, colour, itime);
 
     if ((ep2.Flags & ep1.Flags & 0xF) != 0)
         return;
