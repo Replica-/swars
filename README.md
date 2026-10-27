@@ -1,5 +1,7 @@
 # SyndWarsFX - Syndicate Wars Fan Expansion (fork with GPU rendering and quality-of-life work)
 
+**Video:** [Watch the fork in action on YouTube](https://www.youtube.com/watch?v=IL2CsT9U9sA)
+
 **Syndicate Wars Fan Expansion** is an Open Source remake of the classic 1996
 Bullfrog game *Syndicate Wars*. This repository is a fork of the SyndWarsFX
 project, adding an OpenGL presentation path, optional hardware (GPU) rendering of
