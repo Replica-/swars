@@ -125,6 +125,9 @@ extern ScreenSortSpriteRenderCallback screen_sorted_sprite_statc_render_cb;
 extern ScreenSortSpriteRenderCallback screen_sorted_sprite_persn_render_cb;
 /** Tells if the person of the sprite is to be drawn with the alternative multicolor sprites. */
 extern TbBool (*screen_sorted_sprite_persn_alt_cb)(ushort sspr);
+/** Called for the scaled effect sprites; given the screen rectangle which the sprite would cover, tells
+ * if the effect was drawn by other means, and the sprite is to be left out. */
+extern TbBool (*screen_sorted_sprite_effect_replace_cb)(ushort sspr, int x0, int y0, int w, int h);
 /******************************************************************************/
 
 void draw_frame_unscaled(int scr_x, int scr_y, ushort frm);

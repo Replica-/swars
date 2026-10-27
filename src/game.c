@@ -4537,6 +4537,10 @@ static void box_select_draw(void)
 
     if (!box_select_active)
         return;
+    // The corner follows the mouse as it is now, not as it was in the last game turn, so that the box
+    // moves at the pace of the mouse and the frames shown
+    box_select_x1 = lbDisplay.MMouseX;
+    box_select_y1 = lbDisplay.MMouseY;
     col = colour_lookup[ColLU_GREEN];
     x0 = min(box_select_x0, box_select_x1);
     y0 = min(box_select_y0, box_select_y1);
@@ -6154,7 +6158,7 @@ static void smooth_cam_subframes(void)
         dyaw -= 0x10000;
     if ((cur.xc == smooth_cam_prev.xc) && (cur.zc == smooth_cam_prev.zc) && (dyaw == 0)
       && (cur.scale == smooth_cam_prev.scale) && (cur.yc == smooth_cam_prev.yc)
-      && (cur.tilt == smooth_cam_prev.tilt)) {
+      && (cur.tilt == smooth_cam_prev.tilt) && !box_select_active) {
         return; // nothing moves, the frame as it is will do
     }
 
@@ -6791,6 +6795,8 @@ void game_process_orbital_station_explode(void)
     }
 }
 
+struct SimpleThing *init_nuclear_bomb(MapCoord x, MapCoord y, MapCoord z);
+
 void game_process(void)
 {
     debug_multicolor_sprite(193);
@@ -6822,6 +6828,19 @@ void game_process(void)
             input_char = LbKeyboard();
         if (ingame.DisplayMode == DpM_PURPLEMNU) {
             LOGDBG("id=%d  trial alloc = %d turn %lu", 0, triangulation, gameturn);
+        }
+        if ((getenv("SWFX_GAS_TEST") != NULL) && (gameturn == 80) && (ingame.DisplayMode == DpM_ENGINEPLY))
+        {
+            // For looking at the gas clouds: a canister of the given kind (4 psycho, 5 knock out) near the agents
+            struct Thing *p_ag = players[local_player_no].MyAgent[0];
+            struct SimpleThing *p_can;
+            MapCoord gx = PRCCOORD_TO_MAPCOORD(p_ag->X) + 600, gz = PRCCOORD_TO_MAPCOORD(p_ag->Z);
+
+            p_can = init_nuclear_bomb(gx, PRCCOORD_TO_MAPCOORD(alt_at_point(gx, gz)), gz);
+            if (p_can != NULL) {
+                p_can->Type = SmTT_CANISTER;
+                p_can->SubType = atoi(getenv("SWFX_GAS_TEST"));
+            }
         }
         LbHwFrameBegin();
         LbHwSetTexturePages(vec_tmap, VEC_TMAP_LIMIT);

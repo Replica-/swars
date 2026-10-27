@@ -74,6 +74,7 @@ ushort next_sort_sprite = 0;
 ScreenSortSpriteRenderCallback screen_sorted_sprite_statc_render_cb = NULL;
 ScreenSortSpriteRenderCallback screen_sorted_sprite_persn_render_cb = NULL;
 TbBool (*screen_sorted_sprite_persn_alt_cb)(ushort sspr) = NULL;
+TbBool (*screen_sorted_sprite_effect_replace_cb)(ushort sspr, int x0, int y0, int w, int h) = NULL;
 
 void draw_sorted_sprite1b(ubyte *frv, ushort frm, short scr_x, short scr_y,
   ubyte brig, ubyte angle);
@@ -639,6 +640,8 @@ void draw_frame_alpha(short scr_x, short scr_y, ushort frm,
     }
 }
 
+#define FRAMES_LIMIT_FOR_RECT 0xFFFF
+
 void draw_sort_sprite1c(ushort sspr)
 {
     struct SortSprite *p_sspr;
@@ -646,6 +649,31 @@ void draw_sort_sprite1c(ushort sspr)
 
     p_sspr = &game_sort_sprites[sspr];
     sscale = (p_sspr->Scale * overall_scale) >> 8;
+
+    if ((screen_sorted_sprite_effect_replace_cb != NULL) && (sscale != 256) && (sscale > 0) && (sscale < 4096)
+      && (p_sspr->Frame < FRAMES_LIMIT_FOR_RECT))
+    {
+        // The rectangle which the scaled sprite takes, the same as when it is drawn
+        struct Frame *p_frm = &frame[p_sspr->Frame];
+        struct Element *p_elem;
+        int min_x = INT16_MAX, min_y = INT16_MAX;
+        ushort el;
+        int w, h;
+
+        for (el = p_frm->FirstElement; el > 0; el = p_elem->Next)
+        {
+            p_elem = &melement_ani[el];
+            if (min_x > p_elem->X >> 1)
+                min_x = p_elem->X >> 1;
+            if (min_y > p_elem->Y >> 1)
+                min_y = p_elem->Y >> 1;
+        }
+        w = (sscale * p_frm->SWidth) >> 9;
+        h = (sscale * p_frm->SHeight) >> 9;
+        if ((min_x != INT16_MAX) && screen_sorted_sprite_effect_replace_cb(sspr,
+          p_sspr->X + ((sscale * min_x) >> 8), p_sspr->Y + ((sscale * min_y) >> 8), w, h))
+            return;
+    }
 
     draw_frame_alpha(p_sspr->X, p_sspr->Y,
       p_sspr->Frame, sscale, p_sspr->Brightness);

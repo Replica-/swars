@@ -86,6 +86,13 @@ and are covered by the same license.
   people in front of the gun, as a cone, from the moment the charging starts; the stronger the weapon (uzi,
   minigun, lasers, rockets, ...), the stronger and wider the light. The light is blended like a screen, so
   places which are already bright do not get overexposed. Explosions light their surroundings red. Fires are drawn as flickering tongues of flame by the shader, in place of the flame sprites (`SWFX_FLAME_TEST=1` shows a few). `SWFX_BEAM_TEST=1` draws a fixed test beam.
+* **Gas clouds.** In the GPU rendering, the particles of the clouds of gas grenades are drawn as soft puffs of
+  smoke by the shader, in place of the sprites, in the same places and sizes, so the cloud spirals the way it
+  does in the game: purple for psycho gas, grey for knock out gas. The cloud also lights the ground around it
+  in its colour. `SWFX_GAS_TEST=4` or `5` puts a canister next to the agents, to look at it;
+  `SWFX_NO_GASSMOKE=1` brings back the sprites.
+* **Selection box at the frame rate of the application.** The Shift-drag box follows the mouse at the pace
+  of the frames shown, not of the game turns, and the extra frames are drawn while it is dragged.
 * **Smooth camera.** The game turns still run at the frame rate cap, but while the
   view is panned, zoomed or rotated, extra frames are drawn between the turns, with
   the camera moved between its previous and its current position, so the view

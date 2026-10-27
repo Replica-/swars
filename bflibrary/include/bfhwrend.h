@@ -92,6 +92,7 @@ TbBool LbHwRecordTriangle(const struct PolyPoint *point_a,
 #define HWREND_MODE_SPRITE_GHOST 101 /**< The same, half transparent. */
 #define HWREND_MODE_FLAT 102         /**< Flat colour. */
 #define HWREND_MODE_FLAT_GHOST 103   /**< Flat colour, half transparent. */
+#define HWREND_MODE_SMOKE 105        /**< A puff of smoke, drawn by the shader; blended over the screen. */
 #define HWREND_MODE_FLAME 104        /**< A tongue of flame, drawn by the shader; added to the screen. */
 
 /** Records drawing of a sprite into the given area of the screen buffer.
@@ -125,6 +126,12 @@ void LbHwSpriteCacheClear(void);
 /** Records a flame drawn by the GPU, instead of a sprite: a quad on the screen of the given size, in which
  * the shader draws a flickering flame. @param seed makes each flame different. @return false if the GPU
  * is not drawing the scene, and the sprite has to be drawn. */
+/** A puff of coloured smoke, for the end of the frame. @param kind 0 - psycho gas (purple), 1 - knock out gas (grey).
+ * The puffs are drawn over the scene when LbHwFlushSmoke() is called while recording. */
+/** Records a puff of smoke at once, in the order of drawing (in place of a sprite). */
+void LbHwRecordSmokePuff(float x0, float y0, float x1, float y1, int seed, int kind, float alpha);
+void LbHwNoteSmoke(float sx, float sy, float size, int seed, int kind, float alpha);
+void LbHwFlushSmoke(void);
 TbBool LbHwRecordFlame(float x0, float y0, float x1, float y1, int seed, float strength);
 
 /** Per-pixel lights. The game gives the lights near the camera of the frame, as positions on the

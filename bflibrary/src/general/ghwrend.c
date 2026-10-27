@@ -33,6 +33,7 @@ volatile TbBool lbHwRecording = false;
 static TbBool hw_enabled = true;
 static int hw_lighting = HwLight_Enhanced;
 
+static int smoke_count = 0;
 static float pl_affine[4];
 static float pl_lights[HW_PLIGHTS_MAX * 4];
 static int pl_count = 0;
@@ -225,6 +226,7 @@ void LbHwFrameBegin(void)
 {
     pl_count = 0;
     beam_count = 0;
+    smoke_count = 0;
     if (getenv("SWFX_HW_FAILLOG") != NULL) {
         if ((++dbg_frames % 60) == 0) {
             LOGERR("HW fallbacks per 60 frames: tri_screen=%ld tri_page=%ld tri_grow=%ld spr_atlas=%ld spr_remap=%ld spr_grow=%ld alpha_bounds=%ld",
@@ -646,6 +648,65 @@ TbBool LbHwRecordSpriteDrawAlphaScaled(const struct TbSprite *spr, long posx, lo
       (flags & Lb_SPRITE_FLIP_HORIZ) != 0, (flags & Lb_SPRITE_FLIP_VERTIC) != 0,
       ((flags & Lb_SPRITE_TRANSPAR8) == 0) && ((flags & Lb_SPRITE_TRANSPAR4) != 0),
       ((flags & Lb_SPRITE_TRANSPAR8) != 0) ? lbSpriteReMapPtr : NULL, -1);
+}
+
+#define HW_SMOKE_MAX 400
+struct HwSmoke { float x, y, size, alpha; int seed, kind; };
+static struct HwSmoke smoke_list[HW_SMOKE_MAX];
+
+void LbHwNoteSmoke(float sx, float sy, float size, int seed, int kind, float alpha)
+{
+    struct HwSmoke *p;
+
+    if (smoke_count >= HW_SMOKE_MAX)
+        return;
+    p = &smoke_list[smoke_count++];
+    p->x = sx; p->y = sy; p->size = size; p->alpha = alpha; p->seed = seed; p->kind = kind;
+}
+
+void LbHwRecordSmokePuff(float x0, float y0, float x1, float y1, int seed, int kind, float alpha)
+{
+    int k;
+
+    if (!lbHwRecording || (hw_lighting != HwLight_Enhanced) || !hw_grow(6))
+        return;
+    hw_quad(&rec_verts[rec_count], x0, y0, x1, y1, 0.0f, 0.0f, 1.0f, 1.0f,
+      HWREND_MODE_SMOKE, (float)kind, alpha);
+    for (k = 0; k < 6; k++)
+        rec_verts[rec_count + k].s = (float)(seed & 1023);
+    rec_count += 6;
+}
+
+void LbHwFlushSmoke(void)
+{
+    int i, j;
+
+    if (!lbHwRecording || (hw_lighting != HwLight_Enhanced)) {
+        smoke_count = 0;
+        return;
+    }
+    // Further puffs (higher on the screen) first, so the nearer ones go over them
+    for (i = 1; i < smoke_count; i++) {
+        struct HwSmoke key = smoke_list[i];
+        for (j = i - 1; j >= 0 && smoke_list[j].y > key.y; j--)
+            smoke_list[j + 1] = smoke_list[j];
+        smoke_list[j + 1] = key;
+    }
+    for (i = 0; i < smoke_count; i++)
+    {
+        struct HwSmoke *p = &smoke_list[i];
+        int k;
+
+        if (!hw_grow(6))
+            break;
+        hw_quad(&rec_verts[rec_count], p->x - p->size * 0.5f, p->y - p->size * 0.5f,
+          p->x + p->size * 0.5f, p->y + p->size * 0.5f, 0.0f, 0.0f, 1.0f, 1.0f,
+          HWREND_MODE_SMOKE, (float)p->kind, p->alpha);
+        for (k = 0; k < 6; k++)
+            rec_verts[rec_count + k].s = (float)(p->seed & 1023);
+        rec_count += 6;
+    }
+    smoke_count = 0;
 }
 
 TbBool LbHwRecordFlame(float x0, float y0, float x1, float y1, int seed, float strength)

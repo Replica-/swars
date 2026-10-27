@@ -16,6 +16,7 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
+#include <time.h>
 #include <math.h>
 #include <stdlib.h>
 #include "bfhwrend.h"
@@ -953,6 +954,23 @@ void build_stasis_pod(struct SimpleThing *p_sthing)
         : : "a" (p_sthing));
 }
 
+/** The light which a cloud of gas throws on the ground and the walls around it, in the colour of the gas. The
+ * particles of the cloud are drawn as smoke in their own place (see screen_sorted_sprite_effect_replace_callback()). */
+static void build_canister_smoke(struct SimpleThing *p_sthing)
+{
+    struct ShEnginePoint sp;
+    int cx, cz, cy, colour;
+
+    if (!LbHwRenderEnabled())
+        return;
+    cx = PRCCOORD_TO_MAPCOORD(p_sthing->X);
+    cz = PRCCOORD_TO_MAPCOORD(p_sthing->Z);
+    cy = PRCCOORD_TO_YCOORD(alt_at_point(cx, cz));
+    transform_shpoint(&sp, cx - engn_xc, cy - 8 * engn_yc, cz - engn_zc);
+    colour = (p_sthing->SubType == 4) ? LbPaletteFindColour(display_palette, 34, 10, 52) : colour_lookup[ColLU_GREYMD];
+    LbHwNoteMuzzle((float)sp.X, (float)sp.Y, colour, 0.55f, 380.0f, 0.0f, 0.0f);
+}
+
 short draw_thing_object(struct Thing *p_thing)
 {
     struct SimpleThing *p_sthing;
@@ -1032,6 +1050,9 @@ short draw_thing_object(struct Thing *p_thing)
         break;
     case SmTT_BANG:
         draw_bang(p_sthing);
+        break;
+    case SmTT_CANISTER:
+        build_canister_smoke(p_sthing);
         break;
     case SmTT_FIRE:
         FIRE_draw_fire(p_sthing);

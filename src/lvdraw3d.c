@@ -222,6 +222,34 @@ void screen_sorted_sprite_statc_render_callback(ushort sspr)
     }
 }
 
+/** The particles of the clouds of gas grenades are replaced by puffs of smoke drawn by the GPU, in the
+ * same places and sizes, so they move the same way; the gas particles are the effects with sub type 30
+ * and the flags 0x10 (psycho gas) or 0x20 (knock out gas). */
+TbBool screen_sorted_sprite_effect_replace_callback(ushort sspr, int x0, int y0, int w, int h)
+{
+    struct SimpleThing *p_sthing;
+    int kind;
+    float cx, cy, size;
+
+    if (!lbHwRecording || !LbHwRenderEnabled() || (getenv("SWFX_NO_GASSMOKE") != NULL))
+        return false;
+    p_sthing = (struct SimpleThing *)game_sort_sprites[sspr].SrcItem;
+    if ((p_sthing == NULL) || (p_sthing->Type != SmTT_SCALE_EFFECT) || (p_sthing->SubType != 30))
+        return false;
+    if ((p_sthing->Flag & 0x10) != 0)
+        kind = 0;
+    else if ((p_sthing->Flag & 0x20) != 0)
+        kind = 1;
+    else
+        return false;
+    cx = (float)x0 + (float)w * 0.5f;
+    cy = (float)y0 + (float)h * 0.5f;
+    size = (float)((w > h) ? w : h) * 1.5f;
+    LbHwRecordSmokePuff(cx - size * 0.5f, cy - size * 0.5f, cx + size * 0.5f, cy + size * 0.5f,
+      (int)p_sthing->ThingOffset * 7, kind, 0.9f);
+    return true;
+}
+
 /** Tells if the person is an enemy agent, which wears the enemy costume. */
 TbBool screen_sorted_sprite_persn_alt_callback(ushort sspr)
 {
@@ -1193,6 +1221,7 @@ void engine_draw_whole_screen_flyby(void)
     screen_sorted_sprite_statc_render_cb = screen_sorted_sprite_render_null_callback;
     screen_sorted_sprite_persn_render_cb = screen_sorted_sprite_render_null_callback;
     screen_sorted_sprite_persn_alt_cb = NULL;
+    screen_sorted_sprite_effect_replace_cb = NULL;
 
     slt_zmin = lvdraw_fill_bound_points(bound_pts);
 
@@ -1364,6 +1393,7 @@ void engine_draw_whole_screen_top_down(void)
     screen_sorted_sprite_statc_render_cb = screen_sorted_sprite_statc_render_callback;
     screen_sorted_sprite_persn_render_cb = screen_sorted_sprite_persn_render_callback;
     screen_sorted_sprite_persn_alt_cb = screen_sorted_sprite_persn_alt_callback;
+    screen_sorted_sprite_effect_replace_cb = screen_sorted_sprite_effect_replace_callback;
 
     player_target_clear(local_player_no); // set during HUD redraw (should be separated!)
 
@@ -1410,6 +1440,7 @@ void engine_draw_whole_screen_top_down(void)
         draw_screen();
         if (lbHwRecording)
             hw_gather_pixel_lights();
+        LbHwFlushSmoke();
         LbHwRecordingEnd();
         draw_hud(p_locplayer->DirectControl[0]);
         if (in_network_game)
