@@ -18,6 +18,9 @@
 /******************************************************************************/
 #include "lvdraw3d.h"
 
+#include "bfgl.h"
+#include "bfhwrend.h"
+
 #include <assert.h>
 #include <limits.h>
 #include "bfendian.h"
@@ -1241,8 +1244,12 @@ void engine_draw_whole_screen_top_down(void)
     p_locplayer = &players[local_player_no];
     if ((ingame.Flags & GamF_RenderScene) != 0)
     {
+        // With the GPU drawing the scene, the primitives are recorded now, and
+        // drawn when the screen is presented
+        lbHwRecording = LbHwRenderEnabled() && LbGlIsActive();
         draw_explode();
         draw_screen();
+        LbHwRecordingEnd();
         draw_hud(p_locplayer->DirectControl[0]);
         if (in_network_game)
             draw_netplayer_name_text_over_thing();

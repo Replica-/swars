@@ -21,6 +21,7 @@
 
 #include "bfendian.h"
 #include "bfgentab.h"
+#include "bfhwrend.h"
 #include "poly.h"
 #include "poly_gp.h"
 #include "poly_trigp.h"
@@ -42,6 +43,9 @@ void gpoly_enable_pentium_pro(TbBool state)
 
 void draw_trigpoly(struct PolyPoint *point_a, struct PolyPoint *point_b, struct PolyPoint *point_c)
 {
+    // When the scene is drawn by the GPU, the triangle is only recorded
+    if (lbHwRecording && LbHwRecordTriangle(point_a, point_b, point_c))
+        return;
     switch (vec_mode)
     {
     case 5:

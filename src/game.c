@@ -136,6 +136,8 @@
 #include "game.h"
 #include "game_data.h"
 #include "game_speed.h"
+#include "bfgl.h"
+#include "bfhwrend.h"
 #include "hud_target.h"
 #include "keyboard.h"
 #include "misstat.h"
@@ -1031,6 +1033,27 @@ ubyte game_graphics_inputs(void)
     {
         clear_gamekey_pressed(GKey_CAMERA_PERSPECTV);
         game_option_inc(GOpt_CameraPerspective);
+        did_inp |= GINPUT_DIRECT;
+    }
+
+    // Shift+F3 switches between the software and the hardware (GPU) rendering
+    if (is_key_pressed(KC_F3, KMod_SHIFT))
+    {
+        clear_key_pressed(KC_F3);
+        if (LbGlIsActive()) {
+            LbHwRenderSetEnabled(!LbHwRenderEnabled());
+            LOGSYNC("3D scene rendering by %s", LbHwRenderEnabled() ? "hardware" : "software");
+        }
+        did_inp |= GINPUT_DIRECT;
+    }
+
+    // Shift+F4 switches the lighting of the hardware rendering between classic and enhanced
+    if (is_key_pressed(KC_F4, KMod_SHIFT))
+    {
+        clear_key_pressed(KC_F4);
+        LbHwLightingSetMode((LbHwLightingMode() + 1) % HwLight_COUNT);
+        LOGSYNC("hardware rendering lighting: %s",
+          (LbHwLightingMode() == HwLight_Enhanced) ? "enhanced" : "classic");
         did_inp |= GINPUT_DIRECT;
     }
 
@@ -4006,6 +4029,8 @@ void scroll_map_input(int *p_dx, int *p_dy)
             dy = (lbKeyOn[KC_DOWN] & 1) - (lbKeyOn[KC_UP] & 1);
     }
 
+    // For testing, the scrolling by the mouse at the screen edge can be switched off
+    if (getenv("SWFX_NO_EDGE_SCROLL") == NULL)
     {
         if (dx == 0)
         {
@@ -6349,6 +6374,17 @@ void game_process(void)
 {
     debug_multicolor_sprite(193);
     LOGDBG("WSCREEN 0x%p", (void *)lbDisplay.WScreen);
+    // The hardware scene rendering is on by default; the environment can change that:
+    // SWFX_HW=0 (or "software") starts with the software renderer,
+    // SWFX_HW=classic keeps the hardware rendering but with the classic lighting
+    if (getenv("SWFX_HW") != NULL) {
+        const char *hwval = getenv("SWFX_HW");
+
+        if ((strcmp(hwval, "0") == 0) || (strcmp(hwval, "software") == 0))
+            LbHwRenderSetEnabled(false);
+        else if (strcmp(hwval, "classic") == 0)
+            LbHwLightingSetMode(HwLight_Classic);
+    }
 
     while ( !exit_game )
     {
@@ -6363,6 +6399,8 @@ void game_process(void)
         if (ingame.DisplayMode == DpM_PURPLEMNU) {
             LOGDBG("id=%d  trial alloc = %d turn %lu", 0, triangulation, gameturn);
         }
+        LbHwFrameBegin();
+        LbHwSetTexturePages(vec_tmap, VEC_TMAP_LIMIT);
         input();
         update_tick_time();
         // Faces thrown by an explosion can hit people once they land, so they
@@ -6399,7 +6437,10 @@ void game_process(void)
         {
             perf_phase_begin(PerfPhase_Swap);
             game_update();
-            LbScreenSwapClear(0);
+            // When the GPU draws the scene, what the software draws is put over it, and
+            // everything not drawn has to be left transparent
+            LbScreenSwapClear((LbHwRenderEnabled() && LbGlIsActive() && (ingame.DisplayMode == DpM_ENGINEPLY)) ?
+              HWREND_CLEAR_COLOUR : 0);
             perf_phase_end(PerfPhase_Swap);
         }
 

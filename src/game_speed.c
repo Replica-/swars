@@ -28,6 +28,7 @@
 #include "bfkeybd.h"
 #include "bftime.h"
 #include "bfscreen.h"
+#include "bfgl.h"
 #include "rom.h"
 #include "drawtext.h"
 #include "engincolour.h"
@@ -371,8 +372,8 @@ void fps_counter_show(void)
             snprintf(capstr, sizeof(capstr), "%d", (int)game_fps_cap);
         else
             snprintf(capstr, sizeof(capstr), "OFF");
-        snprintf(locstr, sizeof(locstr), "FPS %lu TPS %lu SKIP %d CAP %s  DRAW %lu.%lu SWAP %lu.%lu",
-          shown_fps, shown_tps, (int)frameskip, capstr,
+        snprintf(locstr, sizeof(locstr), "%s FPS %lu TPS %lu SKIP %d CAP %s  DRAW %lu.%lu SWAP %lu.%lu",
+          LbGlIsActive() ? "GL" : "SW", shown_fps, shown_tps, (int)frameskip, capstr,
           shown_draw_us / 1000, (shown_draw_us / 100) % 10,
           shown_swap_us / 1000, (shown_swap_us / 100) % 10);
     }

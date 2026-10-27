@@ -1,7 +1,7 @@
 {
     // Entries are grouped in the dropdown: "presentation.group" makes the dividers,
     // "order" sorts within a group.
-    "version": "0.2.0",
+    // "-b" opens the window without taking the focus, "-M" mutes the sound; the debug and\n    // build-and-launch entries use them, so that testing does not interrupt other work.\n    "version": "0.2.0",
     "configurations": [
         // ---------------------------------------------------------------- Debug
         {
@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "D:/development/swars/debug/src/syndwarsfx.exe",
-            "args": ["-g", "-W"],
+            "args": ["-g", "-W", "-b", "-M"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/debug/src",
             "environment": [
@@ -18,7 +18,7 @@
                     "value": "D:/development/msys64/mingw32/bin;${env:PATH}"
                 }
             ],
-            "externalConsole": true,
+            "externalConsole": false,
             "MIMode": "gdb",
             "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe",
             "setupCommands": [
@@ -35,7 +35,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "D:/development/swars/debug/src/syndwarsfx.exe",
-            "args": ["-g", "-W"],
+            "args": ["-g", "-W", "-b", "-M"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/debug/src",
             "environment": [
@@ -44,7 +44,7 @@
                     "value": "D:/development/msys64/mingw32/bin;${env:PATH}"
                 }
             ],
-            "externalConsole": true,
+            "externalConsole": false,
             "preLaunchTask": "build-debug",
             "MIMode": "gdb",
             "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe",
@@ -72,7 +72,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "D:/development/swars/debug/src/syndwarsfx.exe",
-            "args": ["-m", "0,1", "-q", "-W"],
+            "args": ["-m", "0,1", "-q", "-W", "-b", "-M"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/debug/src",
             "environment": [
@@ -81,7 +81,7 @@
                     "value": "D:/development/msys64/mingw32/bin;${env:PATH}"
                 }
             ],
-            "externalConsole": true,
+            "externalConsole": false,
             "MIMode": "gdb",
             "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe",
             "setupCommands": [
@@ -98,7 +98,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "D:/development/swars/debug/src/syndwarsfx.exe",
-            "args": ["-m", "0,1", "-q", "-W"],
+            "args": ["-m", "0,1", "-q", "-W", "-b", "-M"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/debug/src",
             "environment": [
@@ -107,7 +107,7 @@
                     "value": "D:/development/msys64/mingw32/bin;${env:PATH}"
                 }
             ],
-            "externalConsole": true,
+            "externalConsole": false,
             "preLaunchTask": "build-debug",
             "MIMode": "gdb",
             "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe",
@@ -141,11 +141,11 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "D:/development/swars/release/src/syndwarsfx.exe",
-            "args": ["-g", "-W"],
+            "args": ["-g", "-W", "-b", "-M"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/release/src",
             "environment": [],
-            "externalConsole": true,
+            "externalConsole": false,
             "MIMode": "gdb",
             "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe",
             "preLaunchTask": "build-release",

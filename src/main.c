@@ -2,6 +2,7 @@
 #include <getopt.h>
 #include <stdlib.h>
 
+#include "bfaudio.h"
 #include "bfmemory.h"
 #include "bffile.h"
 #include "bfini.h"
@@ -104,6 +105,8 @@ print_help (const char *argv0)
 "Usage: %s [OPTIONS]\n\n"
 "Available options:\n"
 "                -A        Enter game mode 1; not sure what this mode should be\n"
+"                -b        Open the window in the background, without taking the\n"
+"                          focus from other applications\n"
 "                -B        Test scenario 99?\n"
 "                -C        Test scenario 100?\n"
 "                -D        Direct keyboard mode; queries kb rather than use\n"
@@ -124,6 +127,7 @@ print_help (const char *argv0)
 "                -l <str>  Activate additional logging; s - thing states and\n"
 "                          commands; p - player actions and packets; w - weapon\n"
 "                          shooting and projectiles\n"
+"                -M        Mute all sound\n"
 "                -m <n>,<n> Load campaign with given index, from which load\n"
 "                          mission with given index in single map mode\n"
 "                -N        Sets a flag which is never used. Debug feature?\n"
@@ -204,6 +208,8 @@ static TbBool process_options(int *argc, char ***argv)
     static struct option options[] =
     {
       {"windowed",    0, NULL, 'W'},
+      {"background",  0, NULL, 'b'},
+      {"mute",        0, NULL, 'M'},
       {"no-stretch",  0, NULL, 'S'},
       {"level-deep-fix", 0, NULL, 'L'},
       {"self-test",   0, NULL, 't'},
@@ -214,7 +220,7 @@ static TbBool process_options(int *argc, char ***argv)
     argv0 = (*argv)[0];
     index = 0;
 
-    while ((val = getopt_long (*argc, *argv, "ABCDd:E:FgHhI:Ll:m:p:qrSs:Ttu:Ww", options, &index)) >= 0)
+    while ((val = getopt_long (*argc, *argv, "ABbCDd:E:FgHhI:Ll:Mm:p:qrSs:Ttu:Ww", options, &index)) >= 0)
     {
         LOGDBG("Command line option: '%c'", val);
         switch (val)
@@ -228,8 +234,17 @@ static TbBool process_options(int *argc, char ***argv)
             cmdln_param_bcg = 99;
             break;
 
+        case 'b':
+            // Window is shown without taking the focus
+            SDL_SetHint(SDL_HINT_WINDOW_NO_ACTIVATION_WHEN_SHOWN, "1");
+            break;
+
         case 'C':
             cmdln_param_bcg = 100;
+            break;
+
+        case 'M':
+            lbSoundMuted = 1;
             break;
 
         case 'D':
