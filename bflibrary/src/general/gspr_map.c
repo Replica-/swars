@@ -22,6 +22,7 @@
 
 #include "insprite.h"
 #include "bfscreen.h"
+#include "bfhwrend.h"
 #include "privbflog.h"
 
 /** @internal
@@ -419,6 +420,9 @@ TbResult LbSpriteDrawRemap(long x, long y, const TbSprite *spr, const ubyte *cma
 {
     TbSpriteDrawData spd;
     TbResult ret;
+
+    if (lbHwRecording && LbHwRecordSpriteDraw(spr, x, y, 0, 0, cmap, -1))
+        return Lb_SUCCESS;
 
     LOGDBG("at (%ld,%ld)",x,y);
     ret = LbSpriteDrawPrepare(&spd, x, y, spr);

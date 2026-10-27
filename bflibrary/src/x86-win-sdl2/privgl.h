@@ -42,6 +42,7 @@ extern "C" {
 #ifndef GL_FRAMEBUFFER
 #define GL_FRAMEBUFFER 0x8D40
 #endif
+#define GL_COLOR_ATTACHMENT1 0x8CE1
 #ifndef GL_COLOR_ATTACHMENT0
 #define GL_COLOR_ATTACHMENT0 0x8CE0
 #endif
@@ -53,6 +54,7 @@ extern "C" {
 #endif
 #ifndef GL_RGBA8
 #define GL_RGBA8 0x8058
+#define GL_RGBA16F 0x881A
 #endif
 #ifndef GL_RGBA16F
 #define GL_RGBA16F 0x881A
@@ -168,6 +170,7 @@ struct LbGlFuncs {
     void (APIENTRYP GenFramebuffers)(GLsizei n, GLuint *framebuffers);
     void (APIENTRYP DeleteFramebuffers)(GLsizei n, const GLuint *framebuffers);
     void (APIENTRYP BindFramebuffer)(GLenum target, GLuint framebuffer);
+    void (APIENTRYP DrawBuffers)(GLsizei n, const GLenum *bufs);
     void (APIENTRYP FramebufferTexture2D)(GLenum target, GLenum attachment,
         GLenum textarget, GLuint texture, GLint level);
     GLenum (APIENTRYP CheckFramebufferStatus)(GLenum target);
@@ -200,6 +203,14 @@ void LbGlSceneDraw(GLuint pal_texture, long buf_width, long buf_height);
 TbBool LbGlSceneIsAvailable(void);
 
 void LbGlSceneDestroy(void);
+
+/** Draws the scene into a floating point buffer, adds the glow of the bright parts, and
+ * puts the result in the window framebuffer, which is left bound, with the viewport
+ * set to the window size.
+ * @return False if it cannot be done; nothing is drawn then.
+ */
+TbBool LbGlSceneDrawWithBloom(GLuint pal_texture, long buf_width, long buf_height,
+  int win_width, int win_height);
 
 /** Compiles and links a program from vertex and fragment shader sources.
  * On errors, writes the GL log into the game log and returns 0.

@@ -142,6 +142,7 @@ static TbBool LbGlLoadFunctions(void)
     LOAD_GL(DeleteFramebuffers);
     LOAD_GL(BindFramebuffer);
     LOAD_GL(FramebufferTexture2D);
+    LOAD_GL(DrawBuffers);
     LOAD_GL(CheckFramebufferStatus);
     LOAD_GL(GenerateMipmap);
     return ok;
@@ -332,9 +333,19 @@ TbResult LbGlPresentIndexed(const ubyte *pixels, long width, long height, long p
     if (LbHwRenderEnabled() && LbHwHasRecorded() && LbGlSceneIsAvailable())
     {
         // The 3D scene goes first, the software screen is then put over it
-        gl.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        // For finding gaps between the triangles: SWFX_HW_MAGENTA shows the background
+        if (getenv("SWFX_HW_MAGENTA") != NULL)
+            gl.ClearColor(1.0f, 0.0f, 1.0f, 1.0f);
+        else
+            gl.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         gl.Clear(GL_COLOR_BUFFER_BIT);
-        LbGlSceneDraw(tex_palette, width, height);
+        if (!LbGlSceneDrawWithBloom(tex_palette, width, height, dw, dh))
+        {
+            gl.BindFramebuffer(GL_FRAMEBUFFER, 0);
+            gl.Viewport(0, 0, dw, dh);
+            LbGlSceneDraw(tex_palette, width, height);
+        }
+        gl.Disable(GL_BLEND);
         keyed = 1;
         gl.ActiveTexture(GL_TEXTURE0);
         gl.BindTexture(GL_TEXTURE_2D, tex_screen);

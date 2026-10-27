@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include "insspr.h"
 #include "bfscreen.h"
+#include "bfhwrend.h"
 #include "privbflog.h"
 
 /**
@@ -1382,6 +1383,8 @@ TbResult LbSpriteDrawScaledOneColour(long xpos, long ypos, const TbSprite *sprit
     LOGNO("at (%ld,%ld) size (%ld,%ld)", xpos, ypos, dest_width, dest_height);
     if ((dest_width <= 0) || (dest_height <= 0))
       return 1;
+    if (lbHwRecording && LbHwRecordSpriteDraw(sprite, xpos, ypos, dest_width, dest_height, NULL, colour))
+        return Lb_SUCCESS;
     if ((lbDisplay.DrawFlags & Lb_TEXT_UNDERLNSHADOW) != 0)
         lbSpriteReMapPtr = lbDisplay.FadeTable + ((lbDisplay.FadeStep & 0x3F) << 8);
     LbSpriteSetScalingData(xpos, ypos, sprite->SWidth, sprite->SHeight, dest_width, dest_height);

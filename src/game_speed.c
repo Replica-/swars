@@ -29,6 +29,7 @@
 #include "bftime.h"
 #include "bfscreen.h"
 #include "bfgl.h"
+#include "bfhwrend.h"
 #include "rom.h"
 #include "drawtext.h"
 #include "engincolour.h"
@@ -61,7 +62,7 @@ static void profiler_poll_key(void);
 #define FPS_CAP_MAX 240
 
 /** Limit of frames per second; 0 means no limit. */
-short game_fps_cap = 16;
+short game_fps_cap = 20;
 
 static void fps_cap_change(int dir)
 {
@@ -340,6 +341,16 @@ static void draw_scaled_text_right(short right_x, short y, const char *text, uby
     }
 }
 
+/** Tells which renderer draws the game, for the FPS counter. */
+static const char *fps_renderer_name(void)
+{
+    if (LbGlIsActive() && LbHwRenderEnabled())
+        return (LbHwLightingMode() == HwLight_Enhanced) ? "HW-ENH" : "HW-CLS";
+    if (LbGlIsActive())
+        return "GL-SW";
+    return "SW";
+}
+
 void fps_counter_show(void)
 {
     static TbClockMSec window_start = 0;
@@ -373,7 +384,7 @@ void fps_counter_show(void)
         else
             snprintf(capstr, sizeof(capstr), "OFF");
         snprintf(locstr, sizeof(locstr), "%s FPS %lu TPS %lu SKIP %d CAP %s  DRAW %lu.%lu SWAP %lu.%lu",
-          LbGlIsActive() ? "GL" : "SW", shown_fps, shown_tps, (int)frameskip, capstr,
+          fps_renderer_name(), shown_fps, shown_tps, (int)frameskip, capstr,
           shown_draw_us / 1000, (shown_draw_us / 100) % 10,
           shown_swap_us / 1000, (shown_swap_us / 100) % 10);
     }

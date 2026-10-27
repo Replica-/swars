@@ -24,6 +24,8 @@
 #  include "bfconfig.h"
 #endif
 
+#include "bfhwrend.h"
+#include "bfscreen.h"
 #include "poly_gp.h"
 #include "poly_trigp.h"
 #include "poly_trigr.h"
@@ -334,6 +336,11 @@ void poly_line(struct PolyPoint *point_a, struct PolyPoint *point_b)
 
     LOGNO("Pa(%ld,%ld,%ld)", point_a->X, point_a->Y, point_a->S);
     LOGNO("Pb(%ld,%ld,%ld)", point_b->X, point_b->Y, point_b->S);
+
+    // Lines of the 3D scene (poles, frames) have to be drawn in the order of the scene
+    if (lbHwRecording && (vec_screen == lbDisplay.WScreen) &&
+      LbHwRecordLine(point_a->X, point_a->Y, point_b->X, point_b->Y, vec_colour, false))
+        return;
 
     x1 = point_a->X;
     y1 = point_a->Y;
