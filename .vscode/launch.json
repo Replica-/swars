@@ -1,18 +1,11 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    // Entries are grouped in the dropdown: "presentation.group" makes the dividers,
+    // "order" sorts within a group.
     "version": "0.2.0",
     "configurations": [
+        // ---------------------------------------------------------------- Debug
         {
-            "name": "Build only",
-            "type": "node-terminal",
-            "request": "launch",
-            "command": "$env:MSYSTEM='MINGW32'; $env:CHERE_INVOKING='1'; & 'D:/development/msys64/usr/bin/bash.exe' -lc 'cd /d/development/swars/debug && make -j$(nproc)'",
-            "cwd": "${workspaceFolder}/debug"
-        },
-        {
-            "name": "(gdb) Launch",
+            "name": "▶️  Debug: Launch",
             "type": "cppdbg",
             "request": "launch",
             "program": "D:/development/swars/debug/src/syndwarsfx.exe",
@@ -34,10 +27,11 @@
                     "text": "-enable-pretty-printing",
                     "ignoreFailures": true
                 }
-            ]
+            ],
+            "presentation": { "group": "1 Debug", "order": 1 }
         },
         {
-            "name": "(gdb) Build & Launch",
+            "name": "🔨▶️  Debug: Build & Launch",
             "type": "cppdbg",
             "request": "launch",
             "program": "D:/development/swars/debug/src/syndwarsfx.exe",
@@ -60,30 +54,76 @@
                     "text": "-enable-pretty-printing",
                     "ignoreFailures": true
                 }
-            ]
+            ],
+            "presentation": { "group": "1 Debug", "order": 2 }
         },
         {
-            "name": "Release build only",
+            "name": "🔨  Debug: Build only",
             "type": "node-terminal",
             "request": "launch",
-            "command": "$env:MSYSTEM='MINGW32'; $env:CHERE_INVOKING='1'; & 'D:/development/msys64/usr/bin/bash.exe' -lc 'cd /d/development/swars/release && make -j$(nproc)'",
-            "cwd": "${workspaceFolder}/release"
+            "command": "$env:MSYSTEM='MINGW32'; $env:CHERE_INVOKING='1'; & 'D:/development/msys64/usr/bin/bash.exe' -lc 'cd /d/development/swars/debug && make -j$(nproc)'",
+            "cwd": "${workspaceFolder}/debug",
+            "presentation": { "group": "1 Debug", "order": 3 }
         },
+
+        // -------------------------------------------------- Straight into a mission
         {
-            "name": "Release Launch",
+            "name": "🎯  Mission: Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "D:/development/swars/release/src/syndwarsfx.exe",
-            "args": ["-g", "-W"],
+            "program": "D:/development/swars/debug/src/syndwarsfx.exe",
+            "args": ["-m", "0,1", "-q", "-W"],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/release/src",
-            "environment": [],
+            "cwd": "${workspaceFolder}/debug/src",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "D:/development/msys64/mingw32/bin;${env:PATH}"
+                }
+            ],
             "externalConsole": true,
             "MIMode": "gdb",
-            "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe"
+            "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe",
+            "setupCommands": [
+                {
+                    "description": "Abilita la riformattazione per gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "presentation": { "group": "2 Mission", "order": 1 }
         },
         {
-            "name": "Release Build & Launch",
+            "name": "🔨🎯  Mission: Build & Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "D:/development/swars/debug/src/syndwarsfx.exe",
+            "args": ["-m", "0,1", "-q", "-W"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/debug/src",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "D:/development/msys64/mingw32/bin;${env:PATH}"
+                }
+            ],
+            "externalConsole": true,
+            "preLaunchTask": "build-debug",
+            "MIMode": "gdb",
+            "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe",
+            "setupCommands": [
+                {
+                    "description": "Abilita la riformattazione per gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "presentation": { "group": "2 Mission", "order": 2 }
+        },
+
+        // -------------------------------------------------------------- Release
+        {
+            "name": "🚀  Release: Launch",
             "type": "cppdbg",
             "request": "launch",
             "program": "D:/development/swars/release/src/syndwarsfx.exe",
@@ -94,7 +134,30 @@
             "externalConsole": true,
             "MIMode": "gdb",
             "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe",
-            "preLaunchTask": "build-release"
+            "presentation": { "group": "3 Release", "order": 1 }
+        },
+        {
+            "name": "🔨🚀  Release: Build & Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "D:/development/swars/release/src/syndwarsfx.exe",
+            "args": ["-g", "-W"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/release/src",
+            "environment": [],
+            "externalConsole": true,
+            "MIMode": "gdb",
+            "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe",
+            "preLaunchTask": "build-release",
+            "presentation": { "group": "3 Release", "order": 2 }
+        },
+        {
+            "name": "🔨  Release: Build only",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "$env:MSYSTEM='MINGW32'; $env:CHERE_INVOKING='1'; & 'D:/development/msys64/usr/bin/bash.exe' -lc 'cd /d/development/swars/release && make -j$(nproc)'",
+            "cwd": "${workspaceFolder}/release",
+            "presentation": { "group": "3 Release", "order": 3 }
         }
     ]
 }
