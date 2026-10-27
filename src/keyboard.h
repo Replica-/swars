@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file keyboard.c
@@ -238,6 +238,8 @@ void sprint_gamekey_combination_joy(char *ostr, GameKey gkey);
 void sprint_gamekey_combination_kbd(char *ostr, GameKey gkey);
 
 void set_default_game_keys(void);
+/** Sets only the keys which move and rotate the camera to their defaults (W A S D, Q E). */
+void set_default_camera_game_keys(void);
 
 TbResult joy_ext_driver_irq_init(int irqno);
 

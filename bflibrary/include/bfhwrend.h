@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Bullfrog Engine Emulation Library - for use to remake classic games like
 // Syndicate Wars, Magic Carpet, Genewars or Dungeon Keeper.
 /******************************************************************************/
@@ -119,6 +119,8 @@ TbBool LbHwRecordSpriteDrawAlphaScaled(const struct TbSprite *spr, long posx, lo
 TbBool LbHwRecordBox(long x0, long y0, long x1, long y1, ubyte colour, TbBool ghost);
 
 /** Records a line, one pixel wide. */
+/** Tells that sprite data was loaded again, so the copies of it made for the GPU are outdated. */
+void LbHwSpriteCacheClear(void);
 TbBool LbHwRecordLine(long x1, long y1, long x2, long y2, ubyte colour, TbBool ghost);
 
 /** The sprite atlas, 8-bit indexed picture holding the sprites which were recorded; 0 is transparent.

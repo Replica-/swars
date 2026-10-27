@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Bullfrog Engine Emulation Library - for use to remake classic games like
 // Syndicate Wars, Magic Carpet, Genewars or Dungeon Keeper.
 /******************************************************************************/
@@ -19,6 +19,7 @@
  */
 /******************************************************************************/
 #include "bfsprite.h"
+#include "bfhwrend.h"
 
 #include "privbflog.h"
 
@@ -41,6 +42,8 @@ TbResult LbSpriteSetup(TbSprite *start, const TbSprite *end, const unsigned char
       sprt++;
     }
     LOGDBG("initiated %d of %d sprites", n, (sprt-start));
+    // Sprites may have been loaded again to the same place; copies made for the GPU are stale
+    LbHwSpriteCacheClear();
     return Lb_SUCCESS;
 }
 

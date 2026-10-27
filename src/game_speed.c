@@ -35,6 +35,7 @@
 #include "engincolour.h"
 #include "enginprops.h"
 #include "game.h"
+#include "game_options.h"
 #include "keyboard.h"
 #include "swlog.h"
 
@@ -359,7 +360,7 @@ void fps_counter_show(void)
     static ulong shown_fps = 0, shown_tps = 0;
     static ulong shown_draw_us = 0, shown_swap_us = 0;
     TbClockMSec curr_time;
-    char locstr[96];
+    char locstr[128];
     ulong dt;
 
     curr_time = LbTimerClock();
@@ -383,10 +384,11 @@ void fps_counter_show(void)
             snprintf(capstr, sizeof(capstr), "%d", (int)game_fps_cap);
         else
             snprintf(capstr, sizeof(capstr), "OFF");
-        snprintf(locstr, sizeof(locstr), "%s FPS %lu TPS %lu SKIP %d CAP %s  DRAW %lu.%lu SWAP %lu.%lu",
+        snprintf(locstr, sizeof(locstr), "%s FPS %lu TPS %lu SKIP %d CAP %s  DRAW %lu.%lu SWAP %lu.%lu  COSTUME %d",
           fps_renderer_name(), shown_fps, shown_tps, (int)frameskip, capstr,
           shown_draw_us / 1000, (shown_draw_us / 100) % 10,
-          shown_swap_us / 1000, (shown_swap_us / 100) % 10);
+          shown_swap_us / 1000, (shown_swap_us / 100) % 10,
+          (int)ingame.TrenchcoatPreference);
     }
     lbDisplay.DrawFlags = 0;
     draw_scaled_text_right(lbDisplay.GraphicsScreenWidth - 6, 4, locstr, colour_lookup[ColLU_WHITE]);

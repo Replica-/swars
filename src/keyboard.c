@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file keyboard.c
@@ -452,6 +452,17 @@ void input(void)
     else
         n &= ~KMod_ALT;
     lbShift = n;
+}
+
+void set_default_camera_game_keys(void)
+{
+    kbkeys[GKey_VIEW_SPIN_L] = KC_Q;
+    kbkeys[GKey_VIEW_SPIN_R] = KC_E;
+    kbkeys[GKey_UP] = KC_W;
+    kbkeys[GKey_DOWN] = KC_S;
+    kbkeys[GKey_LEFT] = KC_A;
+    kbkeys[GKey_RIGHT] = KC_D;
+    reset_hardcoded_kbd_gamekeys();
 }
 
 void set_default_game_keys(void)

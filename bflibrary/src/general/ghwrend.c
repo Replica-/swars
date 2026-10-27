@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Bullfrog Engine Emulation Library - for use to remake classic games like
 // Syndicate Wars, Magic Carpet, Genewars or Dungeon Keeper.
 /******************************************************************************/
@@ -287,6 +287,14 @@ TbBool LbHwRecordTriangle(const struct PolyPoint *point_a,
     return true;
 }
 
+/** Forgets the decoded sprites; the sprite data was loaded again (other costume, other panel). */
+void LbHwSpriteCacheClear(void)
+{
+    if (atlas_tbl != NULL)
+        memset(atlas_tbl, 0, HW_ATLAS_HASH * sizeof(struct HwAtlasEntry));
+    atlas_x = atlas_y = atlas_row_h = 0;
+}
+
 /** Finds the place of the sprite in the atlas, decoding it there if it is not yet. */
 static const struct HwAtlasEntry *hw_atlas_sprite(const struct TbSprite *spr)
 {
@@ -375,7 +383,8 @@ static int hw_remap_row(const ubyte *cmap)
 
     for (i = 0; i < remap_count; i++)
     {
-        if (remap_src[i] == cmap)
+        // The same table address can hold other colours after the data was loaded again
+        if ((remap_src[i] == cmap) && (memcmp(remap_tbl[i], cmap, 256) == 0))
             return i;
     }
     for (i = 0; i < remap_count; i++)

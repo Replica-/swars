@@ -1,4 +1,4 @@
-{
+﻿{
     // Entries are grouped in the dropdown: "presentation.group" makes the dividers,
     // "order" sorts within a group.
     // "-b" opens the window without taking the focus, "-M" mutes the sound; the debug and\n    // build-and-launch entries use them, so that testing does not interrupt other work.\n    "version": "0.2.0",
@@ -72,7 +72,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "D:/development/swars/debug/src/syndwarsfx.exe",
-            "args": ["-m", "0,1", "-q", "-W", "-b", "-M"],
+            "args": ["-m", "0,1", "-q", "-W"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/debug/src",
             "environment": [
@@ -158,6 +158,62 @@
             "command": "$env:MSYSTEM='MINGW32'; $env:CHERE_INVOKING='1'; & 'D:/development/msys64/usr/bin/bash.exe' -lc 'cd /d/development/swars/release && make -j$(nproc)'",
             "cwd": "${workspaceFolder}/release",
             "presentation": { "group": "3 Release", "order": 3 }
+        },
+
+        // ------------------------------------------- Straight into the test mission
+        // (Honolulu - Unguided riot test: campaign 3, mission 55)
+        {
+            "name": "🧪  Test mission: Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "D:/development/swars/debug/src/syndwarsfx.exe",
+            "args": ["-m", "3,55", "-q", "-W", "-b", "-M"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/debug/src",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "D:/development/msys64/mingw32/bin;${env:PATH}"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe",
+            "setupCommands": [
+                {
+                    "description": "Abilita la riformattazione per gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "presentation": { "group": "4 Test mission", "order": 1 }
+        },
+        {
+            "name": "🔨🧪  Test mission: Build & Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "D:/development/swars/debug/src/syndwarsfx.exe",
+            "args": ["-m", "3,55", "-q", "-W", "-b", "-M"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/debug/src",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "D:/development/msys64/mingw32/bin;${env:PATH}"
+                }
+            ],
+            "externalConsole": false,
+            "preLaunchTask": "build-debug",
+            "MIMode": "gdb",
+            "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe",
+            "setupCommands": [
+                {
+                    "description": "Abilita la riformattazione per gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "presentation": { "group": "4 Test mission", "order": 2 }
         }
     ]
 }

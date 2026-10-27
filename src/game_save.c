@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file game_save.c
@@ -230,6 +230,10 @@ TbResult reload_salt_from_keys(void)
     return Lb_SUCCESS;
 }
 
+/** Version of the settings file which has the same layout as 3, but is saved after the camera keys
+ * were set to W A S D and Q E by default. */
+#define SETTINGS_FMTVER_CAMERA_KEYS 4
+
 void apply_user_settings(void)
 {
     apply_user_gfx_settings();
@@ -313,11 +317,17 @@ void read_user_settings(void)
                 jskeys[i] = jskeys_old[i];
         } else {
             assert(sizeof(JoyButtonSet) == 4);
-            if (fmtver != 3)
+            if ((fmtver != 3) && (fmtver != SETTINGS_FMTVER_CAMERA_KEYS))
                 LOGWARN("Settings may be invalid, as \"%s\" has unrecognized format version %d", fname, (int)fmtver);
             LbFileRead(fh, kbkeys, GKey_KEYS_COUNT * sizeof(ushort));
             LbFileRead(fh, jskeys, GKey_KEYS_COUNT * sizeof(JoyButtonSet));
         }
+
+        // Settings saved before the camera keys became W A S D and Q E may hold the old ones;
+        // they are replaced once - from then on, the file is saved as a newer version, and
+        // keys set by the player are kept
+        if (fmtver < SETTINGS_FMTVER_CAMERA_KEYS)
+            set_default_camera_game_keys();
 
         LbFileRead(fh, &ctl_joystick_type, sizeof(ctl_joystick_type));
         LbFileRead(fh, &players[local_player_no].DoubleMode,
@@ -374,7 +384,7 @@ TbBool save_user_settings(void)
     int i;
 
     get_user_settings_fname(fname, login_name);
-    fmtver = 3;
+    fmtver = SETTINGS_FMTVER_CAMERA_KEYS;
 
     fh = LbFileOpen(fname, Lb_FILE_MODE_NEW);
     if (fh == INVALID_FILE)
