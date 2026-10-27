@@ -1,5 +1,7 @@
 # SyndWarsFX - Syndicate Wars Fan Expansion (fork with GPU rendering and quality-of-life work)
 
+![Mission 1 with the hardware renderer, enhanced lighting and bloom](docs/screenshot-mission1.jpg)
+
 **Video:** [Watch the fork in action on YouTube](https://www.youtube.com/watch?v=IL2CsT9U9sA)
 
 **Syndicate Wars Fan Expansion** is an Open Source remake of the classic 1996
