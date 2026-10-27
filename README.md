@@ -85,7 +85,7 @@ and are covered by the same license.
   `SWFX_BEAM_GAIN` tune it. A weapon which is charging or firing also lights up the ground, the walls and the
   people in front of the gun, as a cone, from the moment the charging starts; the stronger the weapon (uzi,
   minigun, lasers, rockets, ...), the stronger and wider the light. The light is blended like a screen, so
-  places which are already bright do not get overexposed. Explosions light their surroundings red. `SWFX_BEAM_TEST=1` draws a fixed test beam.
+  places which are already bright do not get overexposed. Explosions light their surroundings red. Fires are drawn as flickering tongues of flame by the shader, in place of the flame sprites (`SWFX_FLAME_TEST=1` shows a few). `SWFX_BEAM_TEST=1` draws a fixed test beam.
 * **Smooth camera.** The game turns still run at the frame rate cap, but while the
   view is panned, zoomed or rotated, extra frames are drawn between the turns, with
   the camera moved between its previous and its current position, so the view

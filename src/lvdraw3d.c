@@ -1339,6 +1339,14 @@ static void hw_gather_pixel_lights(void)
               (float)angle_direction[i].DiX / 256.0f, (float)angle_direction[i].DiY / 256.0f);
         }
     }
+    if (getenv("SWFX_FLAME_TEST") != NULL) {
+        // A few flames in the middle of the screen, for looking at them
+        for (i = 0; i < 9; i++) {
+            float fx = (float)lbDisplay.GraphicsScreenWidth * 0.5f + (float)((i % 3) - 1) * 70.0f + (float)(i / 3) * 12.0f;
+            float fy = (float)lbDisplay.GraphicsScreenHeight * 0.5f + (float)(i / 3) * 40.0f;
+            LbHwRecordFlame(fx - 35.0f, fy - 110.0f, fx + 35.0f, fy + 25.0f, i * 37, 1.0f);
+        }
+    }
     if (getenv("SWFX_BEAM_TEST") != NULL) {
         // A fixed beam in the middle of the screen, for looking at what its light does
         LbHwNoteBeam(scr_cx - 150.0f, scr_cy + 40.0f, scr_cx + 250.0f, scr_cy - 120.0f, colour_lookup[ColLU_RED], 0);

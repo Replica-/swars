@@ -17,6 +17,7 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
+#include "bfhwrend.h"
 #include "engindrwlstx.h"
 
 #include <assert.h>
@@ -740,6 +741,20 @@ void draw_fire_flame(ushort flm)
 
     brig = PALETTE_FADE_LEVELS / 2;
     p_flame = &FIRE_flame[flm];
+    // The GPU draws the flames itself, as flickering tongues of fire, in place of the sprites
+    if (lbHwRecording)
+    {
+        float fx, fy, fw, fh;
+
+        p_scrpoint = &game_screen_point_pool[p_flame->PointOffset];
+        fw = 34.0f * (float)overall_scale / 256.0f * (1.0f + (float)p_flame->big / 128.0f);
+        fh = fw * 1.9f;
+        fx = (float)(p_scrpoint->X + dword_176D00);
+        fy = (float)(p_scrpoint->Y + dword_176D04);
+        if (LbHwRecordFlame(fx - fw * 0.5f, fy - fh * 0.8f, fx + fw * 0.5f, fy + fh * 0.2f,
+          (int)flm, 1.0f))
+            return;
+    }
     if (p_flame->big != 0)
     {
         p_scrpoint = &game_screen_point_pool[p_flame->PointOffset];

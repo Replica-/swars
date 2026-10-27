@@ -648,6 +648,18 @@ TbBool LbHwRecordSpriteDrawAlphaScaled(const struct TbSprite *spr, long posx, lo
       ((flags & Lb_SPRITE_TRANSPAR8) != 0) ? lbSpriteReMapPtr : NULL, -1);
 }
 
+TbBool LbHwRecordFlame(float x0, float y0, float x1, float y1, int seed, float strength)
+{
+    if (!lbHwRecording || (hw_lighting != HwLight_Enhanced))
+        return false;
+    if (!hw_grow(6))
+        return false;
+    hw_quad(&rec_verts[rec_count], x0, y0, x1, y1, 0.0f, 0.0f, 1.0f, 1.0f,
+      HWREND_MODE_FLAME, (float)(seed & 1023), strength);
+    rec_count += 6;
+    return true;
+}
+
 TbBool LbHwRecordBox(long x0, long y0, long x1, long y1, ubyte colour, TbBool ghost)
 {
     if (!lbHwRecording)

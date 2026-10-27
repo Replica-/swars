@@ -17,6 +17,7 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
+#include <time.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,6 +42,7 @@ static TbBool atlas_needs_full_upload = true;
 static TbBool scene_ready = false;
 static TbBool scene_failed = false;
 static GLint loc_bc = -1;
+static GLint loc_time = -1;
 static GLint loc_bcount = -1, loc_bgain = -1, loc_ba = -1, loc_bb = -1;
 static GLint loc_lm0 = -1, loc_lm1 = -1, loc_lcount = -1, loc_lgain = -1, loc_lights = -1;
 static GLint loc_screen = -1, loc_pages = -1, loc_fade = -1, loc_pal = -1, loc_enh = -1, loc_atlas = -1, loc_remap = -1, loc_bias = -1, loc_skip = -1;
@@ -106,6 +108,7 @@ static const char *scene_fs_src =
     "uniform vec4 uBeamC[32];\n"
     "uniform float uUvBias;\n"
     "uniform int uSkipMode;\n"
+    "uniform float uTime;\n"
     "\n"
     "int texel(vec2 uv, int layer)\n"
     "{\n"
@@ -249,6 +252,27 @@ static const char *scene_fs_src =
     "    if (mode == uSkipMode) discard;\n"
     "    int colour = int(floor(vMC.y + 0.5));\n"
     "    int layer = int(floor(vMC.z + 0.5));\n"
+    "    if (mode == 104) {\n"
+    "        // A tongue of flame: narrow to the top, swaying and flickering, yellow-white at the bottom\n"
+    "        // and red at the tip; added to what is behind\n"
+    "        vec2 uv = vUVS.xy;\n"
+    "        float seed = float(colour);\n"
+    "        float t = 1.0 - uv.y;\n"
+    "        float cx = (uv.x - 0.5) * 2.0;\n"
+    "        float tm = uTime * (6.0 + fract(seed * 0.37) * 4.0) + seed * 1.7;\n"
+    "        cx += 0.28 * t * sin(t * 5.0 + tm + seed) + 0.12 * t * sin(t * 11.0 - tm * 1.7 + seed * 2.0);\n"
+    "        float w = pow(max(1.0 - t, 0.0), 0.75) * 0.95;\n"
+    "        float top = 0.62 + 0.3 * sin(tm * 0.8 + seed * 3.0) * 0.5 + 0.1 * sin(tm * 2.3 + seed);\n"
+    "        float body = smoothstep(1.0, 0.35, abs(cx) / max(w, 0.03)) * smoothstep(top, top - 0.35, t) * smoothstep(1.0, 0.8, uv.y);\n"
+    "        float core = smoothstep(0.7, 0.0, abs(cx) / max(w, 0.03)) * smoothstep(0.5, 0.0, t) * smoothstep(1.0, 0.8, uv.y);\n"
+    "        float flick = 0.85 + 0.15 * sin(tm * 1.9 + seed * 5.0);\n"
+    "        vec3 fcol = mix(vec3(1.0, 0.7, 0.2), vec3(1.0, 0.3, 0.03), smoothstep(0.0, 0.7, t));\n"
+    "        fcol = mix(fcol, vec3(0.8, 0.12, 0.02), smoothstep(0.6, 1.0, t));\n"
+    "        vec3 c = fcol * body * flick * 0.8 + vec3(1.0, 0.8, 0.4) * core * 0.3;\n"
+    "        outColor = vec4(c * vMC.z, 0.0);\n"
+    "        outGlow = vec4(0.0);\n"
+    "        return;\n"
+    "    }\n"
     "    int row = int(floor(vUVS.z)) & 255;\n"
     "    int tx = 0;\n"
     "    if (layer >= 0 && mode < 100)\n"
@@ -401,6 +425,7 @@ static TbBool LbGlSceneInit(void)
     loc_atlas = gl.GetUniformLocation(scene_program, "uAtlas");
     loc_bias = gl.GetUniformLocation(scene_program, "uUvBias");
     loc_skip = gl.GetUniformLocation(scene_program, "uSkipMode");
+    loc_time = gl.GetUniformLocation(scene_program, "uTime");
     loc_remap = gl.GetUniformLocation(scene_program, "uRemap");
 
     gl.GenVertexArrays(1, &scene_vao);
@@ -764,6 +789,7 @@ void LbGlSceneDraw(GLuint pal_texture, long buf_width, long buf_height)
     gl.Uniform1i(loc_atlas, 4);
     gl.Uniform1i(loc_remap, 5);
     gl.Uniform1i(loc_enh, (LbHwLightingMode() == HwLight_Enhanced) ? 1 : 0);
+    gl.Uniform1f(loc_time, (float)((double)clock() / (double)CLOCKS_PER_SEC));
     {
         const float *aff, *lts;
         int n;
