@@ -2,7 +2,14 @@
 
 ![Mission 1 with the hardware renderer, enhanced lighting and bloom](docs/screenshot-mission1.jpg)
 
-![The pause screen with the game settings box](docs/screenshot-pause-settings.jpg)
+### Screenshots
+
+| | |
+|---|---|
+| ![Street lamps lighting the street, with the per-pixel lights](docs/screenshot-lamps.jpg) | ![A laser fight: the beam, and the light of the muzzle on the ground and the people](docs/screenshot-firefight.jpg) |
+| Lamp posts light the street in smooth round pools, with the neon of the road edges | A laser fight: the muzzle light goes in front of the gun, and the beam tints the ground |
+| ![An explosion, lighting the street red, with fire from the debris](docs/screenshot-explosion.jpg) | ![The pause screen with the game settings box](docs/screenshot-pause-settings.jpg) |
+| An explosion lights its surroundings red, and the debris which lands around it starts fires | The pause screen, with the box of game settings |
 
 **Video:** [Watch the fork in action on YouTube](https://www.youtube.com/watch?v=IL2CsT9U9sA)
 

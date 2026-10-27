@@ -291,6 +291,20 @@ void draw_pers_e_graphic(struct Thing *p_thing,
 
 void FIRE_draw_fire(struct SimpleThing *p_sthing)
 {
+    // A burning fire lights what is around it red-orange, flickering a little
+    if (p_sthing->U.UFire.flame != 0)
+    {
+        struct ShEnginePoint fsp;
+        int fx, fz, fy;
+        float flick;
+
+        fx = PRCCOORD_TO_MAPCOORD(p_sthing->X);
+        fz = PRCCOORD_TO_MAPCOORD(p_sthing->Z);
+        fy = PRCCOORD_TO_YCOORD(alt_at_point(fx, fz));
+        transform_shpoint(&fsp, fx - engn_xc, fy - 8 * engn_yc, fz - engn_zc);
+        flick = 0.85f + 0.15f * (float)((gameturn + p_sthing->ThingOffset) % 5) / 4.0f;
+        LbHwNoteMuzzle((float)fsp.X, (float)fsp.Y, colour_lookup[ColLU_RED], 0.6f * flick, 340.0f, 0.0f, 0.0f);
+    }
     enlist_draw_fire_flames(p_sthing->U.UFire.flame);
 }
 

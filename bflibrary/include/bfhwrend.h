@@ -136,7 +136,7 @@ TbBool LbHwPixelLightsEnabled(void);
 void LbHwPixelLightsSetEnabled(TbBool enabled);
 /** Beams (weapon shots, lasers): the game says where a beam is on the screen, in the frame which is being
  * drawn. The GPU lights the ground around it with the colour of the beam, brighter near the muzzle. */
-#define HW_BEAMS_MAX 16
+#define HW_BEAMS_MAX 32
 void LbHwNoteBeam(float sx1, float sy1, float sx2, float sy2, int colour, int itime);
 /** Gives the beams of the frame: for each, four numbers (screen x1, y1, x2, y2) in `a` and four (palette
  * colour, strength, radius, 0) in `b`; returns how many. */

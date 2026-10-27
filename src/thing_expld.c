@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file thing_expld.c
@@ -454,7 +454,9 @@ static void explode_face3_quad_final_ground_hit(int exface, int cor_gnd_y)
           {
               quick_crater(tile_x, tile_z, minimum_explode_depth);
               bang_new4(cor_x << 8, 32 * cor_gnd_y, cor_z << 8, 20);
-              if ((LbRandomAnyShort() & 7) == 0)
+              // Where the debris of the explosion lands, in a ring around it, fires start; more of
+              // them than in the original game
+              if ((LbRandomAnyShort() & 3) == 0)
               {
                   FIRE_new(cor_x << 8, cor_gnd_y, cor_z << 8, 3u);
               }
