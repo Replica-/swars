@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file game.c
@@ -4055,6 +4055,9 @@ void scroll_map_input(int *p_dx, int *p_dy)
     *p_dy = dy;
 }
 
+/** The map scrolling is faster by 1/(1 << this) than in the original game. */
+#define MAP_SCROLL_BOOST_SHIFT 1
+
 void do_scroll_map(void)
 {
     PlayerInfo *p_locplayer;
@@ -4126,6 +4129,8 @@ void do_scroll_map(void)
         int wibl_x, wibl_y;
         wibl_x = dword_153194 * lbSinTable[angle] >> 8 >> dampr;
         wibl_y = dword_153194 * lbSinTable[angle + LbFPMath_PI/2] >> 8 >> dampr;
+        wibl_x += wibl_x >> MAP_SCROLL_BOOST_SHIFT;
+        wibl_y += wibl_y >> MAP_SCROLL_BOOST_SHIFT;
         ingame.TrackX -= wibl_x;
         ingame.TrackZ += wibl_y;
         engn_xc -= wibl_x;
@@ -4140,6 +4145,8 @@ void do_scroll_map(void)
         int wibl_x, wibl_y;
         wibl_x = dword_153194 * lbSinTable[angle] >> 8 >> dampr;
         wibl_y = dword_153194 * lbSinTable[angle + LbFPMath_PI/2] >> 8 >> dampr;
+        wibl_x += wibl_x >> MAP_SCROLL_BOOST_SHIFT;
+        wibl_y += wibl_y >> MAP_SCROLL_BOOST_SHIFT;
         ingame.TrackX -= wibl_x;
         ingame.TrackZ += wibl_y;
         engn_xc -= wibl_x;
@@ -5979,6 +5986,172 @@ void show_game_screen(void)
     }
 }
 
+/** Camera values which the drawing uses; they change once per game turn. */
+struct SmoothCam {
+    s32 xc, yc, zc;
+    s32 yaw, tilt;
+    ushort scale;
+};
+
+static struct SmoothCam smooth_cam_prev;
+static TbBool smooth_cam_prev_valid = false;
+/** Set to false by SWFX_SMOOTH_CAMERA=0 */
+static TbBool game_camera_smoothing = true;
+/** How long drawing one extra frame takes, in microseconds; measured. */
+static ulong smooth_cam_frame_cost_us = 8000;
+/** Random seeds at the start of drawing the frame of the turn, and after it. The extra frames
+ * start from the first ones, so that what flickers at random does so at the pace of the turns. */
+static ulong smooth_cam_seed_beg, smooth_cam_seed_ps_beg;
+static ulong smooth_cam_seed_end, smooth_cam_seed_ps_end;
+
+static void smooth_cam_note_seeds_before_draw(void)
+{
+    smooth_cam_seed_beg = lbSeed;
+    smooth_cam_seed_ps_beg = lbSeed_ps;
+}
+
+#define SMOOTH_CAM_TARGET_FPS 60
+/** Camera movement bigger than this, in map coordinates, is a jump, not a motion. */
+#define SMOOTH_CAM_JUMP_LIMIT 4096
+
+static void smooth_cam_get(struct SmoothCam *c)
+{
+    c->xc = engn_xc;
+    c->yc = engn_yc;
+    c->zc = engn_zc;
+    c->yaw = engn_cam_yaw;
+    c->tilt = engn_cam_tilt;
+    c->scale = overall_scale;
+}
+
+static void smooth_cam_set(const struct SmoothCam *c)
+{
+    engn_xc = c->xc;
+    engn_yc = c->yc;
+    engn_zc = c->zc;
+    engn_cam_yaw = c->yaw;
+    engn_cam_tilt = c->tilt;
+    overall_scale = c->scale;
+}
+
+static s32 smooth_cam_lerp(s32 a, s32 b, int num, int den)
+{
+    return a + (s32)(((long long)(b - a) * num) / den);
+}
+
+/** Draws the scene again, with the camera set by the caller; the world is not advanced. */
+static void smooth_cam_draw_frame(void)
+{
+    TbPixel clr;
+
+    clr = (LbHwRenderEnabled() && LbGlIsActive()) ? HWREND_CLEAR_COLOUR : 0;
+    // Buildings are drawn once per drawing turn; this is a new drawing of the same turn
+    drawturn++;
+    LbHwFrameBegin();
+    LbHwSetTexturePages(vec_tmap, VEC_TMAP_LIMIT);
+    LbScreenClear(clr);
+    prepare_drawlist();
+    engine_draw_whole_screen_top_down();
+    box_select_draw();
+    fps_counter_show();
+}
+
+/**
+ * The game turns run at the frame cap, but the camera can be shown at the pace of the
+ * display. After the frame of this turn is drawn, the view between the camera of the
+ * previous turn and the one of this turn is drawn and shown as extra frames, at even
+ * times within the turn. The last frame is the one of this turn, as usual.
+ */
+static void smooth_cam_subframes(void)
+{
+    struct SmoothCam cur, mid;
+    ulong period_us, start_us, now_us;
+    int slots, k, shown;
+    long dyaw;
+    TbPixel clr;
+
+    smooth_cam_seed_end = lbSeed;
+    smooth_cam_seed_ps_end = lbSeed_ps;
+    smooth_cam_get(&cur);
+    if (!smooth_cam_prev_valid) {
+        smooth_cam_prev = cur;
+        smooth_cam_prev_valid = true;
+        return;
+    }
+    period_us = game_period_length_us();
+    slots = (period_us * SMOOTH_CAM_TARGET_FPS) / 1000000;
+    if ((period_us == 0) || (slots < 2) || (ingame.DisplayMode != DpM_ENGINEPLY)
+      || ((ingame.Flags & (GamF_Unkn0800 | GamF_RenderScene)) != GamF_RenderScene)
+      || skip_redraw_this_turn() || !game_camera_smoothing) {
+        smooth_cam_prev = cur;
+        return;
+    }
+    // A teleport of the camera is not something to move through
+    if ((abs(cur.xc - smooth_cam_prev.xc) > SMOOTH_CAM_JUMP_LIMIT)
+      || (abs(cur.zc - smooth_cam_prev.zc) > SMOOTH_CAM_JUMP_LIMIT)) {
+        smooth_cam_prev = cur;
+        return;
+    }
+    // The yaw goes around
+    dyaw = (cur.yaw - smooth_cam_prev.yaw) & 0xFFFF;
+    if (dyaw >= 0x8000)
+        dyaw -= 0x10000;
+    if ((cur.xc == smooth_cam_prev.xc) && (cur.zc == smooth_cam_prev.zc) && (dyaw == 0)
+      && (cur.scale == smooth_cam_prev.scale) && (cur.yc == smooth_cam_prev.yc)
+      && (cur.tilt == smooth_cam_prev.tilt)) {
+        return; // nothing moves, the frame as it is will do
+    }
+
+    start_us = game_period_start_us();
+    clr = (LbHwRenderEnabled() && LbGlIsActive()) ? HWREND_CLEAR_COLOUR : 0;
+    shown = 0;
+    for (k = 1; k < slots; k++)
+    {
+        ulong due_us = start_us + (period_us * k) / slots;
+
+        now_us = game_now_us();
+        // Not enough time left for this one; the next ones are later still
+        if ((long)(due_us - now_us) < (long)smooth_cam_frame_cost_us / 2)
+            continue;
+        if ((long)(due_us - now_us) > (long)period_us)
+            break; // the clock was reset
+        game_wait_until_us(due_us - smooth_cam_frame_cost_us);
+        now_us = game_now_us();
+
+        mid.xc = smooth_cam_lerp(smooth_cam_prev.xc, cur.xc, k, slots);
+        mid.yc = smooth_cam_lerp(smooth_cam_prev.yc, cur.yc, k, slots);
+        mid.zc = smooth_cam_lerp(smooth_cam_prev.zc, cur.zc, k, slots);
+        mid.yaw = smooth_cam_prev.yaw + (s32)((dyaw * k) / slots);
+        mid.tilt = smooth_cam_lerp(smooth_cam_prev.tilt, cur.tilt, k, slots);
+        mid.scale = (ushort)smooth_cam_lerp(smooth_cam_prev.scale, cur.scale, k, slots);
+        smooth_cam_set(&mid);
+
+        lbSeed = smooth_cam_seed_beg;
+        lbSeed_ps = smooth_cam_seed_ps_beg;
+        smooth_cam_draw_frame();
+        // Events are handled with the frame complete, as the screen can be shown by them
+        game_handle_sdl_events();
+        LbScreenSwapClear(clr);
+        shown++;
+        // The cost estimate follows what was measured, with some caution
+        {
+            ulong took_us = game_now_us() - now_us;
+            smooth_cam_frame_cost_us = (3 * smooth_cam_frame_cost_us + took_us) / 4;
+        }
+    }
+    smooth_cam_set(&cur);
+    smooth_cam_prev = cur;
+    if (shown > 0) {
+        // the frame of this turn; the screen was reused by the others
+        lbSeed = smooth_cam_seed_beg;
+        lbSeed_ps = smooth_cam_seed_ps_beg;
+        smooth_cam_draw_frame();
+    }
+    // What follows - the world of the turn - goes on from where the first drawing left it
+    lbSeed = smooth_cam_seed_end;
+    lbSeed_ps = smooth_cam_seed_ps_end;
+}
+
 void draw_game(void)
 {
     // One more frame is about to be drawn. The counters the drawing uses
@@ -6386,6 +6559,9 @@ void game_process(void)
             LbHwLightingSetMode(HwLight_Classic);
     }
 
+    if ((getenv("SWFX_SMOOTH_CAMERA") != NULL) && (strcmp(getenv("SWFX_SMOOTH_CAMERA"), "0") == 0))
+        game_camera_smoothing = false;
+
     while ( !exit_game )
     {
         process_sound_heap();
@@ -6410,8 +6586,10 @@ void game_process(void)
           && ((ingame.Flags & TngF_ProgressAction) != 0))
             process_explode();
         perf_phase_begin(PerfPhase_Draw);
+        smooth_cam_note_seeds_before_draw();
         draw_game();
         perf_phase_end(PerfPhase_Draw);
+        smooth_cam_subframes();
         debug_trace_turn_bound(gameturn);
         load_packet();
         if ( ((active_flags_general_unkn01 & 0x8000) != 0) !=

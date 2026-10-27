@@ -32,24 +32,6 @@ The code is distributed under the GNU General Public License (see `COPYING`
 and `GPL3`). The changes described in this document were made on top of upstream,
 and are covered by the same license.
 
-## About the port
-
-The port was created by disassembling the original DOS executable and replacing
-the DOS-specific parts with platform-independent code, using
-[SDL](https://www.libsdl.org/) for input and video display,
-[Vorbis](https://xiph.org/vorbis/) for music and [OpenAL](https://www.openal.org/)
-for sound. It runs on Windows, GNU/Linux and Mac OS, on the i386 architecture.
-
-Nothing is missing from the single player gameplay, since the port uses the original
-code for parts which are not remade yet. Multiplayer is not working - network code
-is missing; it will allow starting a new MP game with one player and no real network
-connection.
-
-You need the original game data (from the *Syndicate Wars CD* or a digital
-distribution of the game) to play; see [Installation](#installation).
-
----
-
 ## What this fork adds
 
 ### Graphics
@@ -62,8 +44,10 @@ distribution of the game) to play; see [Installation](#installation).
 * **Hardware (GPU) rendering of the 3D world, on by default.** While the scene is
   drawn, the triangles which the software renderer would rasterize are recorded
   instead, and drawn by the GPU when the frame is shown, in the same order, using the
-  same texture pages, palette and colour tables. HUD, menus and sprites are still
-  drawn by the software renderer, and put on top. The draw time in a mission dropped
+  same texture pages, palette and colour tables. The HUD and menus are still
+  drawn by the software renderer, and put on top. Sprites (people, vehicle lights,
+  smoke, effects) and lines (such as lamp post poles) are drawn by the GPU as well, in
+  the same order as the polygons, so what is in front of them hides them correctly. The draw time in a mission dropped
   from about 15 ms to about 4-5 ms. `Shift+F3` switches between hardware and
   software rendering at any time; `SWFX_HW=0` starts with software rendering.
 * **Improved ("enhanced") lighting in the hardware renderer.** Shade is
@@ -72,6 +56,19 @@ distribution of the game) to play; see [Installation](#installation).
   by the correct amount; very bright colours roll off softly. The brightness is
   calibrated to the software rendering. `Shift+F4` switches to the classic
   lighting, which repeats the palette shading of the software renderer.
+* **Neon and bloom.** In the enhanced lighting, bright and saturated colours
+  (neon strips, signs, lights on the street tiles) are not darkened by the shade of
+  their place and are slightly stronger than the palette has them, and the near-white
+  parts of the scene glow, with a blurred bloom pass in a floating point buffer. Only
+  the map and the buildings glow - sprites such as smoke, people and effects do not.
+* **Smooth camera.** The game turns still run at the frame rate cap, but while the
+  view is panned, zoomed or rotated, extra frames are drawn between the turns, with
+  the camera moved between its previous and its current position, so the view
+  moves at about 60 frames per second (the counter shows `FPS` 60 and `TPS` 20).
+  Nothing else moves between the turns, and the frame of the turn is shown last, so it
+  adds no delay. `SWFX_SMOOTH_CAMERA=0` turns it off.
+* **Faster map scrolling.** Panning with the keys or the screen edge is 1.5 times
+  faster than in the original game.
 * **Faster software renderer.** The textured polygon fill (`poly_gp.c`) is
   rewritten to keep its state in registers and is compiled optimized; a busy mission
   scene went from about 40 ms to about 15 ms per frame in a debug build.
@@ -109,7 +106,7 @@ distribution of the game) to play; see [Installation](#installation).
   `Shift` selects the agent under the cursor. (In network games only the selection
   is done.)
 * **Frame rate.** The game logic runs once per drawn frame, so the cap sets the
-  game speed too; 16 is the original pace. Frame skip draws every Nth turn and does
+  game speed too; 16 is the original pace, and this fork starts with 20. Frame skip draws every Nth turn and does
   not wait at all. Both are shown, with the measured frame rate, turn rate and the
   time spent drawing and presenting, in the counter at the top right of a mission.
 * Key bindings are the defaults; keys saved by the game's key setup override them.
@@ -142,6 +139,7 @@ Environment variables:
 | `SWFX_NO_GL` | do not use OpenGL at all (use the plain SDL window) |
 | `SWFX_HW=0` / `software` | start with the software renderer for the 3D scene |
 | `SWFX_HW=classic` | hardware rendering with the classic lighting |
+| `SWFX_SMOOTH_CAMERA=0` | turn off the smooth camera (extra frames between game turns while panning, zooming and rotating) |
 | `SWFX_SOFT_CURSOR` | draw the mouse pointer in the game image instead of the OS |
 | `SWFX_NO_EDGE_SCROLL` | do not scroll the view when the mouse is at the screen edge (for tests) |
 
@@ -158,6 +156,24 @@ Environment variables:
   only the rendering library optimized.
 * The debug build no longer enables verbose logging by default; with it, every drawn
   sprite opened and closed the log file, which made busy scenes very slow.
+
+---
+
+## About the port
+
+The port was created by disassembling the original DOS executable and replacing
+the DOS-specific parts with platform-independent code, using
+[SDL](https://www.libsdl.org/) for input and video display,
+[Vorbis](https://xiph.org/vorbis/) for music and [OpenAL](https://www.openal.org/)
+for sound. It runs on Windows, GNU/Linux and Mac OS, on the i386 architecture.
+
+Nothing is missing from the single player gameplay, since the port uses the original
+code for parts which are not remade yet. Multiplayer is not working - network code
+is missing; it will allow starting a new MP game with one player and no real network
+connection.
+
+You need the original game data (from the *Syndicate Wars CD* or a digital
+distribution of the game) to play; see [Installation](#installation).
 
 ---
 
@@ -373,10 +389,15 @@ For people who want to work on it:
   put on top; palette index 255 means "not drawn here".
 * Painter's order is preserved, there is no depth buffer.
 
-Known limitations: sprites (people, effects) are drawn by the software renderer
-over the GPU image, so they do not get hidden by buildings in front of them;
-dynamic per-pixel lights and bloom are not done yet; the transparency of
-screen-blending modes is approximate.
+Sprites and lines are recorded in the same stream (`LbHwRecordSprite`,
+`LbHwRecordLine`; sprites are packed in an atlas on first use). The bloom is made in
+`LbGlSceneDrawWithBloom`: the scene goes to two floating point targets (the colour,
+and the part which is allowed to glow), the bright part is reduced, blurred and added
+back when the scene is put in the window.
+
+Known limitations: dynamic per-pixel lights are not done yet; the transparency of
+screen-blending modes is approximate; the HUD and menus are still drawn by the
+software renderer.
 
 ---
 

@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file game_speed.c
@@ -391,9 +391,41 @@ void fps_counter_show(void)
     lbDisplay.DrawFlags = 0;
     draw_scaled_text_right(lbDisplay.GraphicsScreenWidth - 6, 4, locstr, colour_lookup[ColLU_WHITE]);
 }
+static ulong last_frame_us = 0;
+
+ulong game_now_us(void)
+{
+    return perf_now_us();
+}
+
+ulong game_period_start_us(void)
+{
+    return last_frame_us;
+}
+
+ulong game_period_length_us(void)
+{
+    if ((frameskip != 0) || (game_fps_cap <= 0))
+        return 0;
+    return 1000000 / game_fps_cap;
+}
+
+void game_wait_until_us(ulong target_us)
+{
+#if defined(_WIN32)
+    while ((long)(target_us - perf_now_us()) > 2500)
+        Sleep(1);
+    while ((long)(target_us - perf_now_us()) > 0)
+        ;
+#else
+    long left = (long)(target_us - perf_now_us());
+    if (left > 0)
+        LbSleepUntil(LbTimerClock() + left / 1000);
+#endif
+}
+
 void wait_next_gameturn(void)
 {
-    static ulong last_frame_us = 0;
     ulong now_us, period_us, target_us;
 
     // With a frame skip, or without a cap, run as fast as possible
