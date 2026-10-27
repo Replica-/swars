@@ -1,4 +1,4 @@
-/******************************************************************************/
+﻿/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file pepgroup.c
@@ -16,6 +16,7 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
+#include <stdlib.h>
 #include "pepgroup.h"
 
 #include "bfutility.h"
@@ -708,6 +709,9 @@ void reset_default_player_agent(PlayerIdx plyr, short plagent, struct Thing *p_a
 
     {
         p_agent->U.UPerson.WeaponsCarried = p_player->Weapons[plagent] | (1 << (WEP_ENERGYSHLD-1));
+        // For testing the weapons: SWFX_ALL_WEAPONS=1 gives every weapon to the agents of the player
+        if (getenv("SWFX_ALL_WEAPONS") != NULL)
+            p_agent->U.UPerson.WeaponsCarried |= (1u << (WEP_UNUSED1F - 1)) - 1;
         p_agent->U.UPerson.UMod = p_player->Mods[plagent];
         p_agent->U.UPerson.CurrentWeapon = WEP_NULL;
     }
@@ -770,9 +774,15 @@ void reset_group_member_player_agent(PlayerIdx plyr, ushort plagent, ushort high
         if ((p_agent->SubType == SubTT_PERS_AGENT) || (p_agent->SubType == SubTT_PERS_ZEALOT))
         {
             p_agent->U.UPerson.WeaponsCarried = p_player->Weapons[high_tier] | (1 << (WEP_ENERGYSHLD-1));
+            if (getenv("SWFX_ALL_WEAPONS") != NULL)
+                p_agent->U.UPerson.WeaponsCarried |= (1u << (WEP_UNUSED1F - 1)) - 1;
             p_agent->U.UPerson.UMod.Mods = p_player->Mods[high_tier].Mods;
         }
         p_agent->U.UPerson.CurrentWeapon = 0;
+    }
+    // For testing the weapons, also in the missions started directly: every weapon for the agents
+    if (getenv("SWFX_ALL_WEAPONS") != NULL) {
+        p_agent->U.UPerson.WeaponsCarried |= (1u << (WEP_UNUSED1F - 1)) - 1;
     }
 
     person_init_preplay_command(p_agent);

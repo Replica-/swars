@@ -426,6 +426,10 @@ void build_person(struct Thing *p_thing)
         case WEP_LONGRANGE: strength = 0.85f; radius = 320.0f; colour = colour_lookup[ColLU_YELLOW]; break;
         case WEP_BEAM:      strength = 0.90f; radius = 330.0f; colour = colour_lookup[ColLU_RED]; break;
         case WEP_QDEVASTATOR: strength = 1.0f; radius = 360.0f; colour = colour_lookup[ColLU_BLUE]; break;
+        case WEP_SONICBLAST: strength = 0.60f; radius = 280.0f; colour = colour_lookup[ColLU_CYAN]; break;
+        case WEP_SOULGUN:   strength = 0.50f; radius = 260.0f; colour = colour_lookup[ColLU_CYAN]; break;
+        case WEP_TIMEGUN:   strength = 0.50f; radius = 260.0f; colour = colour_lookup[ColLU_BLUE]; break;
+        case WEP_H2HTASER:  strength = 0.40f; radius = 200.0f; colour = colour_lookup[ColLU_CYAN]; break;
         default:            strength = 0.0f; radius = 0.0f; colour = 0; has_light = false; break; // no weapon, or one which does not shoot
         }
         if (has_light)

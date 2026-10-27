@@ -16,6 +16,8 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
+#include <math.h>
+#include <stdlib.h>
 #include "bfhwrend.h"
 #include "engindrwlstm_wrp.h"
 

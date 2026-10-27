@@ -1328,6 +1328,17 @@ static void hw_gather_pixel_lights(void)
             LOGERR("pixel lights: %d on the screen of %d on the map, first at %d,%d inten %d", n,
               (int)next_full_light, (int)lights[0], (int)lights[1], (int)(lights[3] * 64.0f));
     }
+    if (getenv("SWFX_CONE_TEST") != NULL) {
+        // Eight cones, in the eight directions the people can face, in a ring around the middle
+        for (i = 0; i < 8; i++) {
+            struct ShEnginePoint tsp;
+            float tx = (float)lbDisplay.GraphicsScreenWidth * 0.5f + 420.0f * ((i % 4) - 1.5f) * 0.9f;
+            float ty = (float)lbDisplay.GraphicsScreenHeight * 0.5f + ((i < 4) ? -170.0f : 200.0f);
+            (void)tsp;
+            LbHwNoteMuzzle(tx, ty, colour_lookup[ColLU_YELLOW], 0.9f, 500.0f,
+              (float)angle_direction[i].DiX / 256.0f, (float)angle_direction[i].DiY / 256.0f);
+        }
+    }
     if (getenv("SWFX_BEAM_TEST") != NULL) {
         // A fixed beam in the middle of the screen, for looking at what its light does
         LbHwNoteBeam(scr_cx - 150.0f, scr_cy + 40.0f, scr_cx + 250.0f, scr_cy - 120.0f, colour_lookup[ColLU_RED], 0);

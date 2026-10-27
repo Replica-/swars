@@ -1469,6 +1469,9 @@ void init_level_unknsub01_person(struct Thing *p_person)
     p_person->U.UPerson.EffectiveGroup = p_person->U.UPerson.Group;
     p_person->PTarget = NULL;
     p_person->U.UPerson.WeaponsCarried |= (1 << (WEP_ENERGYSHLD-1));
+    // For testing the weapons: SWFX_ALL_WEAPONS=1 gives every weapon to the agents of the player
+    if (((p_person->Flag & TngF_PlayerAgent) != 0) && (getenv("SWFX_ALL_WEAPONS") != NULL))
+        p_person->U.UPerson.WeaponsCarried |= (1u << (WEP_UNUSED1F - 1)) - 1;
     p_person->OldTarget = 0;
 
     if ((p_person->Flag & TngF_Destroyed) != 0) {
