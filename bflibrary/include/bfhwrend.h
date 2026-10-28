@@ -1,4 +1,4 @@
-﻿/******************************************************************************/
+/******************************************************************************/
 // Bullfrog Engine Emulation Library - for use to remake classic games like
 // Syndicate Wars, Magic Carpet, Genewars or Dungeon Keeper.
 /******************************************************************************/
@@ -98,6 +98,9 @@ TbBool LbHwRecordTriangle(const struct PolyPoint *point_a,
 #define HWREND_MODE_BLOOD_DROP 107   /**< A flying drop of blood, a streak along its way; blended over the screen. */
 #define HWREND_MODE_BLOOD_SPLAT 108  /**< A splatter of blood on the ground; blended over the screen. */
 #define HWREND_MODE_SPARK 109        /**< A hot spark in flight, a glowing streak; added to the screen. */
+#define HWREND_MODE_JET 112          /**< A tongue of the flame thrower, from the gun to a puff: fire which widens and cools along it; blended over the scene. */
+#define HWREND_MODE_ARC 111          /**< A segment of an electric arc: a blue-white core with a soft blue glow; added to the screen. */
+#define HWREND_MODE_BEAM 110        /**< A beam of a laser: a white-hot core in a halo of the colour of the beam, with an electric flicker; added to the screen. */
 
 /** Records drawing of a sprite into the given area of the screen buffer.
  *
@@ -133,7 +136,7 @@ void LbHwSpriteCacheClear(void);
 /** A puff of coloured smoke, for the end of the frame. @param kind 0 - psycho gas (purple), 1 - knock out gas (grey).
  * The puffs are drawn over the scene when LbHwFlushSmoke() is called while recording. */
 /** Records a puff of smoke at once, in the order of drawing (in place of a sprite). */
-void LbHwRecordSmokePuff(float x0, float y0, float x1, float y1, int seed, int kind, float alpha);
+TbBool LbHwRecordSmokePuff(float x0, float y0, float x1, float y1, int seed, int kind, float alpha);
 void LbHwNoteSmoke(float sx, float sy, float size, int seed, int kind, float alpha);
 void LbHwFlushSmoke(void);
 TbBool LbHwRecordFlame(float x0, float y0, float x1, float y1, int seed, float strength);
@@ -186,6 +189,12 @@ void LbHwPixelLightsSetEnabled(TbBool enabled);
  * drawn. The GPU lights the ground around it with the colour of the beam, brighter near the muzzle. */
 #define HW_BEAMS_MAX 32
 void LbHwNoteBeam(float sx1, float sy1, float sx2, float sy2, int colour, int itime);
+/** Notes the light which an electric arc throws on the ground around it. */
+void LbHwNoteArcLight(float sx1, float sy1, float sx2, float sy2, int colour);
+/** Records one piece of a glowing laser beam (kind 0, strength 0..1), of a flame thrower jet (kind 2, param the age\r\n * in percents, strength the half width in pixels, colour a seed) or of a lightning (kind 1, param bit 0 = a
+ * branch, bit 1 = white flash). Called when the line of the piece is drawn, so that the scene in front of it covers
+ * it. Works with the enhanced lighting only; returns false when the caller has to draw the plain line. */
+TbBool LbHwRecordGlowSeg(float sx1, float sy1, float sx2, float sy2, int kind, int param, float strength, int colour);
 /** Gives the beams of the frame: for each, four numbers (screen x1, y1, x2, y2) in `a` and four (palette
  * colour, strength, radius, 0) in `b`; returns how many. */
 int LbHwGetBeams(const float **p_a, const float **p_b, const float **p_c);

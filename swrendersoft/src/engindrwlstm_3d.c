@@ -1,4 +1,4 @@
-﻿/******************************************************************************/
+/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file engindrwlstm_3d.c
@@ -763,121 +763,145 @@ struct SingleObjectFace4 *build_glare(short cor_x, short cor_y_m8, short cor_z,
     return p_face4;
 }
 
+/** Adds one straight piece of a lightning to the draw list.
+ *
+ * Software rendering draws it as the plain blue line it has always been; the GPU rendering
+ * draws a glow in its place, which the flags tell about.
+ */
+static void enlist_draw_lightning_piece(int x1, int y1, int x2, int y2, int z,
+  int itime, int step, ubyte slflags, ubyte glow_flags)
+{
+    struct SortLine *p_sline;
+    int bckt;
+
+    if ((x1 < 0) || (x1 >= lbDisplay.GraphicsScreenWidth)
+      || (y1 < 0) || (y1 >= lbDisplay.GraphicsScreenHeight))
+        return;
+
+    bckt = BUCKET_MID + z;
+    p_sline = draw_item_add_line(DrIT_Unkn11, bckt);
+    if (p_sline == NULL)
+        return;
+
+    p_sline->X1 = x1;
+    p_sline->Y1 = y1;
+    p_sline->X2 = x2;
+    p_sline->Y2 = y2;
+    p_sline->Flags = slflags;
+
+    if ((itime & 0xFF) < 100)
+    {
+        p_sline->Col = colour_lookup[ColLU_BLUE];
+        p_sline->Shade = 32 + ((x1 * 128 + itime + step) & 0x1F);
+    }
+    else if ((itime & 0xFF) < 110)
+    {
+        p_sline->Col = colour_lookup[ColLU_WHITE];
+        p_sline->Shade = 32;
+        p_sline->Flags = 0;
+        glow_flags |= SLF_ARC_FLASH;
+    }
+    else if ((itime & 0xFF) < 142)
+    {
+        p_sline->Col = colour_lookup[ColLU_BLUE];
+        p_sline->Shade = 32 + (31 - (itime - 110));
+        p_sline->Flags = 0;
+    }
+    else
+    {
+        p_sline->Col = colour_lookup[ColLU_BLUE];
+        p_sline->Shade = 32 + ((x1 * 128 + itime + step) & 0x1F);
+        p_sline->Flags = 0;
+    }
+    p_sline->Flags |= SLF_GLOW_ARC | glow_flags;
+}
+
+/** Builds a lightning between two points: the line is broken in the middle and the middle is moved aside
+ * by a random amount, then the same is done to both halves, so that it is jagged at all scales, like the
+ * real thing; and now and then a thinner branch forks off the main bolt and goes its own way.
+ */
+static void enlist_draw_lightning_bolt(int x1, int y1, int z1, int x2, int y2, int z2,
+  int depth, int itime, ubyte slflags, ubyte glow_flags, int *p_step)
+{
+    int dx, dy, len;
+    int mx, my, mz;
+    int rnd;
+
+    dx = x2 - x1;
+    dy = y2 - y1;
+    len = LbSqrL(dx * dx + dy * dy);
+    if ((depth <= 0) || (len < 5))
+    {
+        enlist_draw_lightning_piece(x1, y1, x2, y2, z1, itime, *p_step, slflags, glow_flags);
+        (*p_step)++;
+        return;
+    }
+
+    // Move the middle aside, along the normal of the line
+    // The sideways move is small and capped, so the bolt stays close to the line it follows, and it is
+    // smaller going up and down the screen than across, to keep it low in height
+    rnd = (int)(LbRandomPosShort() & 1023) - 512;
+    {
+        int amp = len / 8;
+
+        if (amp > 7)
+            amp = 7;
+        if (len > 0)
+        {
+            int off_x = (-dy * amp / len) * rnd / 512;
+            int off_y = (dx * amp / len) * rnd / 512;
+
+            mx = (x1 + x2) / 2 + off_x;
+            my = (y1 + y2) / 2 + off_y * 3 / 4;
+        }
+        else
+        {
+            mx = (x1 + x2) / 2;
+            my = (y1 + y2) / 2;
+        }
+    }
+    mz = (z1 + z2) / 2;
+
+    enlist_draw_lightning_bolt(x1, y1, z1, mx, my, mz, depth - 1, itime, slflags, glow_flags, p_step);
+    enlist_draw_lightning_bolt(mx, my, mz, x2, y2, z2, depth - 1, itime, slflags, glow_flags, p_step);
+
+    // A fork, from some of the joints of the main bolt, going out to a side, shorter and fading
+    if (((glow_flags & SLF_ARC_BRANCH) == 0) && (depth >= 2) && (len > 24) && ((LbRandomPosShort() % 9) == 0))
+    {
+        int side, ang_x, ang_y, bx, by;
+
+        side = (LbRandomPosShort() & 1) ? 1 : -1;
+        // The direction of the fork: the direction of the bolt turned aside by 25 to 50 degrees
+        rnd = 25 + (int)(LbRandomPosShort() % 30); // 0.25 to 0.55 as a sine, in percents
+        ang_x = (dx * 100 - side * dy * rnd) / 100;
+        ang_y = (dy * 100 + side * dx * rnd) / 100;
+        bx = mx + ang_x * (25 + (int)(LbRandomPosShort() % 25)) / 100;
+        by = my + ang_y * (25 + (int)(LbRandomPosShort() % 25)) / 100;
+        enlist_draw_lightning_bolt(mx, my, mz, bx, by, mz, depth - 1, itime, slflags,
+          glow_flags | SLF_ARC_BRANCH, p_step);
+    }
+}
+
 void enlist_draw_wobble_line(int x1, int y1, int z1,
  int x2, int y2, int z2, int itime, ubyte slflags, TbBool is_player)
 {
-    int prc_x1, prc_y1, prc_z1;
-    int prc_x2, prc_y2, prc_z2;
-    int dt_x, dt_y, dt_z;
     int tot_dist;
-    int num_steps, step;
-    int prc_cur_x2, prc_cur_y2;
+    int depth, step;
 
-    prc_x1 = x1 << 7;
-    prc_y1 = y1 << 7;
-    prc_z1 = z1 << 7;
-    prc_x2 = x2 << 7;
-    prc_y2 = y2 << 7;
-    prc_z2 = z2 << 7;
-
-    tot_dist = LbSqrL((prc_y2 - prc_y1) * (prc_y2 - prc_y1)
-      + (prc_x2 - prc_x1) * (prc_x2 - prc_x1));
+    tot_dist = LbSqrL((y2 - y1) * (y2 - y1) + (x2 - x1) * (x2 - x1));
     if (tot_dist <= 0) {
         return;
     }
 
-    num_steps = (tot_dist / 10) >> 7;
-    if (is_player)
-        num_steps *= 2;
-    if (num_steps < 1)
-        num_steps = 1;
+    // The GPU rendering lights the ground all along the lightning with a blue light
+    LbHwNoteArcLight((float)x1, (float)y1, (float)x2, (float)y2, colour_lookup[ColLU_BLUE]);
 
-    dt_x = (prc_x2 - prc_x1) / num_steps;
-    dt_y = (prc_y2 - prc_y1) / num_steps;
-    dt_z = (prc_z2 - prc_z1) / num_steps;
-
-    prc_cur_x2 = prc_x1;
-    prc_cur_y2 = prc_y1;
-    for (step = 1; step < num_steps + 1; step++)
-    {
-        struct SortLine *p_sline;
-        int prc_cur_x1, prc_cur_y1;
-        int shift;
-        int bckt;
-
-        prc_cur_x1 = prc_cur_x2;
-        prc_cur_y1 = prc_cur_y2;
-        prc_y1 += dt_y;
-        prc_x1 += dt_x;
-        prc_z1 += dt_z;
-
-        if (!is_player)
-        {
-            shift = ((LbRandomPosShort() % 16) << 7) - 1024;
-            prc_cur_x2 = prc_x1 + ((shift * overall_scale) >> 8);
-            shift = ((LbRandomPosShort() % 16) << 7) - 1024;
-            prc_cur_y2 = prc_y1 + ((shift * overall_scale) >> 8);
-        }
-        else if (step == 1)
-        {
-            shift = ((zig_zag[((render_anim_turn >> RENDER_ANIM_TURN_SHIFT) + x1) & 0x1F] & 7) << 7) - 512;
-            prc_cur_x1 = prc_cur_x2 + ((shift * overall_scale) >> 8);
-            shift = ((zig_zag[((render_anim_turn >> RENDER_ANIM_TURN_SHIFT) + y1) & 0x1F] & 7) << 7) - 512;
-            prc_cur_y1 = prc_cur_y2 + ((shift * overall_scale) >> 8);
-            shift = ((LbRandomPosShort() & 7) << 7) - 512;
-            prc_cur_x2 = prc_x1 + ((shift * overall_scale) >> 8);
-            shift = ((LbRandomPosShort() & 7) << 7) - 512;
-            prc_cur_y2 = prc_y1 + ((shift * overall_scale) >> 8);
-        }
-        else if (step == num_steps)
-        {
-            shift = ((zig_zag[((render_anim_turn >> RENDER_ANIM_TURN_SHIFT) + x2) & 0x1F] & 7) << 7) - 512;
-            prc_cur_x2 = prc_x1 + ((shift * overall_scale) >> 8);
-            shift = ((zig_zag[(y2 + (render_anim_turn >> RENDER_ANIM_TURN_SHIFT)) & 0x1F] & 7) << 7) - 512;
-            prc_cur_y2 = prc_y1 + ((shift * overall_scale) >> 8);
-        }
-
-        if ((prc_x1 < 0) || (prc_x1 >> 7 >= lbDisplay.GraphicsScreenWidth)
-          || (prc_y1 < 0) || (prc_y1 >> 7 >= lbDisplay.GraphicsScreenHeight))
-            continue;
-
-        bckt = BUCKET_MID + (prc_z1 >> 7);
-
-        p_sline = draw_item_add_line(DrIT_Unkn11, bckt);
-        if (p_sline == NULL) {
-            break;
-        }
-
-        p_sline->X1 = prc_cur_x1 >> 7;
-        p_sline->Y1 = prc_cur_y1 >> 7;
-        p_sline->X2 = prc_cur_x2 >> 7;
-        p_sline->Y2 = prc_cur_y2 >> 7;
-        p_sline->Flags = slflags;
-
-        if ((itime & 0xFF) < 100)
-        {
-            p_sline->Col = colour_lookup[ColLU_BLUE];
-            p_sline->Shade = 32 + ((prc_cur_x1 + itime + step) & 0x1F);
-        }
-        else if ((itime & 0xFF) < 110)
-        {
-            p_sline->Col = colour_lookup[ColLU_WHITE];
-            p_sline->Shade = 32;
-            p_sline->Flags = 0;
-        }
-        else if ((itime & 0xFF) < 142)
-        {
-            p_sline->Col = colour_lookup[ColLU_BLUE];
-            p_sline->Shade = 32 + (31 - (itime - 110));
-            p_sline->Flags = 0;
-        }
-        else
-        {
-            p_sline->Col = colour_lookup[ColLU_BLUE];
-            p_sline->Shade = 32 + ((prc_cur_x1 + itime + step) & 0x1F);
-            p_sline->Flags = 0;
-        }
-    }
+    // A longer lightning is broken more times; the pieces are a few pixels long in the end
+    depth = 1;
+    while ((depth < 6) && ((tot_dist >> depth) > 9))
+        depth++;
+    step = 0;
+    enlist_draw_lightning_bolt(x1, y1, z1, x2, y2, z2, depth, itime, slflags, 0, &step);
 }
 
 ushort shrapnel_get_child_type_not_3(struct Shrapnel *p_shraparnt)
@@ -946,6 +970,7 @@ void enlist_draw_laser(int cor1_x, int cor1_y, int cor1_z,
     int scr_dx, scr_dy, scr_ddepth;
     int thick_x, thick_y;
     int i, iter_count;
+    int glow_str;
     ubyte flg;
 
     ep1.Flags = 0;
@@ -1016,6 +1041,15 @@ void enlist_draw_laser(int cor1_x, int cor1_y, int cor1_z,
         break;
     }
 
+    {
+        // The beam is brighter the fresher it is; some beams have a negative time, for special effects
+        float st = (itime < 0) ? 0.8f : (1.0f - 0.18f * (float)itime);
+
+        if (st < 0.3f)
+            st = 0.3f;
+        glow_str = (int)(st * 7.0f + 0.5f);
+    }
+
     flg = 0;
     for (i = 1; i < iter_count; i++)
     {
@@ -1043,6 +1077,20 @@ void enlist_draw_laser(int cor1_x, int cor1_y, int cor1_z,
               p_sline->Y2 = cor_y2;
               p_sline->Shade = 32;
               p_sline->Flags = 0;
+              p_sline->Col = colour;
+          }
+
+          // The piece of the glowing beam for the GPU rendering, whole, without the gaps which
+          // the thickness of the plain line leaves
+          p_sline = draw_item_add_line(DrIT_Unkn11, bckt);
+          if (p_sline != NULL)
+          {
+              p_sline->X1 = scr_x >> 8;
+              p_sline->Y1 = scr_y >> 8;
+              p_sline->X2 = (scr_x + scr_dx) >> 8;
+              p_sline->Y2 = (scr_y + scr_dy) >> 8;
+              p_sline->Shade = 32;
+              p_sline->Flags = SLF_GLOW_LASER | 0x04 | (glow_str << 3);
               p_sline->Col = colour;
           }
 
@@ -1303,7 +1351,7 @@ void enlist_draw_plasma_sparks_on_object(struct SingleObject *point_object)
     rnd_range = points_num - 4;
     assert(rnd_range < next_screen_point);
 
-    for (i = 0; i < 10; i++)
+    for (i = 0; i < 3 + (int)(LbRandomPosShort() & 1); i++)
     {
         struct SpecialPoint *p_specpt2;
         struct SpecialPoint *p_specpt1;

@@ -52,6 +52,13 @@ struct SortSprite {
     short Scale;
 };
 
+/** Flags of SortLine telling the GPU rendering to draw the piece of a laser or of a lightning glowing.
+ * The software rendering ignores them. A laser piece also holds its strength in the bits 0x38. */
+#define SLF_GLOW_LASER 0x80
+#define SLF_GLOW_ARC 0x40
+#define SLF_ARC_FLASH 0x20
+#define SLF_ARC_BRANCH 0x10
+
 struct SortLine {
     short X1;
     short Y1;

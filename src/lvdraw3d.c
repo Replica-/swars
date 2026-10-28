@@ -61,6 +61,7 @@
 #include "game_sprts.h"
 #include "people.h"
 #include "thing.h"
+#include "bmbang.h"
 #include "thing_expld.h"
 #include "thing_onface.h"
 #include "thing_ovmous.h"
@@ -843,6 +844,8 @@ void screen_sorted_sprite_statc_render_callback(ushort sspr)
     }
 }
 
+void person_muzzle_sprite_offset(struct Thing *p_person, short *p_ofs_x, short *p_ofs_y);
+
 /** The particles of the clouds of gas grenades are replaced by puffs of smoke drawn by the GPU, in the
  * same places and sizes, so they move the same way; the gas particles are the effects with sub type 30
  * and the flags 0x10 (psycho gas) or 0x20 (knock out gas). */
@@ -859,6 +862,86 @@ TbBool screen_sorted_sprite_effect_replace_callback(ushort sspr, int x0, int y0,
     if (getenv("SWFX_NO_GASSMOKE") != NULL)
         return false;
     p_sthing = (struct SimpleThing *)game_sort_sprites[sspr].SrcItem;
+    if ((p_sthing != NULL) && (p_sthing->Type == SmTT_SCALE_EFFECT) && (p_sthing->SubType == 46)
+      && (getenv("SWFX_NO_FLAMEFX") == NULL))
+    {
+        // The flame of the flame thrower: a stream of fire puffs, in place of the sprites. The sprites
+        // are drawn at the ground, so the stream seemed to come out of the floor; the young puffs are
+        // lifted to the height of the gun, and sink to the ground as they spread and age.
+        int frm = (int)game_sort_sprites[sspr].Frame;
+        float age, lift, lift_x, scl, size;
+        short ofs_x, ofs_y;
+        struct Thing *p_owner;
+
+        age = (float)(frm - 4262) / 9.0f;
+        if (age < 0.0f)
+            age = 0.0f;
+        if (age > 1.0f)
+            age = 1.0f;
+        scl = (float)overall_scale / 256.0f;
+        // The fire leaves the tip of the gun: the new puffs are shifted from the foot of the person who
+        // fires to the gun tip in their sprite, and the shift goes away as the puffs age and spread
+        lift = 0.0f;
+        lift_x = 0.0f;
+        p_owner = NULL;
+        if ((p_sthing->Owner2 > 0) && (p_sthing->Owner2 <= THINGS_LIMIT) && (things[p_sthing->Owner2].Type == TT_PERSON))
+            p_owner = &things[p_sthing->Owner2];
+        else if ((p_sthing->Parent > 0) && (p_sthing->Parent <= THINGS_LIMIT) && (things[p_sthing->Parent].Type == TT_PERSON))
+            p_owner = &things[p_sthing->Parent];
+        if (p_owner != NULL) {
+            float fade = (1.0f - age) * (1.0f - age);
+
+            person_muzzle_sprite_offset(p_owner, &ofs_x, &ofs_y);
+            lift = -(float)ofs_y * scl * 0.5f * fade;
+            lift_x = (float)ofs_x * scl * 0.5f * fade;
+        }
+        size = (float)((w > h) ? w : h) * 3.0f + 10.0f * scl;
+        cx = (float)x0 + (float)w * 0.5f;
+        cy = (float)y0 + (float)h * 0.5f;
+        if (p_owner != NULL) {
+            // A real jet of flame: the puffs are only the simulation, and the hits go by them; what is seen is a
+            // tongue of fire from the tip of the gun to each puff, wider and cooler the further it reaches
+            struct ShEnginePoint osp;
+            int ox, oz, oy;
+            float tx, ty;
+
+            ox = PRCCOORD_TO_MAPCOORD(p_owner->X);
+            oz = PRCCOORD_TO_MAPCOORD(p_owner->Z);
+            oy = PRCCOORD_TO_YCOORD(alt_at_point(ox, oz));
+            transform_shpoint(&osp, ox - engn_xc, oy - 8 * engn_yc, oz - engn_zc);
+            tx = (float)osp.X + (float)ofs_x * scl * 0.5f;
+            ty = (float)osp.Y + (float)ofs_y * scl * 0.5f;
+            if ((cx - tx) * (cx - tx) + (cy - ty) * (cy - ty) > 36.0f) {
+                // The older the puff is, the further the jet goes past it: the jet is a bit longer than the puffs
+                float reach = 1.0f + 0.6f * age;
+
+                cx = tx + (cx - tx) * reach;
+                cy = ty + (cy - ty) * reach;
+                if (LbHwRecordGlowSeg(tx, ty, cx, cy, 2, (int)(age * 100.0f), size * 0.42f,
+                  (int)p_sthing->ThingOffset * 11))
+                {
+                    // At the far end the fire burns out into a thin smoke, which rises a little
+                    if (age > 0.4f) {
+                        float s = (age - 0.4f) / 0.6f;
+                        float ssz = size * (1.0f + 0.5f * s);
+                        float sy = cy - 8.0f * scl * s;
+
+                        LbHwRecordSmokePuff(cx - ssz * 0.5f, sy - ssz * 0.5f, cx + ssz * 0.5f, sy + ssz * 0.5f,
+                          (int)p_sthing->ThingOffset * 13, 1, 0.32f * sinf(3.14159f * s));
+                    }
+                    return true;
+                }
+            }
+            else
+                return true;
+        }
+        // Without a person to start from, a puff: its own look, a tongue of fire which licks upwards and never
+        // turns to smoke
+        cx += lift_x;
+        cy -= lift;
+        LbHwRecordSmokePuff(cx - size * 0.5f, cy - size * 0.5f, cx + size * 0.5f, cy + size * 0.5f,
+          (int)p_sthing->ThingOffset * 11, 300 + (int)(age * 100.0f), 0.95f);        return true;
+    }
     if ((p_sthing == NULL) || (p_sthing->Type != SmTT_SCALE_EFFECT) || (p_sthing->SubType != 30))
         return false;
     if ((p_sthing->Flag & 0x10) != 0)
@@ -2015,10 +2098,73 @@ static void hw_gather_pixel_lights(void)
         }
     }
     if (getenv("SWFX_BEAM_TEST") != NULL) {
-        // A fixed beam in the middle of the screen, for looking at what its light does
+        // A fixed beam in the middle of the screen, for looking at what its light does; the beam itself
+        // is put in the draw list by hw_test_effects_enlist()
         LbHwNoteBeam(scr_cx - 150.0f, scr_cy + 40.0f, scr_cx + 250.0f, scr_cy - 120.0f, colour_lookup[ColLU_RED], 0);
     }
     LbHwSetPixelLights(lmat, lights, n);
+}
+
+void init_flamer(struct Thing *p_owner);
+
+/** Puts a lightning and a laser beam into the draw list in the middle of the screen, for looking at them. */
+static void hw_test_effects_enlist(void)
+{
+    float cx = lbDisplay.GraphicsScreenWidth * 0.5f;
+    float cy = lbDisplay.GraphicsScreenHeight * 0.5f;
+
+    if (getenv("SWFX_ARC_TEST") != NULL) {
+        enlist_draw_wobble_line((int)cx - 250, (int)cy + 60, 0, (int)cx + 250, (int)cy - 60, 0, 10, 0x01, 0);
+        enlist_draw_wobble_line((int)cx - 100, (int)cy + 200, 0, (int)cx + 150, (int)cy + 260, 0, 10, 0x01, 0);
+    }
+    if (getenv("SWFX_BANG_TEST") != NULL) {
+        // An explosion near the first agent now and then, of the type which the variable gives
+        static int bang_delay = 0;
+        PlayerInfo *p_pl = &players[local_player_no];
+
+        if ((++bang_delay % 150) == 60) {
+            struct Thing *p_agent = &things[p_pl->DirectControl[0]];
+
+            {
+                static const int types[] = { 65, 20, 35, 95, 100, 10, 80 };
+                int ty = atoi(getenv("SWFX_BANG_TEST"));
+
+                if (ty == 0)
+                    ty = types[(bang_delay / 150) % 7];
+                bang_new4(p_agent->X + (900 << 8), p_agent->Y, p_agent->Z - (400 << 8), ty);
+            }
+        }
+    }
+    if (getenv("SWFX_FLAMER_TEST") != NULL) {
+        // The first agent fires the flame thrower now and then
+        static int flamer_delay = 0;
+        PlayerInfo *p_pl = &players[local_player_no];
+
+        if ((flamer_delay++ % 8) == 3) {
+            struct Thing *p_agent = &things[p_pl->DirectControl[0]];
+
+            p_agent->U.UPerson.CurrentWeapon = WEP_FLAMER;
+            p_agent->Flag |= TngF_TriggerUse;
+            init_flamer(p_agent);
+        }
+    }
+    if (getenv("SWFX_BEAM_TEST") != NULL) {
+        int i;
+
+        for (i = 0; i < 20; i++) {
+            struct SortLine *p_sline = draw_item_add_line(DrIT_Unkn11, BUCKET_MID);
+
+            if (p_sline == NULL)
+                break;
+            p_sline->X1 = (short)(cx - 150.0f + 20.0f * i);
+            p_sline->Y1 = (short)(cy + 40.0f - 8.0f * i);
+            p_sline->X2 = (short)(cx - 150.0f + 20.0f * (i + 1));
+            p_sline->Y2 = (short)(cy + 40.0f - 8.0f * (i + 1));
+            p_sline->Shade = 32;
+            p_sline->Col = colour_lookup[ColLU_RED];
+            p_sline->Flags = SLF_GLOW_LASER | 0x04 | (7 << 3);
+        }
+    }
 }
 
 void engine_draw_whole_screen_top_down(void)
@@ -2048,6 +2194,7 @@ void engine_draw_whole_screen_top_down(void)
     {
         engine_draw_things(pos_beg_x, pos_beg_z, rend_beg_x, rend_beg_z, tlcount_x, tlcount_z);
         blood_fx_enlist();
+        hw_test_effects_enlist();
     }
 
     if ((ingame.Flags & GamF_RenderScene) != 0)

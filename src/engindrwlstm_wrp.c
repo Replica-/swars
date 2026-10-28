@@ -25,6 +25,7 @@
 #include "bfmath.h"
 #include "bfmemut.h"
 #include "bfpalette.h"
+#include "weapon.h"
 #include "bfutility.h"
 #include <assert.h>
 #include <limits.h>
@@ -207,6 +208,20 @@ static void draw_pers_frame_versioned(struct Thing *p_thing,
         bright = 32;
     frv = p_thing->U.UPerson.FrameId.Version;
     angl = (p_thing->U.UObject.Angle + 8 - byte_176D49) & 7;
+
+    // The GPU draws the jet of the flame thrower itself, so the muzzle flash of the sprite, which looks
+    // out of place with it, is left out; the version of the frame with the flash is the one with the number 4
+    if ((p_thing->Type == TT_PERSON) && (p_thing->U.UPerson.CurrentWeapon == WEP_FLAMER)
+      && (frv[4] != 0) && LbHwRenderEnabled() && (getenv("SWFX_NO_FLAMEFX") == NULL))
+    {
+        ubyte frv_noflash[5];
+
+        memcpy(frv_noflash, frv, sizeof(frv_noflash));
+        frv_noflash[4] = 0;
+        enlist_draw_frame_pers_rot_versioned(scr_x, scr_y, scr_depth,
+          frame, frv_noflash, angl, bright, (intptr_t)p_thing);
+        return;
+    }
 
     enlist_draw_frame_pers_rot_versioned(scr_x, scr_y, scr_depth,
       frame, frv, angl, bright, (intptr_t)p_thing);

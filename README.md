@@ -141,9 +141,28 @@ and are covered by the same license.
   the Epoch members' as those of the sprites of the zealot frames, so other people are not touched. Choosing a
   colour of the agents puts costume 3 on; "Original" restores the colours. With the software rendering the colours
   are disabled and the original ones are used. The colours are not saved with the settings.
+* **Glowing laser beams.** With the enhanced lighting, the beams of the lasers are also drawn by the GPU, piece by
+  piece in the order of the scene, so a building in front of the beam hides it: a thin white-hot core in a red halo,
+  with an electric flicker and bright pulses which run along it, wider while the beam is fresh, and it glows (blooms).
+  The beam throws a strong red light on the ground along it. `SWFX_BEAM_TEST=1` draws a beam in the middle of the
+  screen, for looking at it.
+* **Lightning.** The blue lightning of mines, the electron mace and the electricity on buildings is built like real
+  lightning: a jagged bolt broken at all scales, with thinner branches which fork off it. With the enhanced lighting the
+  GPU draws it with a bright blue-white core and a soft blue bloom, flickering, white at the flash of the discharge, and
+  it throws a strong blue light on the ground along its whole length. `SWFX_ARC_TEST=1` draws lightning in the middle
+  of the screen, for looking at it.
+* **Fire, smoke and explosions.** With the enhanced lighting the GPU draws the flames (burning things), the puffs of an
+  explosion and the fire of the flame thrower itself instead of the sprites: billowing fire, white-hot in the middle,
+  which cools to orange, red and dark smoke, with rising embers. The smoke of an explosion - the mushroom puffs and the ring of smoke which spreads out of it - is dark billowing smoke, warm from the fire at first, which thins out as it ages. The flame thrower is a real jet of fire from the tip
+  of the gun, yellow-white in the heart and orange at the edge, which widens towards its end and burns out into thin smoke at the far end, as the puffs do; burning buildings send a thin smoke up from the flames; the puffs which the game
+  simulates for the hits are still there, but they are not drawn, only the jet is. These are blended over the scene,
+  not added to it, so they do not burn out a bright place. `SWFX_NO_FLAMEFX=1` brings the flame thrower sprites back;
+  `SWFX_FLAME_TEST=1`, `SWFX_FLAMER_TEST=1` and `SWFX_BANG_TEST=<type>` show flames, the flame thrower and an
+  explosion of the given type (80 for a grenade).
 * **Softer light of explosions on lit surfaces.** With the enhanced lighting, the light of explosions, shots and
   lamps added to the shade of a surface rises slower the brighter the surface already is, and cannot pass a
-  ceiling, so an explosion over a lit tile no longer burns it out to white.
+  ceiling about 10% under the old one, so an explosion over a lit tile, or many effects on top of each other, no longer
+  burn it out to white.
 * **Faster map scrolling.** Panning with the keys or the screen edge is 1.5 times
   faster than in the original game.
 * **Faster software renderer.** The textured polygon fill (`poly_gp.c`) is

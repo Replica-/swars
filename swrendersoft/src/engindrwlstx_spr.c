@@ -1,4 +1,4 @@
-﻿/******************************************************************************/
+/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file engindrwlstx_spr.c
@@ -19,8 +19,11 @@
 /******************************************************************************/
 #include "bfhwrend.h"
 #include "engindrwlstx.h"
+#include "enginprops.h"
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "bfbox.h"
 #include "bfgentab.h"
@@ -137,6 +140,24 @@ static void anim_elem_pos_mark(struct Element *p_elem)
 void draw_sort_line(struct SortLine *p_sline)
 {
     ushort ftcor;
+
+    // The GPU draws the pieces of lasers and lightnings glowing, at their place in the drawing order,
+    // so that what stands in front covers them; the flags tell what the piece is
+    if ((p_sline->Flags & SLF_GLOW_LASER) != 0)
+    {
+        if (LbHwRecordGlowSeg(p_sline->X1, p_sline->Y1, p_sline->X2, p_sline->Y2, 0, 0,
+          (float)((p_sline->Flags >> 3) & 7) / 7.0f, p_sline->Col))
+            return;
+        if ((p_sline->Flags & 0x04) != 0)
+            return; // only the glow, there is the plain line beside it
+    }
+    else if ((p_sline->Flags & SLF_GLOW_ARC) != 0)
+    {
+        if (LbHwRecordGlowSeg(p_sline->X1, p_sline->Y1, p_sline->X2, p_sline->Y2, 1,
+          ((p_sline->Flags & SLF_ARC_BRANCH) ? 1 : 0) | ((p_sline->Flags & SLF_ARC_FLASH) ? 2 : 0), 0.0f, 0))
+            return;
+    }
+
     if ((p_sline->Flags & (0x01|0x02)) != 0)
     {
         int dist_x, dist_y;
@@ -776,6 +797,10 @@ void draw_sort_sprite_frame_efct_v(int sspr)
  *
  * @param ph Index in `phwoar` array.
  */
+/** The frames of the puffs of the explosions, from the smallest to the largest. */
+#define PHWOAR_FRAME_FIRST 4257
+#define PHWOAR_FRAME_LAST 4270
+
 void draw_phwoar(ushort ph)
 {
     struct Phwoar *p_phwoar;
@@ -790,7 +815,48 @@ void draw_phwoar(ushort ph)
         scr_y = p_scrpoint->Y + dword_176D04;
     }
 
-    draw_frame_on_screen(scr_x, scr_y, p_phwoar->f);
+    // The GPU draws the puffs of an explosion itself: a billowing ball which is white-hot fire first, and
+    // cools to orange, red and dark smoke as it ages; the frames of the puff go from small to large
+    if (lbHwRecording && (p_phwoar->f >= PHWOAR_FRAME_FIRST) && (p_phwoar->f <= PHWOAR_FRAME_LAST))
+    {
+        float age, size;
+
+        age = (float)(p_phwoar->f - PHWOAR_FRAME_FIRST) / (float)(PHWOAR_FRAME_LAST - PHWOAR_FRAME_FIRST);
+        size = (14.0f + 30.0f * age) * 2.4f;
+        if (LbHwRecordSmokePuff((float)scr_x - size * 0.5f, (float)scr_y - size * 0.5f,
+          (float)scr_x + size * 0.5f, (float)scr_y + size * 0.5f, (int)ph * 13,
+          100 + (int)(age * 100.0f), 0.85f))
+            return;
+    }
+
+    // The smoke of an explosion - the puffs of the mushroom and of the ring which spreads out of it - are
+    // billowing dark clouds drawn by the GPU, which are lit by the fire at first
+    if (lbHwRecording && ((p_phwoar->type == 100) || (p_phwoar->type == 101) || (p_phwoar->type == 113)
+      || (p_phwoar->type == 114)))
+    {
+        float age, size;
+
+        if (p_phwoar->type == 100) {
+            // the puffs of the mushroom, which shrink a little as they fade
+            age = (float)(p_phwoar->f - 4280) / 3.0f;
+            size = (12.0f - 2.0f * age) * 3.4f;
+        } else if (p_phwoar->type == 101) {
+            // the ring: the puffs grow as they go out
+            age = (float)(p_phwoar->f - 4299) / 6.0f;
+            size = (4.0f + 16.0f * age) * 3.6f;
+        } else {
+            age = (p_phwoar->die > 0) ? 0.5f : 0.35f;
+            size = 28.0f * 2.8f;
+        }
+        if (age < 0.0f)
+            age = 0.0f;
+        if (age > 0.99f)
+            age = 0.99f;
+        if (LbHwRecordSmokePuff((float)scr_x - size * 0.5f, (float)scr_y - size * 0.5f,
+          (float)scr_x + size * 0.5f, (float)scr_y + size * 0.5f, (int)ph * 17,
+          200 + (int)(age * 99.0f), 0.8f))
+            return;
+    }    draw_frame_on_screen(scr_x, scr_y, p_phwoar->f);
 }
 
 /**
@@ -818,7 +884,23 @@ void draw_fire_flame(ushort flm)
         fy = (float)(p_scrpoint->Y + dword_176D04);
         if (LbHwRecordFlame(fx - fw * 0.5f, fy - fh * 0.8f, fx + fw * 0.5f, fy + fh * 0.2f,
           (int)flm, 1.0f))
+        {
+            // Thin smoke goes up from the flame, swaying, widening and fading as it rises
+            int k;
+
+            for (k = 0; k < 2; k++)
+            {
+                float ph, sz, sway;
+
+                ph = (float)(((render_anim_turn >> 2) + (u32)flm * 37u + (u32)k * 128u) & 511u) / 512.0f;
+                sz = fw * (0.7f + 1.1f * ph);
+                sway = fw * 0.35f * ph * (float)((int)((render_anim_turn >> 5) + flm * 5 + k * 3) % 7 - 3) / 3.0f;
+                LbHwRecordSmokePuff(fx + sway - sz * 0.5f, fy - fh * (0.75f + 0.9f * ph) - sz * 0.5f,
+                  fx + sway + sz * 0.5f, fy - fh * (0.75f + 0.9f * ph) + sz * 0.5f,
+                  (int)flm * 7 + k, 1, 0.3f * (1.0f - ph) * (1.0f - ph));
+            }
             return;
+        }
     }
     if (p_flame->big != 0)
     {

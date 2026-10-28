@@ -1,4 +1,4 @@
-﻿/******************************************************************************/
+/******************************************************************************/
 // Bullfrog Engine Emulation Library - for use to remake classic games like
 // Syndicate Wars, Magic Carpet, Genewars or Dungeon Keeper.
 /******************************************************************************/
@@ -128,6 +128,7 @@ static float beam_a[HW_BEAMS_MAX * 4];
 static float beam_b[HW_BEAMS_MAX * 4];
 static float beam_c[HW_BEAMS_MAX * 4];
 static int beam_count = 0;
+static int arc_light_count = 0;
 
 void LbHwNoteBeam(float x1, float y1, float x2, float y2, int colour, int itime)
 {
@@ -146,10 +147,31 @@ void LbHwNoteBeam(float x1, float y1, float x2, float y2, int colour, int itime)
     beam_a[beam_count * 4 + 2] = x2;
     beam_a[beam_count * 4 + 3] = y2;
     beam_b[beam_count * 4 + 0] = (float)colour;
-    beam_b[beam_count * 4 + 1] = strength * 0.7f;
-    beam_b[beam_count * 4 + 2] = 300.0f;
+    beam_b[beam_count * 4 + 1] = strength * 1.1f;
+    beam_b[beam_count * 4 + 2] = 400.0f;
     beam_b[beam_count * 4 + 3] = 0.0f;
     beam_c[beam_count * 4 + 0] = beam_c[beam_count * 4 + 1] = 0.0f;
+    beam_c[beam_count * 4 + 2] = 0.0f;
+    beam_count++;
+}
+
+void LbHwNoteArcLight(float x1, float y1, float x2, float y2, int colour)
+{
+    // The light goes all along the lightning, from end to end; there are many bolts in an electric
+    // discharge, and their lights would pile up on the ground, so only a few of them throw light
+    if ((beam_count >= HW_BEAMS_MAX) || (arc_light_count >= 5))
+        return;
+    arc_light_count++;
+    beam_a[beam_count * 4 + 0] = x1;
+    beam_a[beam_count * 4 + 1] = y1;
+    beam_a[beam_count * 4 + 2] = x2;
+    beam_a[beam_count * 4 + 3] = y2;
+    beam_b[beam_count * 4 + 0] = (float)colour;
+    beam_b[beam_count * 4 + 1] = 1.1f;
+    beam_b[beam_count * 4 + 2] = 340.0f;
+    beam_b[beam_count * 4 + 3] = 0.0f;
+    beam_c[beam_count * 4 + 0] = beam_c[beam_count * 4 + 1] = 0.0f;
+    beam_c[beam_count * 4 + 2] = 1.0f;
     beam_count++;
 }
 
@@ -167,6 +189,7 @@ void LbHwNoteMuzzle(float sx, float sy, int colour, float strength, float radius
     beam_b[beam_count * 4 + 3] = strength;
     beam_c[beam_count * 4 + 0] = dirx;
     beam_c[beam_count * 4 + 1] = dirz;
+    beam_c[beam_count * 4 + 2] = 0.0f;
     beam_count++;
 }
 
@@ -278,6 +301,7 @@ void LbHwFrameBegin(void)
 {
     pl_count = 0;
     beam_count = 0;
+    arc_light_count = 0;
     smoke_count = 0;
     if (getenv("SWFX_HW_FAILLOG") != NULL) {
         if ((++dbg_frames % 60) == 0) {
@@ -722,17 +746,18 @@ void LbHwNoteSmoke(float sx, float sy, float size, int seed, int kind, float alp
     p->x = sx; p->y = sy; p->size = size; p->alpha = alpha; p->seed = seed; p->kind = kind;
 }
 
-void LbHwRecordSmokePuff(float x0, float y0, float x1, float y1, int seed, int kind, float alpha)
+TbBool LbHwRecordSmokePuff(float x0, float y0, float x1, float y1, int seed, int kind, float alpha)
 {
     int k;
 
     if (!lbHwRecording || (hw_lighting != HwLight_Enhanced) || !hw_grow(6))
-        return;
+        return false;
     hw_quad(&rec_verts[rec_count], x0, y0, x1, y1, 0.0f, 0.0f, 1.0f, 1.0f,
       HWREND_MODE_SMOKE, (float)kind, alpha);
     for (k = 0; k < 6; k++)
         rec_verts[rec_count + k].s = (float)(seed & 1023);
     rec_count += 6;
+    return true;
 }
 
 void LbHwFlushSmoke(void)
@@ -765,6 +790,79 @@ void LbHwFlushSmoke(void)
         rec_count += 6;
     }
     smoke_count = 0;
+}
+
+TbBool LbHwRecordGlowSeg(float x1, float y1, float x2, float y2, int kind, int param, float strength, int colour)
+{
+    static const int tri[6] = { 0, 1, 2, 0, 2, 3 };
+    static const float cs[4] = { -1.0f, 1.0f, 1.0f, -1.0f };
+    static const float ct[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
+    float dx, dy, len, half, nx, ny, ex, ey, phase;
+    float px[4], py[4];
+    struct HwVertex *v;
+    int k;
+
+    if (!lbHwRecording || (hw_lighting != HwLight_Enhanced))
+        return false;
+    dx = x2 - x1;
+    dy = y2 - y1;
+    len = sqrtf(dx * dx + dy * dy);
+    if ((len < 0.5f) || !hw_grow(6))
+        return false;
+    dx /= len;
+    dy /= len;
+    if (kind == 2)
+    {
+        // A tongue of the flame thrower, from the gun to a puff: it widens towards the puff
+        half = strength;
+        ex = ey = 0.0f;
+        phase = 0.0f;
+    }
+    else if (kind == 0)
+    {
+        // A piece of the beam of a laser, the pieces lie end to end; the beam is wider while it is fresh,
+        // and the glow around the core is wider still
+        half = 5.0f + 9.0f * strength;
+        ex = ey = 0.0f;
+        // Where the piece starts along the beam, so that the flicker goes on across the pieces
+        phase = x1 * dx + y1 * dy;
+    }
+    else
+    {
+        // A piece of a lightning: the pieces meet at angles, so the ends are round and overlap
+        half = (param & 1) ? 6.0f : 9.0f;
+        ex = dx * half;
+        ey = dy * half;
+        phase = 0.0f;
+    }
+    nx = -dy * half;
+    ny = dx * half;
+    px[0] = x1 - ex - nx; py[0] = y1 - ey - ny;
+    px[1] = x1 - ex + nx; py[1] = y1 - ey + ny;
+    px[2] = x2 + ex + nx; py[2] = y2 + ey + ny;
+    px[3] = x2 + ex - nx; py[3] = y2 + ey - ny;
+    v = &rec_verts[rec_count];
+    for (k = 0; k < 6; k++)
+    {
+        int c = tri[k];
+
+        v[k].x = px[c] - 0.5f;
+        v[k].y = py[c] - 0.5f;
+        v[k].u = cs[c];
+        v[k].v = ct[c];
+        v[k].s = 0.0f;
+        v[k].umax = v[k].vmax = 1.0e9f;
+        v[k].tx0 = len;
+        v[k].ty0 = (kind == 0) ? strength : half;
+        v[k].tx1 = phase;
+        v[k].ty1 = v[k].tx2 = v[k].ty2 = 0.0f;
+        v[k].mode = (kind == 0) ? HWREND_MODE_BEAM : (kind == 2) ? HWREND_MODE_JET : HWREND_MODE_ARC;
+        v[k].colour = (kind == 0) ? (float)colour
+          : (kind == 2) ? (float)(colour & 1023) : (float)(((int)(x1 * 7.0f + y1 * 13.0f)) & 1023);
+        v[k].layer = (kind == 0) ? strength : (kind == 2) ? (float)param * 0.01f : (float)param;
+    }
+    rec_count += 6;
+    return true;
 }
 
 TbBool LbHwRecordFlame(float x0, float y0, float x1, float y1, int seed, float strength)
