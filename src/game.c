@@ -1489,9 +1489,21 @@ void init_level_unknsub01_person(struct Thing *p_person)
     p_person->U.UPerson.EffectiveGroup = p_person->U.UPerson.Group;
     p_person->PTarget = NULL;
     p_person->U.UPerson.WeaponsCarried |= (1 << (WEP_ENERGYSHLD-1));
-    // For testing the weapons: SWFX_ALL_WEAPONS=1 gives every weapon to the agents of the player
-    if (((p_person->Flag & TngF_PlayerAgent) != 0) && (getenv("SWFX_ALL_WEAPONS") != NULL))
-        p_person->U.UPerson.WeaponsCarried |= (1u << (WEP_UNUSED1F - 1)) - 1;
+    // For testing the weapons: SWFX_ALL_WEAPONS=1 gives every weapon to the agents of the player, and
+    // SWFX_SPLIT_WEAPONS=1 shares them out between the agents
+    if ((p_person->Flag & TngF_PlayerAgent) != 0)
+    {
+        PlayerInfo *p_plyr;
+        int plagent;
+
+        p_plyr = &players[local_player_no];
+        for (plagent = 0; plagent < 3; plagent++)
+        {
+            if (p_plyr->MyAgent[plagent] == p_person)
+                break;
+        }
+        p_person->U.UPerson.WeaponsCarried |= test_weapons_for_agent(plagent);
+    }
     // For testing: SWFX_ALL_MODS=1 gives every upgrade, at the highest level, to the agents of the player
     if (((p_person->Flag & TngF_PlayerAgent) != 0) && (getenv("SWFX_ALL_MODS") != NULL))
         cybmod_set_all_max(&p_person->U.UPerson.UMod);

@@ -45,6 +45,28 @@
                 "base": "$gcc",
                 "fileLocation": ["relative", "${workspaceFolder}/release/src"]
             }
+        },
+        {
+            // Starts mission 1 and records a video of its window, from the moment the window opens to the moment it
+            // is closed; the video goes to the "videos" folder. Needs ffmpeg.
+            "label": "record-mission-1",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/tools/record-mission.ps1",
+                "-Mission", "0,1"
+            ],
+            "presentation": { "reveal": "always", "panel": "dedicated" },
+            "problemMatcher": []
+        },
+        {
+            // The same with the build done first
+            "label": "build-and-record-mission-1",
+            "dependsOn": ["build-debug", "record-mission-1"],
+            "dependsOrder": "sequence",
+            "problemMatcher": []
         }
     ]
 }

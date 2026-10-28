@@ -355,6 +355,32 @@
                 }
             ],
             "presentation": { "group": "5 Mission 5", "order": 2 }
+        },
+
+        // ---------------------------------------------- Record a video of a mission
+        // Starts mission 1 and records its window from the moment the window opens to the moment it is closed;
+        // the video goes to the "videos" folder. Needs ffmpeg (winget install Gyan.FFmpeg).
+        {
+            "name": "🎥  Mission 1: Record video",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${workspaceFolder}/tools/record-mission.ps1\" -Mission 0,1",
+            "cwd": "${workspaceFolder}",
+            "presentation": { "group": "6 Record", "order": 1 }
+        },
+        {
+            "name": "🔨🎥  Mission 1: Build & Record video",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${workspaceFolder}/tools/record-mission.ps1\" -Mission 0,1",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "SWFX_SPLIT_WEAPONS": "1",
+                "SWFX_ALL_MODS": "1",
+                "SWFX_ALL_RESEARCH": "1"
+            },
+            "preLaunchTask": "build-debug",
+            "presentation": { "group": "6 Record", "order": 2 }
         }
     ]
 }

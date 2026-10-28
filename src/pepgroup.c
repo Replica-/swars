@@ -1,4 +1,4 @@
-﻿/******************************************************************************/
+/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file pepgroup.c
@@ -18,6 +18,7 @@
 /******************************************************************************/
 #include <stdlib.h>
 #include "pepgroup.h"
+#include "research.h"
 
 #include "bfutility.h"
 #include "bfmemut.h"
@@ -660,6 +661,28 @@ TbBool group_has_no_less_members_persuaded_by_person(ushort group, ThingIdx ownt
     return false;
 }
 
+/** For testing: the weapons which an agent of the player gets, by the variables SWFX_SPLIT_WEAPONS=1 (the weapons are
+ * shared out between the four agents, each weapon to one of them, and the minigun to all) or SWFX_ALL_WEAPONS=1 (every
+ * weapon to every agent); 0 if neither is set. */
+ulong test_weapons_for_agent(int plagent)
+{
+    ulong mask;
+    int wtype;
+
+    if (getenv("SWFX_SPLIT_WEAPONS") != NULL)
+    {
+        mask = 1u << (WEP_MINIGUN - 1);
+        for (wtype = 1; wtype < WEP_UNUSED1F; wtype++)
+        {
+            if (((wtype - 1) & 3) == (plagent & 3))
+                mask |= 1u << (wtype - 1);
+        }
+        return mask;
+    }
+    if (getenv("SWFX_ALL_WEAPONS") != NULL)
+        return (1u << (WEP_UNUSED1F - 1)) - 1;
+    return 0;
+}
 void reset_default_player_agent(PlayerIdx plyr, short plagent, struct Thing *p_agent, short new_type)
 {
     PlayerInfo *p_player;
@@ -709,9 +732,9 @@ void reset_default_player_agent(PlayerIdx plyr, short plagent, struct Thing *p_a
 
     {
         p_agent->U.UPerson.WeaponsCarried = p_player->Weapons[plagent] | (1 << (WEP_ENERGYSHLD-1));
-        // For testing the weapons: SWFX_ALL_WEAPONS=1 gives every weapon to the agents of the player
-        if (getenv("SWFX_ALL_WEAPONS") != NULL)
-            p_agent->U.UPerson.WeaponsCarried |= (1u << (WEP_UNUSED1F - 1)) - 1;
+        // For testing the weapons: SWFX_ALL_WEAPONS=1 gives every weapon to the agents of the player, and
+        // SWFX_SPLIT_WEAPONS=1 shares them out between the agents
+        p_agent->U.UPerson.WeaponsCarried |= test_weapons_for_agent(plagent);
         p_agent->U.UPerson.UMod = p_player->Mods[plagent];
         // For testing: SWFX_ALL_MODS=1 gives every upgrade, at the highest level, to the agents of the player
         if (getenv("SWFX_ALL_MODS") != NULL)
@@ -777,18 +800,26 @@ void reset_group_member_player_agent(PlayerIdx plyr, ushort plagent, ushort high
         if ((p_agent->SubType == SubTT_PERS_AGENT) || (p_agent->SubType == SubTT_PERS_ZEALOT))
         {
             p_agent->U.UPerson.WeaponsCarried = p_player->Weapons[high_tier] | (1 << (WEP_ENERGYSHLD-1));
-            if (getenv("SWFX_ALL_WEAPONS") != NULL)
-                p_agent->U.UPerson.WeaponsCarried |= (1u << (WEP_UNUSED1F - 1)) - 1;
+            p_agent->U.UPerson.WeaponsCarried |= test_weapons_for_agent(plagent);
             p_agent->U.UPerson.UMod.Mods = p_player->Mods[high_tier].Mods;
         }
         p_agent->U.UPerson.CurrentWeapon = 0;
     }
     // For testing the weapons, also in the missions started directly: every weapon for the agents
-    if (getenv("SWFX_ALL_WEAPONS") != NULL) {
-        p_agent->U.UPerson.WeaponsCarried |= (1u << (WEP_UNUSED1F - 1)) - 1;
-    }
+    p_agent->U.UPerson.WeaponsCarried |= test_weapons_for_agent(plagent);
     if (getenv("SWFX_ALL_MODS") != NULL)
         cybmod_set_all_max(&p_agent->U.UPerson.UMod);
+    // For testing: SWFX_ALL_RESEARCH=1 has all the weapons and upgrades researched
+    if (getenv("SWFX_ALL_RESEARCH") != NULL)
+    {
+        int wtype;
+        ushort mtype;
+
+        for (wtype = 1; wtype < WEP_UNUSED1F; wtype++)
+            research_weapon_complete(wtype);
+        for (mtype = 1; mtype < MOD_TYPES_COUNT; mtype++)
+            research_cymod_complete(mtype);
+    }
 
     person_init_preplay_command(p_agent);
 

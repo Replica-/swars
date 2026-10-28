@@ -677,6 +677,97 @@ static short custom_slider_x, custom_slider_y[4], custom_slider_w, custom_slider
 /** The arrows which choose the costume of the agents. */
 static struct ScreenBox custom_cost_l_box, custom_cost_r_box;
 
+/** The presets of the colours, on the screens of the costume and of the interface: the slots to choose, which loads what is
+ * saved in it, and the button which saves what is set now in the slot which is chosen. */
+static struct ScreenButton preset_btn[GAME_PRESETS];
+static struct ScreenButton preset_save_btn;
+static int costume_preset_sel[CUSTOM_TEAMS];
+static int ui_preset_sel;
+
+static int *preset_sel_ptr(TbBool ui)
+{
+    return ui ? &ui_preset_sel : &costume_preset_sel[game_custom_team()];
+}
+
+static TbBool preset_exists(TbBool ui, int slot)
+{
+    return ui ? game_ui_preset_exists(slot) : game_custom_preset_exists(slot);
+}
+
+static void init_preset_row(void)
+{
+    static const char *const num[GAME_PRESETS] = { "1", "2", "3", "4" };
+    short u, y;
+    int i;
+
+    u = pop1_sprites_scale;
+    y = custom_box.Y + 125 * u;
+    for (i = 0; i < GAME_PRESETS; i++)
+        init_ingame_screen_button(&preset_btn[i], custom_box.X + (50 + 13 * i) * u, y, num[i], small_font, 0);
+    init_ingame_screen_button(&preset_save_btn, custom_box.X + 118 * u, y, "SAVE", small_font, 0);
+}
+
+/** Chooses the slot which holds the colours which are set now, if one does; or else the slot which was chosen. */
+static void preset_sel_update(TbBool ui)
+{
+    int m, *p_sel;
+
+    p_sel = preset_sel_ptr(ui);
+    m = ui ? game_ui_preset_match() : game_custom_preset_match();
+    if (m >= 0)
+        *p_sel = m;
+}
+
+static void draw_preset_row(TbBool ui)
+{
+    char buf[32];
+    int i, sel, w;
+    short u;
+
+    u = pop1_sprites_scale;
+    sel = *preset_sel_ptr(ui);
+    lbFontPtr = small_font;
+    lbDisplay.DrawFlags = 0;
+    my_draw_text(custom_box.X + 6 * u, preset_btn[0].Y + u, "PRESET", 0);
+    for (i = 0; i < GAME_PRESETS; i++)
+        draw_ingame_button(&preset_btn[i], (i == sel));
+    draw_ingame_button(&preset_save_btn, 0);
+    snprintf(buf, sizeof(buf), "%d %s", sel + 1, preset_exists(ui, sel) ? "SAVED" : "EMPTY");
+    w = my_string_width(buf);
+    (void)w;
+    my_draw_text(custom_box.X + 136 * u, preset_btn[0].Y + u, buf, 0);
+}
+
+/** Handles the clicks on the slots and on the save button; true if the colours were loaded from a slot. */
+static TbBool input_preset_row(TbBool ui, TbBool enabled)
+{
+    int i, *p_sel;
+
+    p_sel = preset_sel_ptr(ui);
+    for (i = 0; i < GAME_PRESETS; i++)
+    {
+        if (input_ingame_button(&preset_btn[i], (i == *p_sel)) && enabled)
+        {
+            *p_sel = i;
+            if (preset_exists(ui, i))
+            {
+                if (ui)
+                    game_ui_preset_load(i);
+                else
+                    game_custom_preset_load(i);
+                return true;
+            }
+        }
+    }
+    if (input_ingame_button(&preset_save_btn, 0) && enabled)
+    {
+        if (ui)
+            game_ui_preset_save(*p_sel);
+        else
+            game_custom_preset_save(*p_sel);
+    }
+    return false;
+}
 static void init_custom_costume_boxes(void)
 {
     short u, cx;
@@ -684,7 +775,7 @@ static void init_custom_costume_boxes(void)
 
     u = pop1_sprites_scale;
     custom_box.Width = 233 * u;
-    custom_box.Height = 122 * u;
+    custom_box.Height = 134 * u;
     custom_box.X = (lbDisplay.GraphicsScreenWidth - custom_box.Width) / 2;
     if (custom_box.X < 0)
         custom_box.X = 0;
@@ -722,6 +813,7 @@ static void init_custom_costume_boxes(void)
       custom_box.Y + custom_box.Height * 80 / 100, "ORIGINAL", small_font, 0);
     init_ingame_screen_button(&custom_done_btn, custom_box.X + 200 * u,
       custom_box.Y + custom_box.Height * 80 / 100, gui_strings[455], small_font, 0); // "continue"
+    init_preset_row();
 }
 
 /** Draws the standing agent, with the sprites loaded now, scaled to fit in the given rectangle. */
@@ -921,6 +1013,7 @@ static void draw_custom_costume_screen(int part)
               custom_strip_cell, custom_strip_cell, colr);
         }
     }
+    draw_preset_row(false);
     lbDisplay.DrawFlags = 0;
 }
 
@@ -935,6 +1028,7 @@ static void custom_costume_screen(void)
 
     part = CUSTOM_COSTUME_COAT;
     init_custom_costume_boxes();
+    preset_sel_update(false);
     // The screen has the marker indices of the preview, which the GPU replaces
     LbHwCustomLayerSet(true);
 
@@ -965,6 +1059,13 @@ static void custom_costume_screen(void)
         }
         if (input_ingame_button(&custom_done_btn, 0))
             done = true;
+        if (input_preset_row(false, hw))
+        {
+            // The colours of the preset are on; the colours of the agents are in costume 3
+            if ((game_custom_team() == CUSTOM_TEAM_EUROCORP) && (ingame.TrenchcoatPreference != CUSTOM_COSTUME_BASE))
+                ingame.TrenchcoatPreference = CUSTOM_COSTUME_BASE;
+            prep_multicolor_sprites();
+        }
         if (hw && lbDisplay.LeftButton)
         {
             // A click on the palette takes its colour
@@ -1132,6 +1233,7 @@ static void draw_ui_colour_screen(int part)
     lbDisplay.DrawColour = colour_lookup[ColLU_CYAN];
     my_draw_text(x + 8 * u, y + 40 * u, "ACCENT", 0);
     lbDisplay.DrawFlags &= ~Lb_TEXT_ONE_COLOR;
+    draw_preset_row(true);
     lbDisplay.DrawFlags = 0;
 }
 
@@ -1142,6 +1244,7 @@ static void ui_colour_screen(void)
 
     part = 0;
     init_ui_colour_boxes();
+    preset_sel_update(true);
 
     done = false;
     while (!done)
@@ -1157,6 +1260,7 @@ static void ui_colour_screen(void)
             game_ui_colour_reset();
         if (input_ingame_button(&custom_done_btn, 0))
             done = true;
+        input_preset_row(true, hw);
         if (hw && lbDisplay.LeftButton)
         {
             // A click on the palette takes its colour

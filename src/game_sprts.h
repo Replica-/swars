@@ -159,6 +159,19 @@ void game_ui_colour_publish(void);
 void game_ui_colour_set(int part, const ubyte *rgb);
 void game_ui_colour_set_alpha(int part, ubyte alpha);
 void game_ui_colour_reset(void);
+/** Presets of the costume colours (of the team which is played) and of the interface colours: GAME_PRESETS slots each,
+ * which the player saves the current colours into and loads from, kept in files. The match gives the slot which
+ * holds exactly the colours which are set now, or -1. Loading a costume preset sets the colours; the sprites have to be
+ * loaded again after it (prep_multicolor_sprites()). */
+#define GAME_PRESETS 4
+TbBool game_custom_preset_exists(int slot);
+void game_custom_preset_save(int slot);
+void game_custom_preset_load(int slot);
+int game_custom_preset_match(void);
+TbBool game_ui_preset_exists(int slot);
+void game_ui_preset_save(int slot);
+void game_ui_preset_load(int slot);
+int game_ui_preset_match(void);
 extern ubyte *dword_1C6DE4;
 extern ubyte *dword_1C6DE8;
 

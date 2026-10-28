@@ -429,8 +429,7 @@ void build_person(struct Thing *p_thing)
     }
     // A weapon which is charging or firing lights up what is around the gun, from the very start;
     // the stronger the weapon, the stronger and wider the light, and it goes in front of the agent
-    if (((p_thing->Flag & (TngF_WepCharging | TngF_TriggerUse)) != 0)
-      && (p_thing->State != PerSt_DEAD) && (p_thing->U.UPerson.AnimMode != ANIM_PERS_DEAD_BODY)
+    if ((p_thing->State != PerSt_DEAD) && (p_thing->U.UPerson.AnimMode != ANIM_PERS_DEAD_BODY)
       && (p_thing->Type == TT_PERSON)
       // Only while the sprites show a muzzle flash: the version of the frame which has it is on
       && (p_thing->U.UPerson.FrameId.Version[4] != 0))

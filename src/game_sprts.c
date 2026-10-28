@@ -903,6 +903,281 @@ void game_ui_colour_reset(void)
     game_ui_colour_publish();
     game_ui_colour_save();
 }
+/******************************************************************************/
+/* Presets of the colours */
+
+#define CUSTOM_PRESETS_FILE "costume_presets.txt"
+#define UI_PRESETS_FILE "ui_presets.txt"
+
+struct CustomPreset {
+    int valid;
+    int used[CUSTOM_COSTUME_PARTS];
+    ubyte rgb[CUSTOM_COSTUME_PARTS][3];
+};
+
+struct UiPreset {
+    int valid;
+    int used[GAME_UI_COLOUR_PARTS];
+    ubyte rgb[GAME_UI_COLOUR_PARTS][3];
+    ubyte alpha[GAME_UI_COLOUR_PARTS];
+};
+
+static struct CustomPreset custom_presets[CUSTOM_TEAMS][GAME_PRESETS];
+static struct UiPreset ui_presets[GAME_PRESETS];
+static TbBool presets_loaded = false;
+
+static void presets_load(void)
+{
+    FILE *fh;
+
+    if (presets_loaded)
+        return;
+    presets_loaded = true;
+    fh = fopen(CUSTOM_PRESETS_FILE, "r");
+    if (fh != NULL)
+    {
+        for (;;)
+        {
+            int team, slot, valid, p;
+            struct CustomPreset pr;
+
+            if (fscanf(fh, "%d %d %d", &team, &slot, &valid) != 3)
+                break;
+            memset(&pr, 0, sizeof(pr));
+            pr.valid = valid;
+            for (p = 0; p < CUSTOM_COSTUME_PARTS; p++)
+            {
+                int used, r, g, b;
+
+                if (fscanf(fh, "%d %d %d %d", &used, &r, &g, &b) != 4)
+                    break;
+                pr.used[p] = used;
+                pr.rgb[p][0] = (ubyte)r;
+                pr.rgb[p][1] = (ubyte)g;
+                pr.rgb[p][2] = (ubyte)b;
+            }
+            if ((team >= 0) && (team < CUSTOM_TEAMS) && (slot >= 0) && (slot < GAME_PRESETS))
+                custom_presets[team][slot] = pr;
+        }
+        fclose(fh);
+    }
+    fh = fopen(UI_PRESETS_FILE, "r");
+    if (fh != NULL)
+    {
+        for (;;)
+        {
+            int slot, valid, p;
+            struct UiPreset pr;
+
+            if (fscanf(fh, "%d %d", &slot, &valid) != 2)
+                break;
+            memset(&pr, 0, sizeof(pr));
+            pr.valid = valid;
+            for (p = 0; p < GAME_UI_COLOUR_PARTS; p++)
+            {
+                int used, r, g, b, a;
+
+                if (fscanf(fh, "%d %d %d %d %d", &used, &r, &g, &b, &a) != 5)
+                    break;
+                pr.used[p] = used;
+                pr.rgb[p][0] = (ubyte)r;
+                pr.rgb[p][1] = (ubyte)g;
+                pr.rgb[p][2] = (ubyte)b;
+                pr.alpha[p] = (ubyte)a;
+            }
+            if ((slot >= 0) && (slot < GAME_PRESETS))
+                ui_presets[slot] = pr;
+        }
+        fclose(fh);
+    }
+}
+
+static void custom_presets_write(void)
+{
+    FILE *fh;
+    int team, slot, p;
+
+    fh = fopen(CUSTOM_PRESETS_FILE, "w");
+    if (fh == NULL)
+        return;
+    for (team = 0; team < CUSTOM_TEAMS; team++)
+        for (slot = 0; slot < GAME_PRESETS; slot++)
+        {
+            const struct CustomPreset *pr = &custom_presets[team][slot];
+
+            fprintf(fh, "%d %d %d", team, slot, pr->valid);
+            for (p = 0; p < CUSTOM_COSTUME_PARTS; p++)
+                fprintf(fh, " %d %d %d %d", pr->used[p], (int)pr->rgb[p][0], (int)pr->rgb[p][1], (int)pr->rgb[p][2]);
+            fprintf(fh, "\n");
+        }
+    fclose(fh);
+}
+
+static void ui_presets_write(void)
+{
+    FILE *fh;
+    int slot, p;
+
+    fh = fopen(UI_PRESETS_FILE, "w");
+    if (fh == NULL)
+        return;
+    for (slot = 0; slot < GAME_PRESETS; slot++)
+    {
+        const struct UiPreset *pr = &ui_presets[slot];
+
+        fprintf(fh, "%d %d", slot, pr->valid);
+        for (p = 0; p < GAME_UI_COLOUR_PARTS; p++)
+            fprintf(fh, " %d %d %d %d %d", pr->used[p], (int)pr->rgb[p][0], (int)pr->rgb[p][1], (int)pr->rgb[p][2],
+              (int)pr->alpha[p]);
+        fprintf(fh, "\n");
+    }
+    fclose(fh);
+}
+
+TbBool game_custom_preset_exists(int slot)
+{
+    presets_load();
+    return (slot >= 0) && (slot < GAME_PRESETS) && custom_presets[game_custom_team()][slot].valid;
+}
+
+void game_custom_preset_save(int slot)
+{
+    struct CustomPreset *pr;
+    int p;
+
+    presets_load();
+    if ((slot < 0) || (slot >= GAME_PRESETS))
+        return;
+    pr = &custom_presets[game_custom_team()][slot];
+    memset(pr, 0, sizeof(*pr));
+    pr->valid = 1;
+    for (p = 0; p < CUSTOM_COSTUME_PARTS; p++)
+    {
+        pr->used[p] = game_custom_used[p] ? 1 : 0;
+        memcpy(pr->rgb[p], game_custom_rgb[p], 3);
+    }
+    custom_presets_write();
+}
+
+void game_custom_preset_load(int slot)
+{
+    const struct CustomPreset *pr;
+    int p;
+
+    if (!game_custom_preset_exists(slot))
+        return;
+    pr = &custom_presets[game_custom_team()][slot];
+    for (p = 0; p < CUSTOM_COSTUME_PARTS; p++)
+    {
+        game_custom_used[p] = (pr->used[p] != 0);
+        memcpy(game_custom_rgb[p], pr->rgb[p], 3);
+    }
+}
+
+int game_custom_preset_match(void)
+{
+    int slot, p;
+
+    for (slot = 0; slot < GAME_PRESETS; slot++)
+    {
+        const struct CustomPreset *pr;
+        TbBool same;
+
+        if (!game_custom_preset_exists(slot))
+            continue;
+        pr = &custom_presets[game_custom_team()][slot];
+        same = true;
+        for (p = 0; p < CUSTOM_COSTUME_PARTS; p++)
+        {
+            if ((pr->used[p] != 0) != game_custom_used[p]) {
+                same = false;
+                break;
+            }
+            if (game_custom_used[p] && (memcmp(pr->rgb[p], game_custom_rgb[p], 3) != 0)) {
+                same = false;
+                break;
+            }
+        }
+        if (same)
+            return slot;
+    }
+    return -1;
+}
+
+TbBool game_ui_preset_exists(int slot)
+{
+    presets_load();
+    return (slot >= 0) && (slot < GAME_PRESETS) && ui_presets[slot].valid;
+}
+
+void game_ui_preset_save(int slot)
+{
+    struct UiPreset *pr;
+    int p;
+
+    presets_load();
+    if ((slot < 0) || (slot >= GAME_PRESETS))
+        return;
+    pr = &ui_presets[slot];
+    memset(pr, 0, sizeof(*pr));
+    pr->valid = 1;
+    for (p = 0; p < GAME_UI_COLOUR_PARTS; p++)
+    {
+        pr->used[p] = game_ui_colour_used[p] ? 1 : 0;
+        memcpy(pr->rgb[p], game_ui_colour_rgb[p], 3);
+        pr->alpha[p] = game_ui_colour_alpha[p];
+    }
+    ui_presets_write();
+}
+
+void game_ui_preset_load(int slot)
+{
+    const struct UiPreset *pr;
+    int p;
+
+    if (!game_ui_preset_exists(slot))
+        return;
+    pr = &ui_presets[slot];
+    for (p = 0; p < GAME_UI_COLOUR_PARTS; p++)
+    {
+        game_ui_colour_used[p] = (pr->used[p] != 0);
+        memcpy(game_ui_colour_rgb[p], pr->rgb[p], 3);
+        game_ui_colour_alpha[p] = pr->alpha[p];
+    }
+    game_ui_colour_publish();
+    game_ui_colour_save();
+}
+
+int game_ui_preset_match(void)
+{
+    int slot, p;
+
+    for (slot = 0; slot < GAME_PRESETS; slot++)
+    {
+        const struct UiPreset *pr;
+        TbBool same;
+
+        if (!game_ui_preset_exists(slot))
+            continue;
+        pr = &ui_presets[slot];
+        same = true;
+        for (p = 0; p < GAME_UI_COLOUR_PARTS; p++)
+        {
+            if ((pr->used[p] != 0) != game_ui_colour_used[p]) {
+                same = false;
+                break;
+            }
+            if (game_ui_colour_used[p]
+              && ((memcmp(pr->rgb[p], game_ui_colour_rgb[p], 3) != 0) || (pr->alpha[p] != game_ui_colour_alpha[p]))) {
+                same = false;
+                break;
+            }
+        }
+        if (same)
+            return slot;
+    }
+    return -1;
+}
 /** Fills the table which says what a shade of the replaced colours becomes: its marker. */
 static void custom_costume_make_lut(ubyte *lut)
 {

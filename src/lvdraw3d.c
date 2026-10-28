@@ -787,8 +787,7 @@ static int muzzlefx_count = 0;
 
 TbBool game_muzzle_flash_gpu(void)
 {
-    return LbHwRenderEnabled() && LbGlIsActive() && (LbHwLightingMode() == HwLight_Enhanced)
-      && (getenv("SWFX_NO_MUZZLEFX") == NULL);
+    return LbHwRenderEnabled() && LbGlIsActive() && (getenv("SWFX_NO_MUZZLEFX") == NULL);
 }
 
 void game_muzzle_flash_enlist(int mx, int my, int mz, float sx, float sy, float dx, float dy, int weapon, int seed)

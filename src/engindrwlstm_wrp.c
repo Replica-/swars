@@ -216,8 +216,7 @@ static void draw_pers_frame_versioned(struct Thing *p_thing,
     if ((p_thing->Type == TT_PERSON) && (frv[4] != 0) &&
       ((LbHwRenderEnabled() && (p_thing->U.UPerson.CurrentWeapon == WEP_FLAMER) && (getenv("SWFX_NO_FLAMEFX") == NULL))
       // the flash of the guns is drawn by the GPU too, in the place of the sprite of it
-      || (((p_thing->Flag & (TngF_WepCharging | TngF_TriggerUse)) != 0)
-          && ((p_thing->U.UPerson.CurrentWeapon == WEP_UZI) || (p_thing->U.UPerson.CurrentWeapon == WEP_MINIGUN)
+      || (((p_thing->U.UPerson.CurrentWeapon == WEP_UZI) || (p_thing->U.UPerson.CurrentWeapon == WEP_MINIGUN)
             || (p_thing->U.UPerson.CurrentWeapon == WEP_LONGRANGE))
           && game_muzzle_flash_gpu())))
     {

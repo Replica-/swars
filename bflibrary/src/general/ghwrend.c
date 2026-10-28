@@ -851,7 +851,8 @@ TbBool LbHwRecordGlowSeg(float x1, float y1, float x2, float y2, int kind, int p
     struct HwVertex *v;
     int k;
 
-    if (!lbHwRecording || (hw_lighting != HwLight_Enhanced))
+    // The muzzle flash is drawn with the classic lighting too; the rest needs the enhanced one
+    if (!lbHwRecording || ((hw_lighting != HwLight_Enhanced) && (kind != 3)))
         return false;
     dx = x2 - x1;
     dy = y2 - y1;

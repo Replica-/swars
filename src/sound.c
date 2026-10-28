@@ -85,7 +85,8 @@ short startscr_cdvolume;
 void set_default_sfx_settings(void)
 {
     startscr_samplevol = STARTSCR_VOLUME_MAX;
-    startscr_midivol = STARTSCR_VOLUME_MAX;
+    // The tension music, which plays while the danger is near, is not to cover the rest
+    startscr_midivol = STARTSCR_VOLUME_MAX * 20 / 100;
     startscr_cdvolume = STARTSCR_VOLUME_MAX * 71 / 100;
 }
 

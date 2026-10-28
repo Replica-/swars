@@ -155,4 +155,7 @@ void unkn_truce_groups_sub1(void);
 #ifdef __cplusplus
 }
 #endif
+/** For testing: the weapons of an agent of the player, by SWFX_SPLIT_WEAPONS or SWFX_ALL_WEAPONS; 0 if not set. */
+ulong test_weapons_for_agent(int plagent);
+
 #endif
