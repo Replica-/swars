@@ -448,7 +448,51 @@ TbResult LbGlPresentIndexed(const ubyte *pixels, long width, long height, long p
     gl.DrawArrays(GL_TRIANGLES, 0, 3);
     gl.Disable(GL_BLEND);
 
-    // For testing: the middle of the frame is written to a picture, named after the tag the game gave
+    // For pictures of the game: SWFX_SHOT=<file.bmp> writes the whole frame number SWFX_SHOT_FRAME (counted from when the
+    // 3D scene is shown) to the file
+    if ((getenv("SWFX_SHOT") != NULL) && keyed)
+    {
+        static int shot_frames = 0;
+
+        if (++shot_frames == ((getenv("SWFX_SHOT_FRAME") != NULL) ? atoi(getenv("SWFX_SHOT_FRAME")) : 600))
+        {
+            ubyte *px = (ubyte *)malloc((size_t)dw * dh * 4);
+            ubyte *bmp = (ubyte *)malloc(54 + (size_t)dw * dh * 3);
+
+            if ((px != NULL) && (bmp != NULL))
+            {
+                FILE *fh;
+                int x, y;
+                size_t off = 54;
+
+                gl.PixelStorei(GL_PACK_ALIGNMENT, 1);
+                gl.ReadPixels(0, 0, dw, dh, GL_RGBA, GL_UNSIGNED_BYTE, px);
+                memset(bmp, 0, 54);
+                bmp[0] = 'B';
+                bmp[1] = 'M';
+                *(unsigned int *)&bmp[2] = 54 + dw * dh * 3;
+                *(unsigned int *)&bmp[10] = 54;
+                *(unsigned int *)&bmp[14] = 40;
+                *(int *)&bmp[18] = dw;
+                *(int *)&bmp[22] = dh;
+                *(unsigned short *)&bmp[26] = 1;
+                *(unsigned short *)&bmp[28] = 24;
+                for (y = 0; y < dh; y++)
+                    for (x = 0; x < dw; x++) {
+                        bmp[off++] = px[((size_t)y * dw + x) * 4 + 2];
+                        bmp[off++] = px[((size_t)y * dw + x) * 4 + 1];
+                        bmp[off++] = px[((size_t)y * dw + x) * 4 + 0];
+                    }
+                fh = fopen(getenv("SWFX_SHOT"), "wb");
+                if (fh != NULL) {
+                    fwrite(bmp, 1, off, fh);
+                    fclose(fh);
+                }
+            }
+            free(px);
+            free(bmp);
+        }
+    }    // For testing: the middle of the frame is written to a picture, named after the tag the game gave
     if (getenv("SWFX_DUMP_DIR") != NULL)
     {
         static int frame_no = 0;

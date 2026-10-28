@@ -10,6 +10,8 @@
 | Lamp posts light the street in smooth round pools, with the neon of the road edges | A laser fight: the muzzle light goes in front of the gun, and the beam tints the ground |
 | ![An explosion, lighting the street red, with fire from the debris](docs/screenshot-explosion.jpg) | ![The pause screen with the game settings box](docs/screenshot-pause-settings.jpg) |
 | An explosion lights its surroundings red, and the debris which lands around it starts fires | The pause screen, with the box of game settings |
+| ![The agent costume editor, with the palette, the sliders, the preview and the presets](docs/screenshot-costume-editor.jpg) | ![The interface colour editor, with the panels in teal and the accent in orange](docs/screenshot-ui-editor.jpg) |
+| The agent costume editor: palette and RGB sliders for the trench coat and the shoulders, the agent from two sides, and 4 presets per team | The interface colour editor: the panels and the accent have their own colours and opacity, and 4 presets |
 
 **Video:** [Watch the fork in action on YouTube](https://www.youtube.com/watch?v=IL2CsT9U9sA)
 

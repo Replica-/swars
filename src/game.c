@@ -877,8 +877,9 @@ ubyte get_engine_inputs(void)
     did_inp = GINPUT_NONE;
     // While the key is held (B), the buildings are seen through: nearly transparent, with outlines; the GPU draws
     // them so, and the software rendering does not
-    engine_see_through_objects = LbHwRenderEnabled() && LbGlIsActive() && (kbkeys[GKey_TRANS_OBJECTS] != 0)
-      && lbKeyOn[kbkeys[GKey_TRANS_OBJECTS]];
+    engine_see_through_objects = LbHwRenderEnabled() && LbGlIsActive()
+      && (((kbkeys[GKey_TRANS_OBJECTS] != 0) && lbKeyOn[kbkeys[GKey_TRANS_OBJECTS]])
+        || (getenv("SWFX_SEE_THROUGH") != NULL)); // SWFX_SEE_THROUGH=1: as if the key was held, for pictures
     if (is_gamekey_pressed(GKey_TRANS_OBJ_SURF_COL))
     {
         if (lbShift & KMod_SHIFT)
@@ -5116,7 +5117,15 @@ ubyte do_user_interface(void)
     // Entering pause screen
     if (!in_network_game)
     {
-        if (is_gamekey_pressed(GKey_PAUSE))
+        // SWFX_OPEN_EDITOR=costume or ui pauses the game soon after the start and opens that screen, for pictures of it
+        static TbBool editor_opened = false;
+        TbBool auto_pause = false;
+
+        if (!editor_opened && (getenv("SWFX_OPEN_EDITOR") != NULL) && (gameturn > 80)) {
+            editor_opened = true;
+            auto_pause = true;
+        }
+        if (is_gamekey_pressed(GKey_PAUSE) || auto_pause)
         {
             if (pause_screen_handle()) {
                 return GINPUT_EXIT;

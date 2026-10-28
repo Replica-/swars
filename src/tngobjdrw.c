@@ -414,9 +414,11 @@ void build_person(struct Thing *p_thing)
     if ((getenv("SWFX_FLASH_TEST") != NULL) && (p_thing->Type == TT_PERSON)
       && (p_thing->ThingOffset != players[local_player_no].DirectControl[0]))
         return;
-    if ((getenv("SWFX_FLASH_TEST") != NULL) && (p_thing->Type == TT_PERSON) && ((p_thing->Flag & TngF_PlayerAgent) != 0))
+    // SWFX_FLASH_DEMO=1, 2 or 3 does the same without hiding anything else, for a picture of it in the scene
+    if (((getenv("SWFX_FLASH_TEST") != NULL) || (getenv("SWFX_FLASH_DEMO") != NULL)) && (p_thing->Type == TT_PERSON)
+      && ((p_thing->Flag & TngF_PlayerAgent) != 0))
     {
-        int wk = atoi(getenv("SWFX_FLASH_TEST"));
+        int wk = atoi((getenv("SWFX_FLASH_TEST") != NULL) ? getenv("SWFX_FLASH_TEST") : getenv("SWFX_FLASH_DEMO"));
 
         p_thing->U.UPerson.CurrentWeapon = (wk == 2) ? WEP_MINIGUN : ((wk == 3) ? WEP_LONGRANGE : WEP_UZI);
         p_thing->Flag |= TngF_TriggerUse;

@@ -16,6 +16,8 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
+#include <stdlib.h>
+#include <string.h>
 #include "fepause.h"
 
 #include "bfbox.h"
@@ -1451,6 +1453,24 @@ TbBool pause_screen_handle(void)
     swap_wscreen();
     if (!ingame.fld_unk7DA)
         SetMusicVolume(100, 0x7F);
+
+    // For pictures of the screens (SWFX_OPEN_EDITOR=costume or ui): the screen is opened at once, with colours chosen
+    if (getenv("SWFX_OPEN_EDITOR") != NULL)
+    {
+        if (strcmp(getenv("SWFX_OPEN_EDITOR"), "ui") == 0)
+        {
+            ui_colour_screen();
+        }
+        else
+        {
+            static const ubyte coat[3] = { 190, 40, 50 };
+            static const ubyte shoulders[3] = { 225, 190, 60 };
+
+            custom_costume_set_rgb(CUSTOM_COSTUME_COAT, coat);
+            custom_costume_set_rgb(CUSTOM_COSTUME_SHOULDERS, shoulders);
+            custom_costume_screen();
+        }
+    }
 
     resume_game = false;
     while (!resume_game)
