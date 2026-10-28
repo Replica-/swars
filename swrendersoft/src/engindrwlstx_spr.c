@@ -75,6 +75,16 @@ ScreenSortSpriteRenderCallback screen_sorted_sprite_statc_render_cb = NULL;
 ScreenSortSpriteRenderCallback screen_sorted_sprite_persn_render_cb = NULL;
 TbBool (*screen_sorted_sprite_persn_alt_cb)(ushort sspr) = NULL;
 TbBool (*screen_sorted_sprite_effect_replace_cb)(ushort sspr, int x0, int y0, int w, int h) = NULL;
+float (*screen_blood_pool_growth_cb)(intptr_t src_item) = NULL;
+/** The item which the person being drawn comes from; its pool of blood grows with the time after the death. */
+static intptr_t pool_src_item = 0;
+
+static float blood_pool_growth(void)
+{
+    if ((screen_blood_pool_growth_cb == NULL) || (pool_src_item == 0))
+        return 1.0f;
+    return screen_blood_pool_growth_cb(pool_src_item);
+}
 
 void draw_sorted_sprite1b(ubyte *frv, ushort frm, short scr_x, short scr_y,
   ubyte brig, ubyte angle);
@@ -95,11 +105,13 @@ static void draw_persn_with_costume(ushort sspr, struct SortSprite *p_sspr, ubyt
         m_sprites = m_sprites_alt;
         m_sprites_end = m_sprites_alt_end;
     }
+    pool_src_item = p_sspr->SrcItem;
     if (frv != NULL)
         draw_sorted_sprite1b(frv, p_sspr->Frame, p_sspr->X, p_sspr->Y, p_sspr->Brightness, p_sspr->Angle);
     else
         draw_frame_alpha(p_sspr->X, p_sspr->Y, p_sspr->Frame,
           overall_scale, p_sspr->Brightness);
+    pool_src_item = 0;
     if (alt) {
         m_sprites = bkp_spr;
         m_sprites_end = bkp_end;
@@ -375,6 +387,20 @@ void draw_frame_unscaled_alpha_force(short scr_x, short scr_y, ushort frm, ubyte
     lbDisplay.DrawFlags = 0;
 }
 
+/** Tells if the element of a person frame draws a pool of blood on the ground. The GPU draws those
+ * in a better way than the sprites. */
+static TbBool element_is_blood_pool(const struct TbSprite *p_spr, const struct Element *p_elem)
+{
+    ushort category;
+    long idx;
+
+    category = (p_elem->Flags >> 4) & 0x1F;
+    if ((category != 3) && (category != 4))
+        return false;
+    idx = p_spr - m_sprites;
+    return ((idx >= 885) && (idx <= 894)) || (idx == 899) || (idx == 900);
+}
+
 void draw_frame_unscaled_alpha_frv(short scr_x, short scr_y, ubyte *frv, ushort frm,
   ubyte brig)
 {
@@ -402,6 +428,13 @@ void draw_frame_unscaled_alpha_frv(short scr_x, short scr_y, ubyte *frv, ushort 
 
         el_X = scr_x + (p_elem->X >> 1);
         el_Y = scr_y + (p_elem->Y >> 1);
+        if (lbHwRecording && element_is_blood_pool(p_spr, p_elem)
+          && LbHwRecordBloodPool(p_spr, el_X + lbDisplay.GraphicsWindowX, el_Y + lbDisplay.GraphicsWindowY,
+            el_X + lbDisplay.GraphicsWindowX + p_spr->SWidth, el_Y + lbDisplay.GraphicsWindowY + p_spr->SHeight,
+            (int)(p_spr - m_sprites), (float)brig / 32.0f, blood_pool_growth())) {
+            anim_elem_pos_mark(p_elem);
+            continue;
+        }
         if (((p_elem->Flags >> 4) & 0x1F) == 4) {
             LbSpriteDraw(el_X, el_Y, p_spr);
         } else {
@@ -480,6 +513,10 @@ void draw_frame_glb_scale_alpha_frv(int scr_x, int scr_y, ubyte *frv, ushort frm
 
         el_X = scr_x + (p_elem->X >> 1);
         el_Y = scr_y + (p_elem->Y >> 1);
+        if (lbHwRecording && element_is_blood_pool(p_spr, p_elem)
+          && LbHwRecordBloodPoolAlphaScaled(p_spr, el_X, el_Y, (int)(p_spr - m_sprites),
+            (float)((lbSpriteReMapPtr - pixmap.fade_table) / PALETTE_8b_COLORS) / 32.0f, blood_pool_growth()))
+            continue;
         DrawSpriteWthShadowUsingScalingData(el_X, el_Y, p_spr);
     }
     lbDisplay.DrawFlags = 0;

@@ -424,11 +424,10 @@ void fps_counter_show(void)
             snprintf(capstr, sizeof(capstr), "OFF");
         // Two different things: the frames shown (the application, with the camera and the mouse), and
         // the turns of the game loop (the game, the ticker, the radar)
-        snprintf(locstr, sizeof(locstr), "%s APP %lu/%d  LOOP %lu/%s  SKIP %d  DRAW %lu.%lu SWAP %lu.%lu  pspr:%d espr:%d",
+        snprintf(locstr, sizeof(locstr), "%s APP %lu/%d  LOOP %lu/%s  SKIP %d  DRAW %lu.%lu SWAP %lu.%lu",
           fps_renderer_name(), shown_fps, (int)game_app_fps_cap, shown_tps, capstr, (int)frameskip,
           shown_draw_us / 1000, (shown_draw_us / 100) % 10,
-          shown_swap_us / 1000, (shown_swap_us / 100) % 10,
-          (int)ingame.TrenchcoatPreference, (int)game_enemy_costume);
+          shown_swap_us / 1000, (shown_swap_us / 100) % 10);
     }
     lbDisplay.DrawFlags = 0;
     draw_scaled_text_right(lbDisplay.GraphicsScreenWidth - 6, 4, locstr, colour_lookup[ColLU_WHITE]);

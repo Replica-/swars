@@ -1,4 +1,4 @@
-﻿/******************************************************************************/
+/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file lvdraw3d.c
@@ -24,6 +24,8 @@
 
 #include "bfgl.h"
 #include "bfhwrend.h"
+#include "bfsprite.h"
+#include "frame_sprani.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -201,6 +203,615 @@ void screen_position_face_render_callback(
     }
 }
 
+/******************************************************************************/
+/* Blood: the drops which fly from a person who is hit, the splatters which they leave on the ground,
+ * and the pool which grows under a body. With the GPU drawing the scene, the drops and splatters are
+ * drawn by shaders. They are put in the lists of sorted sprites, in their places, so the buildings and
+ * the people hide them the way they hide everything else; the sorted sprite which carries them has a
+ * tiny frame, and screen_sorted_sprite_effect_replace_callback() draws the shader in its place. */
+
+#define BLOODFX_MAX 320
+/** A frame with one tiny sprite; carries the blood in the sorted sprites. */
+#define BLOODFX_FRAME 4383
+/** Game turns until a splatter is dry, and until it starts to fade away, and until it is gone. */
+#define BLOODFX_DRY_TURNS 160.0f
+#define BLOODFX_FADE_BEG_TURNS 3000.0f
+#define BLOODFX_FADE_END_TURNS 4000.0f
+/** In the rain the rain washes the splatters and stains away: they fade in a few seconds. */
+#define BLOODFX_RAIN_FADE_BEG_TURNS 40.0f
+#define BLOODFX_RAIN_FADE_END_TURNS 120.0f
+/** How fast a drop of blood falls: map units per game turn, every turn. Low, so the drops fly far before they land. */
+#define BLOODFX_GRAVITY 0.5f
+
+/** The exact test of a path against the walls and people, which the bullets use; gives in `status` what was
+ * hit (1 a wall, 2 a solid part of the map, 3 a person), and in x2, y2, z2 the last free place on the path. */
+int bul_path_end(int x1, int y1, int z1, int *x2, int *y2, int *z2, int radius, struct Thing *p_owner, ubyte *status);
+
+/** Game turns in which the pool under a body grows to its full size. */
+#define BLOODFX_POOL_GROW_TURNS 200.0f
+
+struct BloodFx {
+    ubyte kind;             /**< 0 is free, 1 a drop in flight, 2 a splatter on the ground or a roof, 3 a stain on a wall. */
+    float x, y, z;          /**< Map coordinates; for a drop, where it started. */
+    float vx, vy, vz;       /**< For a drop, how it moves in a game turn; for a splatter, the direction it was spattered;
+                                 for a stain on a wall, vy is 0 if the wall faces along X, 1 if along Z. */
+    float t0;               /**< Game turn (with fraction) when it started. */
+    float lt;               /**< For a drop, the time (from t0) up to which its way was checked for a wall; for a spark, how many times it bounced. */
+    float born;             /**< For a spark, the game turn when it was made, as it can bounce and start its way again. */
+    float size;             /**< Width of a drop, radius of a splatter, in map units. */
+    int seed;
+    /* What the screen gets, for the frame; made when it is put in the list */
+    float s_tx, s_ty, s_w;  /**< A drop: where its tail is, from the head, and its width, in pixels. */
+    float s_ux, s_uy, s_vx, s_vy; /**< A splatter or stain: the half-sides of its parallelogram, in pixels. */
+};
+
+static struct BloodFx bloodfx[BLOODFX_MAX];
+static ulong bloodfx_last_turn = 0;
+static ulong bloodfx_rng = 2463534242u;
+
+static float bloodfx_rand(void)
+{
+    bloodfx_rng = bloodfx_rng * 1664525u + 1013904223u;
+    return (float)((bloodfx_rng >> 8) & 0xFFFF) / 65536.0f;
+}
+
+static TbBool bloodfx_active(void)
+{
+    static int disabled = -1;
+
+    if (disabled < 0)
+        disabled = (getenv("SWFX_NO_BLOODFX") != NULL) ? 1 : 0;
+    return !disabled && LbHwRenderEnabled() && LbGlIsActive();
+}
+
+/** The game turn, with the part of the next one which has passed, so the blood moves smoothly
+ * between the turns; stops with the game when it is paused. */
+static float bloodfx_now(void)
+{
+    float f;
+    ulong len;
+
+    f = 0.0f;
+    len = game_period_length_us();
+    if (len > 0) {
+        f = (float)(game_now_us() - game_period_start_us()) / (float)len;
+        if (f > 1.0f)
+            f = 1.0f;
+        if (f < 0.0f)
+            f = 0.0f;
+    }
+    return (float)gameturn + f;
+}
+
+/** Tells how visible a splatter or stain of the given age is, from 1 to 0; 0 means it is gone. */
+static float bloodfx_visibility(float age)
+{
+    float beg, end;
+
+    if (gamep_scene_effect_type == ScEff_RAIN) {
+        beg = BLOODFX_RAIN_FADE_BEG_TURNS;
+        end = BLOODFX_RAIN_FADE_END_TURNS;
+    } else {
+        beg = BLOODFX_FADE_BEG_TURNS;
+        end = BLOODFX_FADE_END_TURNS;
+    }
+    if (age <= beg)
+        return 1.0f;
+    if (age >= end)
+        return 0.0f;
+    return 1.0f - (age - beg) / (end - beg);
+}
+
+static float bloodfx_ground(float x, float z)
+{
+    return (float)PRCCOORD_TO_MAPCOORD(alt_at_point((short)x, (short)z));
+}
+
+/** Tells if the point is inside a building or another solid thing of the map. */
+static TbBool bloodfx_solid(float x, float y, float z)
+{
+    ushort q;
+
+    if ((x < 0.0f) || (z < 0.0f) || (x > 32000.0f) || (z > 32000.0f))
+        return false;
+    // 0 when free, 0xFFFF when under the ground, and what is in the way otherwise
+    q = check_col_collision((int)x, (int)y, (int)z);
+    return (q != 0) && (q != 0xFFFF);
+}
+
+/** Leaves a splatter on the ground or a roof (kind 2), or a stain on a wall (kind 3; axis is 0 for a wall
+ * which faces along X, 1 for one which faces along Z). */
+static void bloodfx_add_splat(float x, float y, float z, float dx, float dz, float size, float now,
+  int kind, int axis)
+{
+    struct BloodFx *b, *oldest;
+    int i;
+
+    b = NULL;
+    oldest = NULL;
+    for (i = 0; i < BLOODFX_MAX; i++)
+    {
+        if (bloodfx[i].kind == 0) {
+            b = &bloodfx[i];
+            break;
+        }
+        if (((bloodfx[i].kind == 2) || (bloodfx[i].kind == 3)) && ((oldest == NULL) || (bloodfx[i].t0 < oldest->t0)))
+            oldest = &bloodfx[i];
+    }
+    if (b == NULL)
+        b = oldest;
+    if (b == NULL)
+        return;
+    if (kind == 3) {
+        // A stain on a wall does not go below the ground
+        float g = bloodfx_ground(x, z);
+
+        if (y < g + size * 0.6f)
+            y = g + size * 0.6f;
+    }
+    b->kind = kind;
+    b->x = x; b->y = y; b->z = z;
+    b->vx = dx; b->vy = (float)axis; b->vz = dz;
+    b->t0 = now;
+    b->size = size;
+    b->seed = (int)(bloodfx_rand() * 1000.0f);
+}
+
+TbBool blood_fx_spawn(int x, int y, int z, int dirx, int dirz, int amount)
+{
+    float fx, fz, len, now, speed_scale;
+    int i, n, slot;
+
+    if (!bloodfx_active())
+        return false;
+    len = sqrtf((float)(dirx * dirx + dirz * dirz));
+    if (len < 1.0f) {
+        fx = 1.0f; fz = 0.0f;
+    } else {
+        fx = (float)dirx / len;
+        fz = (float)dirz / len;
+    }
+    now = bloodfx_now();
+    n = amount * 6;
+    slot = 0;
+    {
+        // SWFX_BLOODSPRAY_TEST=<number above 1> makes the drops that many times faster, to reach the buildings
+        const char *tv = getenv("SWFX_BLOODSPRAY_TEST");
+
+        speed_scale = (tv != NULL) ? (float)atof(tv) : 1.0f;
+        if (speed_scale < 1.0f)
+            speed_scale = 1.0f;
+    }
+    for (i = 0; i < n; i++)
+    {
+        struct BloodFx *b;
+        float ang, spd;
+
+        while ((slot < BLOODFX_MAX) && (bloodfx[slot].kind != 0))
+            slot++;
+        if (slot >= BLOODFX_MAX)
+            break;
+        b = &bloodfx[slot];
+        // The blood goes on the way the shot went, away from the shooter and out of the body, in a
+        // narrow fan; only a few drops go to the sides
+        if (bloodfx_rand() < 0.88f) {
+            ang = atan2f(fz, fx) + (bloodfx_rand() - 0.5f) * 0.9f;
+            spd = 20.0f + bloodfx_rand() * 30.0f;
+        } else {
+            ang = atan2f(fz, fx) + (bloodfx_rand() - 0.5f) * 3.4f;
+            spd = 8.0f + bloodfx_rand() * 14.0f;
+        }
+        b->kind = 1;
+        b->x = (float)x + (bloodfx_rand() - 0.5f) * 10.0f;
+        b->y = (float)y;
+        b->z = (float)z + (bloodfx_rand() - 0.5f) * 10.0f;
+        b->vx = cosf(ang) * spd * speed_scale;
+        b->vz = sinf(ang) * spd * speed_scale;
+        // It does not shoot up: it goes along, from the place of the hit, and falls
+        b->vy = -1.0f + bloodfx_rand() * 3.0f;
+        b->t0 = now;
+        b->lt = 0.0f;
+        b->size = 5.0f + bloodfx_rand() * 5.0f;
+        b->seed = (int)(bloodfx_rand() * 1000.0f);
+    }
+    return true;
+}
+
+/** Sparks from a ricochet: hot streaks which fly back from the surface, and fall. */
+#define BLOODFX_SPARK_LIFE 26.0f
+#define BLOODFX_SPARK_GRAVITY 2.4f
+/** A spark which hits the ground bounces this many times, losing speed each time. */
+#define BLOODFX_SPARK_BOUNCES 2
+/** The small light of a ricochet: its strength at the start (the scale of the lamps and explosions), and how
+ * long it lasts, in game turns. */
+#define BLOODFX_SPARK_LIGHT 26.0f
+#define BLOODFX_SPARK_LIGHT_TURNS 8.0f
+#define BLOODFX_SPARK_LIGHTS_MAX 16
+
+struct SparkLight {
+    float x, z;
+    float t0;
+    ubyte used;
+};
+static struct SparkLight spark_lights[BLOODFX_SPARK_LIGHTS_MAX];
+static ulong spark_light_last_turn = 0;
+
+TbBool spark_fx_spawn(int x, int y, int z, int dirx, int dirz, int amount)
+{
+    float fx, fz, len, now;
+    int i, n, slot;
+
+    if (!bloodfx_active())
+        return false;
+    len = sqrtf((float)(dirx * dirx + dirz * dirz));
+    if (len < 1.0f) {
+        fx = 1.0f; fz = 0.0f;
+    } else {
+        fx = (float)dirx / len;
+        fz = (float)dirz / len;
+    }
+    now = bloodfx_now();
+    // The light of the ricochet
+    for (i = 0; i < BLOODFX_SPARK_LIGHTS_MAX; i++)
+    {
+        if (!spark_lights[i].used || (now - spark_lights[i].t0 > BLOODFX_SPARK_LIGHT_TURNS)) {
+            spark_lights[i].used = 1;
+            spark_lights[i].x = (float)x;
+            spark_lights[i].z = (float)z;
+            spark_lights[i].t0 = now;
+            break;
+        }
+    }
+    n = amount * 5;
+    slot = 0;
+    for (i = 0; i < n; i++)
+    {
+        struct BloodFx *b;
+        float ang, spd;
+
+        while ((slot < BLOODFX_MAX) && (bloodfx[slot].kind != 0))
+            slot++;
+        if (slot >= BLOODFX_MAX)
+            break;
+        b = &bloodfx[slot];
+        // A ricochet: the opposite of the way the shot went (the direction given is the one toward where it came
+        // from), in a narrow fan, along the ground and not up, and a bit slower than the blood
+        ang = atan2f(fz, fx) + (bloodfx_rand() - 0.5f) * 2.2f;
+        spd = 5.0f + bloodfx_rand() * 14.0f;
+        b->kind = 4;
+        b->x = (float)x + fx * 4.0f;
+        b->y = (float)y;
+        b->z = (float)z + fz * 4.0f;
+        b->vx = cosf(ang) * spd;
+        b->vz = sinf(ang) * spd;
+        // Mostly low, and some a bit up, so they fly in different ways and fall in arcs
+        b->vy = -1.0f + bloodfx_rand() * bloodfx_rand() * 9.0f;
+        b->t0 = now;
+        b->born = now;
+        b->lt = 0.0f;
+        b->size = 1.6f + bloodfx_rand() * 1.4f;
+        b->seed = (int)(bloodfx_rand() * 1000.0f);
+    }
+    return true;
+}
+
+/** Puts the blood in the list of the sorted sprites for the frame, and moves the drops. */
+static void blood_fx_enlist(void)
+{
+    struct ShEnginePoint s0, sx, sz, sv;
+    float now, ex, ey, ma, mb, mc, md, sv_x, sv_y;
+    int i;
+
+    if (!bloodfx_active())
+        return;
+    if (gameturn + 20 < bloodfx_last_turn)
+        memset(bloodfx, 0, sizeof(bloodfx)); // a new mission has started
+    bloodfx_last_turn = gameturn;
+    now = bloodfx_now();
+
+    if (getenv("SWFX_BLOODSPRAY_TEST") != NULL) {
+        // A hit on the first agent every little while, for looking at what it does
+        static ulong next_turn = 0;
+        struct Thing *p_ag;
+
+        if ((gameturn >= next_turn) && ((p_ag = players[local_player_no].MyAgent[0]) != NULL)) {
+            float a = bloodfx_rand() * 6.2831853f;
+
+            blood_fx_spawn(PRCCOORD_TO_MAPCOORD(p_ag->X), PRCCOORD_TO_MAPCOORD(p_ag->Y) + 25,
+              PRCCOORD_TO_MAPCOORD(p_ag->Z), (int)(cosf(a) * 100.0f), (int)(sinf(a) * 100.0f), 4);
+            // and a ricochet next to it, for looking at the sparks and their light
+            spark_fx_spawn(PRCCOORD_TO_MAPCOORD(p_ag->X) + 60, PRCCOORD_TO_MAPCOORD(p_ag->Y) + 25,
+              PRCCOORD_TO_MAPCOORD(p_ag->Z), (int)(cosf(a + 3.0f) * 100.0f), (int)(sinf(a + 3.0f) * 100.0f), 4);
+            next_turn = gameturn + 30;
+        }
+    }
+
+    // The small lights of the ricochets, given to the GPU once in each game turn
+    if (gameturn != spark_light_last_turn) {
+        int li;
+
+        spark_light_last_turn = gameturn;
+        for (li = 0; li < BLOODFX_SPARK_LIGHTS_MAX; li++)
+        {
+            float la = now - spark_lights[li].t0;
+
+            if (!spark_lights[li].used)
+                continue;
+            if (la > BLOODFX_SPARK_LIGHT_TURNS) {
+                spark_lights[li].used = 0;
+                continue;
+            }
+            LbHwNoteDynamicLight((long)gameturn, spark_lights[li].x, spark_lights[li].z,
+              BLOODFX_SPARK_LIGHT * (1.0f - la / BLOODFX_SPARK_LIGHT_TURNS));
+        }
+    }
+
+    // How the ground is seen: a step on the map to the screen; and how big a circle on the ground is
+    transform_shpoint(&s0, 0, -8 * engn_yc, 0);
+    transform_shpoint(&sx, 256, -8 * engn_yc, 0);
+    transform_shpoint(&sz, 0, -8 * engn_yc, 256);
+    // and a step up, for the walls
+    transform_shpoint(&sv, 0, -8 * engn_yc + 8 * 256, 0);
+    ma = (float)(sx.X - s0.X) / 256.0f;
+    mb = (float)(sz.X - s0.X) / 256.0f;
+    mc = (float)(sx.Y - s0.Y) / 256.0f;
+    md = (float)(sz.Y - s0.Y) / 256.0f;
+    sv_x = (float)(sv.X - s0.X) / 256.0f;
+    sv_y = (float)(sv.Y - s0.Y) / 256.0f;
+    ex = sqrtf(ma * ma + mb * mb);
+    ey = sqrtf(mc * mc + md * md);
+
+    for (i = 0; i < BLOODFX_MAX; i++)
+    {
+        struct BloodFx *b = &bloodfx[i];
+        struct ShEnginePoint sh, st;
+        float tau, hx, hy, hz, gy;
+
+        if (b->kind == 1)
+        {
+            float pt, fx, fy, fz, vv;
+            int outcome, axis;
+
+            tau = now - b->t0;
+            pt = b->lt;
+            // Where the drop was at the last frame, and where it is now
+            fx = b->x + b->vx * pt;
+            fz = b->z + b->vz * pt;
+            fy = b->y + b->vy * pt - 0.5f * BLOODFX_GRAVITY * pt * pt;
+            hx = b->x + b->vx * tau;
+            hz = b->z + b->vz * tau;
+            hy = b->y + b->vy * tau - 0.5f * BLOODFX_GRAVITY * tau * tau;
+            vv = b->vy - BLOODFX_GRAVITY * tau;
+            outcome = 0;
+            axis = 0;
+            if (hy <= bloodfx_ground(hx, hz)) {
+                outcome = 1; // the ground
+                fx = hx; fz = hz;
+            } else if (bloodfx_solid(hx, hy, hz) || bloodfx_solid((fx + hx) * 0.5f, (fy + hy) * 0.5f, (fz + hz) * 0.5f)) {
+                // The test of the map cells is coarse; it only says that a wall may be in the way. The exact
+                // test, the one which the bullets have, gives the place where the path meets the wall
+                int tx_ = (int)hx, ty_ = (int)hy, tz_ = (int)hz;
+                ubyte rstatus = 0;
+
+                bul_path_end((int)fx, (int)fy, (int)fz, &tx_, &ty_, &tz_, 0, NULL, &rstatus);
+                if ((rstatus == 1) || (rstatus == 2)) {
+                    float hs = sqrtf(b->vx * b->vx + b->vz * b->vz);
+
+                    fx = (float)tx_; fy = (float)ty_; fz = (float)tz_;
+                    if (fabsf(vv) > hs) {
+                        outcome = 3; // went down onto a roof
+                    } else {
+                        // The wall faces along X or along Z: the one which has the solid just ahead of the place
+                        outcome = 2;
+                        if (bloodfx_solid(fx + ((b->vx > 0.0f) ? 10.0f : -10.0f), fy, fz))
+                            axis = 0;
+                        else if (bloodfx_solid(fx, fy, fz + ((b->vz > 0.0f) ? 10.0f : -10.0f)))
+                            axis = 1;
+                        else
+                            axis = (fabsf(b->vx) > fabsf(b->vz)) ? 0 : 1;
+                    }
+                } else if (rstatus == 3) {
+                    outcome = 4; // a person is in the way
+                }
+            }
+            b->lt = tau;
+            if (outcome != 0) {
+                // It lands: some of the drops leave a splatter, or a stain on the wall
+                if ((outcome != 4) && (bloodfx_rand() < 0.6f)) {
+                    if (outcome == 1)
+                        bloodfx_add_splat(fx, bloodfx_ground(fx, fz), fz, b->vx, b->vz,
+                          20.0f + bloodfx_rand() * 24.0f, now, 2, 0);
+                    else if (outcome == 2)
+                        bloodfx_add_splat(fx, fy, fz, 0.0f, 0.0f, 18.0f + bloodfx_rand() * 14.0f, now, 3, axis);
+                    else
+                        bloodfx_add_splat(fx, fy, fz, b->vx, b->vz, 12.0f + bloodfx_rand() * 16.0f, now, 2, 0);
+                }
+                b->kind = 0;
+                continue;
+            }
+            if (tau > 80.0f) {
+                b->kind = 0;
+                continue;
+            }            transform_shpoint(&sh, (int)hx - engn_xc, 8 * (int)hy - 8 * engn_yc, (int)hz - engn_zc);
+            {
+                float tt = (tau > 0.7f) ? tau - 0.7f : 0.0f;
+
+                transform_shpoint(&st, (int)(b->x + b->vx * tt) - engn_xc,
+                  8 * (int)(b->y + b->vy * tt - 0.5f * BLOODFX_GRAVITY * tt * tt) - 8 * engn_yc,
+                  (int)(b->z + b->vz * tt) - engn_zc);
+            }
+            b->s_tx = (float)(st.X - sh.X);
+            b->s_ty = (float)(st.Y - sh.Y);
+            b->s_w = b->size * (ex + ey) * 0.5f;
+            if (b->s_w < 1.5f)
+                b->s_w = 1.5f;
+            enlist_draw_frame_graphic_scale((int)hx - engn_xc, (int)hy, (int)hz - engn_zc,
+              BLOODFX_FRAME, 100, 32, 250, (intptr_t)b);
+        }
+        else if (b->kind == 4)
+        {
+            float tt, shx, shy, shz;
+
+            // A spark: it flies, falls, and goes out; it is a streak from where it was a moment ago
+            tau = now - b->t0;
+            hx = b->x + b->vx * tau;
+            hz = b->z + b->vz * tau;
+            hy = b->y + b->vy * tau - 0.5f * BLOODFX_SPARK_GRAVITY * tau * tau;
+            if (now - b->born > BLOODFX_SPARK_LIFE) {
+                b->kind = 0;
+                continue;
+            }
+            gy = bloodfx_ground(hx, hz);
+            if (hy <= gy) {
+                float vyn = b->vy - BLOODFX_SPARK_GRAVITY * tau;
+
+                // It hits the ground: it bounces up, slower, and goes on, a few times
+                if (((int)b->lt >= BLOODFX_SPARK_BOUNCES) || (-vyn < 1.5f)) {
+                    b->kind = 0;
+                    continue;
+                }
+                b->x = hx;
+                b->z = hz;
+                b->y = gy + 0.5f;
+                b->vx *= 0.7f;
+                b->vz *= 0.7f;
+                b->vy = -vyn * 0.5f;
+                b->t0 = now;
+                b->lt += 1.0f;
+                hy = b->y;
+                tau = 0.0f;
+            }
+            tt = (tau > 0.6f) ? tau - 0.6f : 0.0f;
+            shx = b->x + b->vx * tt;
+            shz = b->z + b->vz * tt;
+            shy = b->y + b->vy * tt - 0.5f * BLOODFX_SPARK_GRAVITY * tt * tt;
+            transform_shpoint(&sh, (int)hx - engn_xc, 8 * (int)hy - 8 * engn_yc, (int)hz - engn_zc);
+            transform_shpoint(&st, (int)shx - engn_xc, 8 * (int)shy - 8 * engn_yc, (int)shz - engn_zc);
+            b->s_tx = (float)(st.X - sh.X);
+            b->s_ty = (float)(st.Y - sh.Y);
+            b->s_w = b->size * (ex + ey) * 0.5f;
+            if (b->s_w < 1.2f)
+                b->s_w = 1.2f;
+            enlist_draw_frame_graphic_scale((int)hx - engn_xc, (int)hy, (int)hz - engn_zc,
+              BLOODFX_FRAME, 100, 32, 250, (intptr_t)b);
+        }
+        else if ((b->kind == 2) || (b->kind == 3))
+        {
+            float age, dxp, dyp, dl, reach;
+
+            age = now - b->t0;
+            if (bloodfx_visibility(age) <= 0.0f) {
+                b->kind = 0; // gone: faded out, or washed away by the rain
+                continue;
+            }
+            gy = b->y;
+            transform_shpoint(&sh, (int)b->x - engn_xc, 8 * (int)gy - 8 * engn_yc, (int)b->z - engn_zc);
+            if (b->kind == 2) {
+                // On the ground (or a roof): a circle is an ellipse on the screen, with the axes on the screen axes
+                b->s_ux = b->size * ex;
+                b->s_uy = 0.0f;
+                b->s_vx = 0.0f;
+                b->s_vy = b->size * ey;
+                // The direction of the spatter in the circle which the shader draws: the step on the screen
+                // is divided by the size of the circle on the screen on each axis
+                dxp = (ma * b->vx + mb * b->vz) / ex;
+                dyp = (mc * b->vx + md * b->vz) / ey;
+                dl = sqrtf(dxp * dxp + dyp * dyp);
+                b->s_tx = (dl > 0.0001f) ? dxp / dl : 1.0f;
+                b->s_ty = (dl > 0.0001f) ? dyp / dl : 0.0f;
+            } else {
+                // On a wall: along the wall and down; the blood runs down it
+                if (b->vy < 0.5f) {
+                    b->s_ux = b->size * mb;  // the wall faces along X, so it goes along Z
+                    b->s_uy = b->size * md;
+                } else {
+                    b->s_ux = b->size * ma;
+                    b->s_uy = b->size * mc;
+                }
+                b->s_vx = -b->size * sv_x;
+                b->s_vy = -b->size * sv_y;
+                {
+                    // A round stain, whatever the angle: the sides get the same length on the screen
+                    float lu = sqrtf(b->s_ux * b->s_ux + b->s_uy * b->s_uy);
+                    float lv = sqrtf(b->s_vx * b->s_vx + b->s_vy * b->s_vy);
+                    float rr = 0.4f * (lu + lv);
+
+                    if ((lu > 0.001f) && (lv > 0.001f)) {
+                        // Slimmer along the wall than it is tall, so it does not stick out at the edges
+                        b->s_ux *= 0.6f * rr / lu; b->s_uy *= 0.6f * rr / lu;
+                        b->s_vx *= rr / lv; b->s_vy *= rr / lv;
+                    }
+                }
+                b->s_tx = 0.0f;
+                b->s_ty = 1.0f;
+            }
+            reach = fabsf(b->s_ux) + fabsf(b->s_vx) + 10.0f;
+            if ((sh.X < -reach) || (sh.X > lbDisplay.GraphicsScreenWidth + reach)
+              || (sh.Y < -(fabsf(b->s_uy) + fabsf(b->s_vy) + 10.0f))
+              || (sh.Y > lbDisplay.GraphicsScreenHeight + fabsf(b->s_uy) + fabsf(b->s_vy) + 10.0f))
+                continue;
+            // A stain on a wall is a bit nearer than the point, so that the wall does not hide it
+            enlist_draw_frame_graphic_scale((int)b->x - engn_xc, (int)gy, (int)b->z - engn_zc,
+              BLOODFX_FRAME, (b->kind == 3) ? 160 : 100, 32, 250, (intptr_t)b);
+        }
+    }
+}
+
+/** Draws a drop or splatter of blood in the place of its sorted sprite; false if the item is not blood. */
+static TbBool blood_fx_draw_item(intptr_t src, int sx, int sy)
+{
+    struct BloodFx *b;
+
+    if ((src < (intptr_t)&bloodfx[0]) || (src >= (intptr_t)&bloodfx[BLOODFX_MAX]))
+        return false;
+    b = (struct BloodFx *)src;
+    if (b->kind == 1) {
+        LbHwRecordBloodStreak((float)sx, (float)sy, (float)sx + b->s_tx, (float)sy + b->s_ty,
+          b->s_w, 1.0f, b->seed, 0.9f);
+    } else if (b->kind == 4) {
+        // How hot the spark still is: it dims as it goes
+        float heat = 1.0f - (bloodfx_now() - b->born) / BLOODFX_SPARK_LIFE;
+
+        LbHwRecordSparkStreak((float)sx, (float)sy, (float)sx + b->s_tx, (float)sy + b->s_ty,
+          b->s_w, (heat > 0.0f) ? heat * (0.55f + 0.45f * heat) : 0.0f, b->seed);
+    } else if ((b->kind == 2) || (b->kind == 3)) {
+        float age, alpha;
+
+        age = bloodfx_now() - b->t0;
+        alpha = bloodfx_visibility(age);
+        // A stain on a wall has a short drip, not the long tongue of a splatter on the ground
+        LbHwRecordBloodSplatOriented((float)sx, (float)sy, b->s_ux, b->s_uy, b->s_vx, b->s_vy, b->seed,
+          age / BLOODFX_DRY_TURNS, alpha, (b->kind == 3) ? 0.75f : 0.9f, b->s_tx, b->s_ty,
+          (b->kind == 3) ? 0.12f : 1.0f);
+    }
+    return true;
+}
+
+/** How big the pool of blood under the person is: it starts as a spot when the person dies, and grows as it bleeds. */
+static float screen_blood_pool_growth_callback(intptr_t src_item)
+{
+    struct Thing *p_thing;
+    ulong died;
+    float age, g;
+
+    p_thing = (struct Thing *)src_item;
+    if ((p_thing == NULL) || (p_thing->Type != TT_PERSON))
+        return 1.0f;
+    if ((p_thing->ThingOffset <= 0) || (p_thing->ThingOffset > THINGS_LIMIT))
+        return 1.0f;
+    died = person_death_turn[p_thing->ThingOffset];
+    // The ones which were dead at the start of the mission, or from another mission, have full pools
+    if ((died == 0) || (died > gameturn))
+        return 1.0f;
+    age = bloodfx_now() - (float)died;
+    if (age >= BLOODFX_POOL_GROW_TURNS)
+        return 1.0f;
+    if (age < 0.0f)
+        age = 0.0f;
+    g = 1.0f - age / BLOODFX_POOL_GROW_TURNS;
+    return 1.0f - g * g * g * 0.9f;
+}
+
 void screen_sorted_sprite_statc_render_callback(ushort sspr)
 {
     struct Thing *p_thing;
@@ -231,7 +842,11 @@ TbBool screen_sorted_sprite_effect_replace_callback(ushort sspr, int x0, int y0,
     int kind;
     float cx, cy, size;
 
-    if (!lbHwRecording || !LbHwRenderEnabled() || (getenv("SWFX_NO_GASSMOKE") != NULL))
+    if (!lbHwRecording || !LbHwRenderEnabled())
+        return false;
+    if (blood_fx_draw_item(game_sort_sprites[sspr].SrcItem, game_sort_sprites[sspr].X, game_sort_sprites[sspr].Y))
+        return true;
+    if (getenv("SWFX_NO_GASSMOKE") != NULL)
         return false;
     p_sthing = (struct SimpleThing *)game_sort_sprites[sspr].SrcItem;
     if ((p_sthing == NULL) || (p_sthing->Type != SmTT_SCALE_EFFECT) || (p_sthing->SubType != 30))
@@ -1376,6 +1991,19 @@ static void hw_gather_pixel_lights(void)
             LbHwRecordFlame(fx - 35.0f, fy - 110.0f, fx + 35.0f, fy + 25.0f, i * 37, 1.0f);
         }
     }
+    if (getenv("SWFX_BLOOD_TEST") != NULL) {
+        // The pools of blood in the middle of the screen, a few sizes of them, for looking at them
+        static const ushort pool_spr[8] = { 885, 888, 889, 890, 893, 899, 900, 886 };
+
+        for (i = 0; i < 8; i++) {
+            const struct TbSprite *p_spr = &m_sprites[pool_spr[i]];
+            long px = lbDisplay.GraphicsScreenWidth / 2 + ((i % 4) - 2) * 150;
+            long py = lbDisplay.GraphicsScreenHeight / 2 + (i / 4) * 130 - 60;
+
+            LbHwRecordBloodPool(p_spr, px, py, px + p_spr->SWidth * 5, py + p_spr->SHeight * 5, pool_spr[i], 1.0f,
+              (float)(i + 1) / 8.0f);
+        }
+    }
     if (getenv("SWFX_BEAM_TEST") != NULL) {
         // A fixed beam in the middle of the screen, for looking at what its light does
         LbHwNoteBeam(scr_cx - 150.0f, scr_cy + 40.0f, scr_cx + 250.0f, scr_cy - 120.0f, colour_lookup[ColLU_RED], 0);
@@ -1394,6 +2022,7 @@ void engine_draw_whole_screen_top_down(void)
     screen_sorted_sprite_persn_render_cb = screen_sorted_sprite_persn_render_callback;
     screen_sorted_sprite_persn_alt_cb = screen_sorted_sprite_persn_alt_callback;
     screen_sorted_sprite_effect_replace_cb = screen_sorted_sprite_effect_replace_callback;
+    screen_blood_pool_growth_cb = screen_blood_pool_growth_callback;
 
     player_target_clear(local_player_no); // set during HUD redraw (should be separated!)
 
@@ -1408,6 +2037,7 @@ void engine_draw_whole_screen_top_down(void)
     if ((ingame.Flags & GamF_RenderScene) != 0)
     {
         engine_draw_things(pos_beg_x, pos_beg_z, rend_beg_x, rend_beg_z, tlcount_x, tlcount_z);
+        blood_fx_enlist();
     }
 
     if ((ingame.Flags & GamF_RenderScene) != 0)

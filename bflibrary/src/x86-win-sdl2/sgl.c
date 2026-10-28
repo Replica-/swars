@@ -38,6 +38,7 @@ static GLuint tex_screen = 0;
 static GLuint tex_palette = 0;
 static long tex_screen_w = 0, tex_screen_h = 0;
 static GLint loc_idx = -1, loc_pal = -1, loc_keyed = -1;
+static GLint loc_overlay = -1, loc_clayer = -1, loc_cn = -1, loc_cm = -1, loc_cdata = -1;
 
 static ubyte palette_rgba[256 * 4];
 static TbBool palette_dirty = true;
@@ -60,6 +61,13 @@ static const char *present_fs_src =
     "uniform sampler2D uIdx;\n"
     "uniform sampler2D uPal;\n"
     "uniform int uKeyed;\n"
+    "// Translucent colour over the GPU image, shown in place of the index 254 (the pause boxes)\n"
+    "uniform int uOverlay;\n"
+    "// Exact colours shown in place of the marker indices, when the screen has them\n"
+    "uniform int uCustLayer;\n"
+    "uniform int uCustN;\n"
+    "uniform vec4 uCustM[6];\n"
+    "uniform vec4 uCust[24];\n"
     "void main()\n"
     "{\n"
     "    int i = int(texture(uIdx, uv).r * 255.0 + 0.5);\n"
@@ -67,7 +75,18 @@ static const char *present_fs_src =
     "    // the GPU image through where the software has not drawn\n"
     "    if (uKeyed != 0 && i == 255)\n"
     "        discard;\n"
-    "    outColor = vec4(texelFetch(uPal, ivec2(i, 0), 0).rgb, 1.0);\n"
+    "    if (uKeyed != 0 && uOverlay >= 0 && i == 254) {\n"
+    "        outColor = vec4(texelFetch(uPal, ivec2(uOverlay, 0), 0).rgb, 0.6);\n"
+    "        return;\n"
+    "    }\n"
+    "    vec3 rgb = texelFetch(uPal, ivec2(i, 0), 0).rgb;\n"
+    "    if (uCustLayer != 0) {\n"
+    "        for (int k = 0; k < uCustN; k++) {\n"
+    "            if (int(uCustM[k >> 2][k & 3] + 0.5) == i)\n"
+    "                rgb = uCust[k].rgb;\n"
+    "        }\n"
+    "    }\n"
+    "    outColor = vec4(rgb, 1.0);\n"
     "}\n";
 
 #define LOAD_GL(NAME) \
@@ -239,6 +258,11 @@ TbBool LbGlCreateContext(SDL_Window *window)
     loc_idx = gl.GetUniformLocation(present_program, "uIdx");
     loc_pal = gl.GetUniformLocation(present_program, "uPal");
     loc_keyed = gl.GetUniformLocation(present_program, "uKeyed");
+    loc_overlay = gl.GetUniformLocation(present_program, "uOverlay");
+    loc_clayer = gl.GetUniformLocation(present_program, "uCustLayer");
+    loc_cn = gl.GetUniformLocation(present_program, "uCustN");
+    loc_cm = gl.GetUniformLocation(present_program, "uCustM");
+    loc_cdata = gl.GetUniformLocation(present_program, "uCust");
 
     gl.GenVertexArrays(1, &present_vao);
     gl.GenTextures(1, &tex_screen);
@@ -356,8 +380,27 @@ TbResult LbGlPresentIndexed(const ubyte *pixels, long width, long height, long p
     gl.Uniform1i(loc_idx, 0);
     gl.Uniform1i(loc_pal, 1);
     gl.Uniform1i(loc_keyed, keyed);
+    gl.Uniform1i(loc_overlay, LbHwOverlay());
+    {
+        const float *cm, *cdata;
+        int cn;
+
+        cn = LbHwCustomColoursGet(&cm, &cdata);
+        gl.Uniform1i(loc_clayer, (LbHwCustomLayer() && (cn > 0)) ? 1 : 0);
+        gl.Uniform1i(loc_cn, cn);
+        if (cn > 0) {
+            gl.Uniform4fv(loc_cm, (HW_CUSTOM_MAX + 3) / 4, cm);
+            gl.Uniform4fv(loc_cdata, cn, cdata);
+        }
+    }
     gl.BindVertexArray(present_vao);
+    if (keyed) {
+        // The overlay colour is translucent over the scene
+        gl.Enable(GL_BLEND);
+        gl.BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
     gl.DrawArrays(GL_TRIANGLES, 0, 3);
+    gl.Disable(GL_BLEND);
 
     SDL_GL_SwapWindow(gl_window);
     return Lb_SUCCESS;

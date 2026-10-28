@@ -128,6 +128,8 @@ extern TbBool (*screen_sorted_sprite_persn_alt_cb)(ushort sspr);
 /** Called for the scaled effect sprites; given the screen rectangle which the sprite would cover, tells
  * if the effect was drawn by other means, and the sprite is to be left out. */
 extern TbBool (*screen_sorted_sprite_effect_replace_cb)(ushort sspr, int x0, int y0, int w, int h);
+/** Tells how big the pool of blood under the person is, from 0 to 1, for the item which the person is drawn from. */
+extern float (*screen_blood_pool_growth_cb)(intptr_t src_item);
 /******************************************************************************/
 
 void draw_frame_unscaled(int scr_x, int scr_y, ushort frm);

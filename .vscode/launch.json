@@ -129,6 +129,40 @@
             "presentation": { "group": "2 Mission", "order": 2 }
         },
 
+        // ----------------------------------------------- Straight into an Epoch mission
+        // (Church campaign: campaign 1, mission 2 - Tripoli, Missionary - the first real Epoch mission; most of
+        // the other indices below 10 are empty placeholders. The campaign is what switches the team to the Epoch members)
+        {
+            "name": "⛪  Epoch mission 1: Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "D:/development/swars/debug/src/syndwarsfx.exe",
+            "args": ["-m", "1,2", "-q", "-W"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/debug/src",
+            "environment": [
+                {
+                    "name": "SWFX_ALL_WEAPONS",
+                    "value": "1"
+                },
+                {
+                    "name": "PATH",
+                    "value": "D:/development/msys64/mingw32/bin;${env:PATH}"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "D:/development/msys64/mingw64/bin/gdb.exe",
+            "setupCommands": [
+                {
+                    "description": "Abilita la riformattazione per gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "presentation": { "group": "2 Mission", "order": 3 }
+        },
+
         // -------------------------------------------------------------- Release
         {
             "name": "🚀  Release: Launch",

@@ -3822,8 +3822,13 @@ void person_update_kill_stats(struct Thing *p_attacker, struct Thing *p_victim)
  * @param hp Amount of Hit Points subtracted from health by the final blow.
  * @param type Type of damage which caused the death.
  */
+ulong person_death_turn[THINGS_LIMIT + 1];
+
 void person_start_dying(struct Thing *p_person, int hp, ushort type)
 {
+    // The pool of blood under the body grows from this moment
+    if ((p_person->ThingOffset > 0) && (p_person->ThingOffset <= THINGS_LIMIT))
+        person_death_turn[p_person->ThingOffset] = gameturn;
     switch (type)
     {
     case DMG_ELLASER:

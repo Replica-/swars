@@ -33,6 +33,58 @@ volatile TbBool lbHwRecording = false;
 static TbBool hw_enabled = true;
 static int hw_lighting = HwLight_Enhanced;
 
+static int cust_count = 0;
+static float cust_markers[HW_CUSTOM_MAX];
+static float cust_data[HW_CUSTOM_MAX * 4];
+static TbBool cust_layer = false;
+static int overlay_colour = -1;
+
+void LbHwCustomColoursSet(int count, const ubyte *markers, const ubyte *orig, const ubyte *rgb)
+{
+    int i;
+
+    if (count > HW_CUSTOM_MAX)
+        count = HW_CUSTOM_MAX;
+    if (count < 0)
+        count = 0;
+    for (i = 0; i < count; i++)
+    {
+        cust_markers[i] = (float)markers[i];
+        cust_data[i * 4 + 0] = rgb[i * 3 + 0] / 255.0f;
+        cust_data[i * 4 + 1] = rgb[i * 3 + 1] / 255.0f;
+        cust_data[i * 4 + 2] = rgb[i * 3 + 2] / 255.0f;
+        cust_data[i * 4 + 3] = (float)orig[i];
+    }
+    cust_count = count;
+}
+
+int LbHwCustomColoursGet(const float **p_markers, const float **p_data)
+{
+    *p_markers = cust_markers;
+    *p_data = cust_data;
+    return cust_count;
+}
+
+void LbHwCustomLayerSet(TbBool on)
+{
+    cust_layer = on;
+}
+
+TbBool LbHwCustomLayer(void)
+{
+    return cust_layer;
+}
+
+void LbHwOverlaySet(int colour)
+{
+    overlay_colour = colour;
+}
+
+int LbHwOverlay(void)
+{
+    return overlay_colour;
+}
+
 static int smoke_count = 0;
 static float pl_affine[4];
 static float pl_lights[HW_PLIGHTS_MAX * 4];
@@ -615,33 +667,39 @@ TbBool LbHwRecordSpriteDraw(const struct TbSprite *spr, long x, long y, long dw,
       ghost, remap, one_colour);
 }
 
-TbBool LbHwRecordSpriteDrawAlphaScaled(const struct TbSprite *spr, long posx, long posy)
+/** Finds where the sprite drawn with the scaling of SetAlphaScalingData() lands on the screen. */
+static TbBool hw_alpha_scaled_rect(const struct TbSprite *spr, long posx, long posy,
+  long *p_x0, long *p_y0, long *p_x1, long *p_y1)
 {
-    ushort flags;
-    long x0, y0, x1, y1;
     const long *xs, *ys;
 
-    if (!lbHwRecording)
-        return false;
-    if ((spr == NULL) || (lbSpriteReMapPtr == NULL))
-        return false;
     if ((posx < 0) || (posy < 0) || (posx + spr->SWidth > SPRITE_SCALING_XSTEPS)
       || (posy + spr->SHeight > SPRITE_SCALING_YSTEPS)) {
         DBGF(6);
         return false;
     }
-    flags = lbDisplay.DrawFlags;
     // The scaling arrays hold, for each pixel of the source, where it goes on the screen
     xs = &alpha_xsteps_array[2 * posx];
     ys = &alpha_ysteps_array[2 * posy];
-    x0 = xs[0];
-    y0 = ys[0];
-    x1 = xs[2 * (spr->SWidth - 1)] + xs[2 * (spr->SWidth - 1) + 1];
-    y1 = ys[2 * (spr->SHeight - 1)] + ys[2 * (spr->SHeight - 1) + 1];
-    x0 += lbDisplay.GraphicsWindowX;
-    x1 += lbDisplay.GraphicsWindowX;
-    y0 += lbDisplay.GraphicsWindowY;
-    y1 += lbDisplay.GraphicsWindowY;
+    *p_x0 = xs[0] + lbDisplay.GraphicsWindowX;
+    *p_y0 = ys[0] + lbDisplay.GraphicsWindowY;
+    *p_x1 = xs[2 * (spr->SWidth - 1)] + xs[2 * (spr->SWidth - 1) + 1] + lbDisplay.GraphicsWindowX;
+    *p_y1 = ys[2 * (spr->SHeight - 1)] + ys[2 * (spr->SHeight - 1) + 1] + lbDisplay.GraphicsWindowY;
+    return true;
+}
+
+TbBool LbHwRecordSpriteDrawAlphaScaled(const struct TbSprite *spr, long posx, long posy)
+{
+    ushort flags;
+    long x0, y0, x1, y1;
+
+    if (!lbHwRecording)
+        return false;
+    if ((spr == NULL) || (lbSpriteReMapPtr == NULL))
+        return false;
+    if (!hw_alpha_scaled_rect(spr, posx, posy, &x0, &y0, &x1, &y1))
+        return false;
+    flags = lbDisplay.DrawFlags;
     // In this drawing, TRANSPAR8 means the colours go through the colour map, TRANSPAR4
     // means a half transparent sprite with its own colours, and none is a plain sprite
     return LbHwRecordSprite(spr, x0, y0, x1, y1,
@@ -719,6 +777,164 @@ TbBool LbHwRecordFlame(float x0, float y0, float x1, float y1, int seed, float s
       HWREND_MODE_FLAME, (float)(seed & 1023), strength);
     rec_count += 6;
     return true;
+}
+
+TbBool LbHwRecordBloodPool(const struct TbSprite *spr, long x0, long y0, long x1, long y1, int seed, float bright,
+  float growth)
+{
+    static int disabled = -1;
+    const struct HwAtlasEntry *ent;
+    float sx, sy;
+    int k;
+
+    if (disabled < 0)
+        disabled = (getenv("SWFX_NO_BLOODFX") != NULL) ? 1 : 0;
+    if (!lbHwRecording || disabled || (hw_lighting != HwLight_Enhanced) || (spr == NULL))
+        return false;
+    if ((x1 <= x0) || (y1 <= y0))
+        return true; // nothing to draw
+    ent = hw_atlas_sprite(spr);
+    if (ent == NULL)
+        return false;
+    if (!hw_grow(6))
+        return false;
+    // The quad is two sprite pixels wider on each side, so the edge of the pool can spread;
+    // the texture position is in pixels of the sprite, and the shader finds the sprite by its place in the atlas
+    sx = (float)(x1 - x0) / (float)ent->w;
+    sy = (float)(y1 - y0) / (float)ent->h;
+    hw_quad(&rec_verts[rec_count], (float)x0 - 2.0f * sx, (float)y0 - 2.0f * sy,
+      (float)x1 + 2.0f * sx, (float)y1 + 2.0f * sy,
+      -2.0f, -2.0f, (float)ent->w + 2.0f, (float)ent->h + 2.0f,
+      HWREND_MODE_BLOOD, (float)(seed & 1023), bright);
+    for (k = 0; k < 6; k++)
+    {
+        rec_verts[rec_count + k].tx0 = (float)ent->ax;
+        rec_verts[rec_count + k].ty0 = (float)ent->ay;
+        rec_verts[rec_count + k].tx1 = (float)(ent->ax + ent->w);
+        rec_verts[rec_count + k].ty1 = (float)(ent->ay + ent->h);
+        rec_verts[rec_count + k].tx2 = growth;
+    }
+    rec_count += 6;
+    return true;
+}
+
+static TbBool hw_record_streak(int mode, float hx, float hy, float tx, float ty, float width, float alpha, int seed, float bright)
+{
+    static int disabled = -1;
+    struct HwVertex *v;
+    float dx, dy, len, nx, ny;
+    float px[4], py[4], pu[4], pv[4];
+    static const int tri[6] = { 0, 1, 2, 0, 2, 3 };
+    int i;
+
+    if (disabled < 0)
+        disabled = (getenv("SWFX_NO_BLOODFX") != NULL) ? 1 : 0;
+    if (!lbHwRecording || disabled || !hw_grow(6))
+        return false;
+    if (width < 1.0f)
+        width = 1.0f;
+    dx = hx - tx;
+    dy = hy - ty;
+    len = sqrtf(dx * dx + dy * dy);
+    if (len < width) {
+        // Hardly moving: a round drop
+        dx = 0.0f; dy = -1.0f; len = width;
+        tx = hx; ty = hy + width;
+    } else {
+        dx /= len; dy /= len;
+    }
+    if (len < width) len = width;
+    nx = -dy * width * 0.5f;
+    ny = dx * width * 0.5f;
+    // The round cap at the head
+    hx += dx * width * 0.5f;
+    hy += dy * width * 0.5f;
+    px[0] = tx - nx; py[0] = ty - ny; pu[0] = -1.0f; pv[0] = 0.0f;
+    px[1] = tx + nx; py[1] = ty + ny; pu[1] = 1.0f;  pv[1] = 0.0f;
+    px[2] = hx + nx; py[2] = hy + ny; pu[2] = 1.0f;  pv[2] = 1.0f;
+    px[3] = hx - nx; py[3] = hy - ny; pu[3] = -1.0f; pv[3] = 1.0f;
+    v = &rec_verts[rec_count];
+    for (i = 0; i < 6; i++)
+    {
+        int c = tri[i];
+
+        v[i].x = px[c] - 0.5f;
+        v[i].y = py[c] - 0.5f;
+        v[i].u = pu[c];
+        v[i].v = pv[c];
+        v[i].s = 0.0f;
+        v[i].umax = v[i].vmax = 1.0e9f;
+        v[i].tx0 = bright; v[i].ty0 = 2.0f * len / width + 1.0f; v[i].tx1 = v[i].ty1 = v[i].tx2 = v[i].ty2 = 0.0f;
+        v[i].mode = (float)mode;
+        v[i].colour = (float)(seed & 1023);
+        v[i].layer = alpha;
+    }
+    rec_count += 6;
+    return true;
+}
+
+TbBool LbHwRecordBloodStreak(float hx, float hy, float tx, float ty, float width, float alpha, int seed, float bright)
+{
+    return hw_record_streak(HWREND_MODE_BLOOD_DROP, hx, hy, tx, ty, width, alpha, seed, bright);
+}
+
+TbBool LbHwRecordSparkStreak(float hx, float hy, float tx, float ty, float width, float alpha, int seed)
+{
+    return hw_record_streak(HWREND_MODE_SPARK, hx, hy, tx, ty, width, alpha, seed, 1.0f);
+}
+
+TbBool LbHwRecordBloodSplatOriented(float cx, float cy, float ux, float uy, float vx, float vy, int seed,
+  float age, float alpha, float bright, float dirx, float diry, float tongue)
+{
+    static int disabled = -1;
+    static const int tri[6] = { 0, 1, 2, 0, 2, 3 };
+    static const float cs[4] = { -1.0f, 1.0f, 1.0f, -1.0f };
+    static const float ct[4] = { -1.0f, -1.0f, 1.0f, 1.0f };
+    struct HwVertex *v;
+    int i;
+
+    if (disabled < 0)
+        disabled = (getenv("SWFX_NO_BLOODFX") != NULL) ? 1 : 0;
+    if (!lbHwRecording || disabled || !hw_grow(6))
+        return false;
+    v = &rec_verts[rec_count];
+    for (i = 0; i < 6; i++)
+    {
+        float s = cs[tri[i]], t = ct[tri[i]];
+
+        v[i].x = cx + s * ux + t * vx - 0.5f;
+        v[i].y = cy + s * uy + t * vy - 0.5f;
+        v[i].u = s;
+        v[i].v = t;
+        v[i].s = 0.0f;
+        v[i].umax = v[i].vmax = 1.0e9f;
+        v[i].tx0 = age; v[i].ty0 = bright; v[i].tx1 = dirx; v[i].ty1 = diry;
+        v[i].tx2 = tongue;
+        v[i].ty2 = 0.0f;
+        v[i].mode = HWREND_MODE_BLOOD_SPLAT;
+        v[i].colour = (float)(seed & 1023);
+        v[i].layer = alpha;
+    }
+    rec_count += 6;
+    return true;
+}
+
+TbBool LbHwRecordBloodSplat(float cx, float cy, float rx, float ry, int seed, float age, float alpha,
+  float bright, float dirx, float diry)
+{
+    return LbHwRecordBloodSplatOriented(cx, cy, rx, 0.0f, 0.0f, ry, seed, age, alpha, bright, dirx, diry, 1.0f);
+}
+
+TbBool LbHwRecordBloodPoolAlphaScaled(const struct TbSprite *spr, long posx, long posy, int seed, float bright,
+  float growth)
+{
+    long x0, y0, x1, y1;
+
+    if (!lbHwRecording || (spr == NULL))
+        return false;
+    if (!hw_alpha_scaled_rect(spr, posx, posy, &x0, &y0, &x1, &y1))
+        return false;
+    return LbHwRecordBloodPool(spr, x0, y0, x1, y1, seed, bright, growth);
 }
 
 TbBool LbHwRecordBox(long x0, long y0, long x1, long y1, ubyte colour, TbBool ghost)

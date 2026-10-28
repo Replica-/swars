@@ -1,4 +1,4 @@
-﻿/******************************************************************************/
+/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file game_sprts.c
@@ -20,15 +20,21 @@
 #include "game_sprts.h"
 
 #include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 #include "bffile.h"
 #include "bfmemory.h"
 #include "bfmemut.h"
 #include "bfsprite.h"
+#include "bfgl.h"
+#include "bfhwrend.h"
 
 #include "frame_sprani.h"
 
+#include "campaign.h"
 #include "game_data.h"
 #include "game_options.h"
+#include "people.h"
 #include "game.h"
 #include "swlog.h"
 
@@ -516,10 +522,372 @@ void reset_sprites_small2_font(void)
     LbSpriteReset(small2_font, small2_font_end, small2_font_data);
 }
 
+/** One part of a team's costume which can get another colour. The original colour of the part is a run of
+ * shades in the palette; the entry points of the lighting are those shades, so they are different for each team. */
+struct CustomCostumePart {
+    /** The first shade (palette index), the distance between the shades which get their own marker, and their count. */
+    ubyte first, step, shades;
+    /** The shade which gets exactly the chosen colour. */
+    ubyte ref;
+    /** Palette indices which the sprites never use; the pixels of the replaced shades get these, and the GPU shows
+     * them in the chosen colour. One for each shade. */
+    const ubyte *markers;
+    const char *name;
+};
+
+/* The same markers are used by both teams, as only one team's colours are replaced at a time */
+static const ubyte custom_markers_a[12] = { 224, 225, 226, 227, 228, 229, 230, 231, 26, 28, 112, 246 };
+static const ubyte custom_markers_b[8] = { 176, 177, 178, 179, 208, 209, 210, 253 };
+
+static const struct CustomCostumePart custom_costume_parts[CUSTOM_TEAMS][CUSTOM_COSTUME_PARTS] = {
+    {
+        // Eurocorp agents, in costume 3: the greenish trench coat, and the yellow shoulders
+        { 36, 1, 12, 41, custom_markers_a, "TRENCH COAT" },
+        { 167, 1, 8, 170, custom_markers_b, "SHOULDERS" },
+    },
+    {
+        // Epoch members: the white robe, which has shades from white to dark blue-grey; each marker
+        // takes two of them; and the dark red of the hood and sleeves
+        { 80, 2, 12, 90, custom_markers_a, "ROBE" },
+        { 120, 1, 8, 123, custom_markers_b, "HOOD" },
+    },
+};
+
+TbBool game_custom_used_all[CUSTOM_TEAMS][CUSTOM_COSTUME_PARTS];
+ubyte game_custom_rgb_all[CUSTOM_TEAMS][CUSTOM_COSTUME_PARTS][3];
+
+static ubyte custom_costume_pal[768];
+static TbBool custom_costume_pal_loaded = false;
+
+static void custom_costume_pal_load(void)
+{
+    if (custom_costume_pal_loaded)
+        return;
+    // The palette without brightness changes; 6 bits per channel
+    if (LbFileLoadAt("qdata/pal0.dat", custom_costume_pal) == -1)
+        LbMemorySet(custom_costume_pal, '\0', sizeof(custom_costume_pal));
+    custom_costume_pal_loaded = true;
+}
+
+static int custom_costume_lum(int idx)
+{
+    const ubyte *c = &custom_costume_pal[idx * 3];
+    return c[0] * 30 + c[1] * 59 + c[2] * 11;
+}
+
+int game_custom_team(void)
+{
+    // The Church campaign is played with the Epoch members; the others with the agents
+    return (background_type == 1) ? CUSTOM_TEAM_EPOCH : CUSTOM_TEAM_EUROCORP;
+}
+
+static const struct CustomCostumePart *custom_costume_part(int part)
+{
+    return &custom_costume_parts[game_custom_team()][part];
+}
+
+const char *game_custom_costume_part_name(int part)
+{
+    return custom_costume_part(part)->name;
+}
+
+int game_custom_costume_shades(int part)
+{
+    return custom_costume_part(part)->shades;
+}
+
+ubyte game_custom_costume_original(int part, int shade)
+{
+    const struct CustomCostumePart *p_part = custom_costume_part(part);
+
+    return p_part->first + shade * p_part->step;
+}
+
+int game_custom_costume_swatch(int idx)
+{
+    int s;
+
+    // The screen shows the marker indices in the chosen colours; a swatch of the palette
+    // takes the colour of the index below instead, which is close
+    for (;;)
+    {
+        for (s = 0; s < 12; s++)
+            if (custom_markers_a[s] == idx)
+                goto is_marker;
+        for (s = 0; s < 8; s++)
+            if (custom_markers_b[s] == idx)
+                goto is_marker;
+        return idx;
+is_marker:
+        if (idx == 0)
+            return idx;
+        idx--;
+    }
+}
+
+ubyte game_custom_costume_marker(int part, int shade)
+{
+    return custom_costume_part(part)->markers[shade];
+}
+
+TbBool game_custom_costume_hw(void)
+{
+    return LbGlIsActive() && LbHwRenderEnabled();
+}
+
+void game_custom_costume_default_rgb(int part, ubyte *rgb)
+{
+    int i;
+
+    custom_costume_pal_load();
+    for (i = 0; i < 3; i++)
+        rgb[i] = custom_costume_pal[custom_costume_part(part)->ref * 3 + i] * 255 / 63;
+}
+
+void game_custom_costume_palette_rgb(int idx, ubyte *rgb)
+{
+    int i;
+
+    custom_costume_pal_load();
+    for (i = 0; i < 3; i++)
+        rgb[i] = custom_costume_pal[idx * 3 + i] * 255 / 63;
+}
+
+TbBool game_custom_costume_active(void)
+{
+    int part;
+
+    if (!game_custom_costume_hw())
+        return false;
+    for (part = 0; part < CUSTOM_COSTUME_PARTS; part++)
+        if (game_custom_used[part])
+            return true;
+    return false;
+}
+
+void game_custom_costume_publish(void)
+{
+    ubyte markers[HW_CUSTOM_MAX], orig[HW_CUSTOM_MAX], rgb[HW_CUSTOM_MAX * 3];
+    int part, s, n, i;
+
+    n = 0;
+    custom_costume_pal_load();
+    for (part = 0; part < CUSTOM_COSTUME_PARTS; part++)
+    {
+        const struct CustomCostumePart *p_part = custom_costume_part(part);
+        int lref;
+
+        if (!game_custom_used[part] || !game_custom_costume_hw())
+            continue;
+        lref = custom_costume_lum(p_part->ref);
+        if (lref < 1)
+            lref = 1;
+        for (s = 0; s < p_part->shades; s++)
+        {
+            int o, lo;
+
+            // The entry point of the lighting is the first shade which the marker stands for; the brightness is
+            // the middle of the shades it stands for
+            o = p_part->first + s * p_part->step;
+            lo = (custom_costume_lum(o) + custom_costume_lum(o + p_part->step - 1)) / 2;
+            markers[n] = p_part->markers[s];
+            orig[n] = o;
+            // The chosen colour for the reference shade, darker or brighter for the other shades
+            for (i = 0; i < 3; i++)
+            {
+                int v = game_custom_rgb[part][i] * lo / lref;
+                rgb[n * 3 + i] = (v > 255) ? 255 : v;
+            }
+            n++;
+        }
+    }
+    LbHwCustomColoursSet(n, markers, orig, rgb);
+}
+
+/** Fills the table which says what a shade of the replaced colours becomes: its marker. */
+static void custom_costume_make_lut(ubyte *lut)
+{
+    int part, s, k, i;
+
+    for (i = 0; i < 256; i++)
+        lut[i] = i;
+    for (part = 0; part < CUSTOM_COSTUME_PARTS; part++)
+    {
+        const struct CustomCostumePart *p_part = custom_costume_part(part);
+
+        if (!game_custom_used[part])
+            continue;
+        for (s = 0; s < p_part->shades; s++)
+            for (k = 0; k < p_part->step; k++)
+                lut[p_part->first + s * p_part->step + k] = p_part->markers[s];
+    }
+}
+
+/** Replaces the colours of the Eurocorp costume in the loaded sprites.
+ *
+ * Only the pixels which differ from the first costume are changed, as the same shades are used by
+ * other people in other places. The sprites still have offsets in their data pointers.
+ */
+static void custom_costume_apply(const char *dir, ubyte *dat, long dat_len, struct TbSprite *tab, long tab_len)
+{
+    char locstr[DISKPATH_SIZE];
+    ubyte lut[256];
+    ubyte *orig, *ref_dat;
+    struct TbSprite *ref_tab;
+    long ref_dat_len, ref_tab_len, n, i;
+
+    if (!game_custom_costume_active() || (dat_len <= 0) || (tab_len <= 0))
+        return;
+    custom_costume_make_lut(lut);
+
+    orig = (ubyte *)malloc(dat_len);
+    ref_dat = (ubyte *)malloc((m_sprites_data_end - m_sprites_data) + 1024);
+    ref_tab = (struct TbSprite *)malloc(64 * 1024);
+    if ((orig == NULL) || (ref_dat == NULL) || (ref_tab == NULL))
+        goto done;
+    sprintf(locstr, "%s/mspr-%d.dat", dir, 0);
+    ref_dat_len = LbFileLoadAt(locstr, ref_dat);
+    sprintf(locstr, "%s/mspr-%d.tab", dir, 0);
+    ref_tab_len = LbFileLoadAt(locstr, ref_tab);
+    if ((ref_dat_len == -1) || (ref_tab_len == -1))
+        goto done;
+    // Sprites can share their data; the colours are taken from the untouched copy, so each pixel is changed once
+    memcpy(orig, dat, dat_len);
+
+    n = tab_len / sizeof(struct TbSprite);
+    if (n > ref_tab_len / (long)sizeof(struct TbSprite))
+        n = ref_tab_len / sizeof(struct TbSprite);
+    for (i = 0; i < n; i++)
+    {
+        long p, q;
+        int y, aligned;
+
+        p = (long)(ulong)tab[i].Data;
+        q = (long)(ulong)ref_tab[i].Data;
+        if ((tab[i].SWidth == 0) || (tab[i].SHeight == 0) || (p >= dat_len) || (q >= ref_dat_len))
+            continue;
+        aligned = 1;
+        for (y = 0; (y < tab[i].SHeight) && aligned; y++)
+        {
+            // Lines of: n > 0 - n pixels follow; n < 0 - skip n pixels; 0 - end of line
+            while ((p < dat_len) && (q < ref_dat_len))
+            {
+                int c, c0, k;
+
+                c = (signed char)orig[p++];
+                c0 = (signed char)ref_dat[q++];
+                if (c != c0) {
+                    aligned = 0; // the other costume has other shape; leave the rest of the sprite
+                    break;
+                }
+                if (c == 0)
+                    break;
+                if (c < 0)
+                    continue;
+                for (k = 0; (k < c) && (p + k < dat_len) && (q + k < ref_dat_len); k++)
+                {
+                    if (orig[p + k] != ref_dat[q + k])
+                        dat[p + k] = lut[orig[p + k]];
+                }
+                p += c;
+                q += c;
+            }
+        }
+    }
+done:
+    free(orig);
+    free(ref_dat);
+    free(ref_tab);
+}
+
+/** Replaces the colours of the Epoch members (the zealots) in the loaded sprites.
+ *
+ * The zealots look the same in all the costume files, so there is no other costume to compare with; the
+ * sprites of the zealots are found by the frames which draw them, and only these are changed.
+ */
+static void custom_costume_apply_zealots(ubyte *dat, long dat_len, struct TbSprite *tab, long tab_len)
+{
+    ubyte lut[256];
+    ubyte *mask;
+    long n, i;
+    int anim, ang;
+
+    if (!game_custom_costume_active() || (dat_len <= 0) || (tab_len <= 0))
+        return;
+    n = tab_len / sizeof(struct TbSprite);
+    mask = (ubyte *)calloc(n, 1);
+    if (mask == NULL)
+        return;
+    for (anim = 0; anim < ANIM_PERS_TOTAL_COUNT; anim++)
+    {
+        for (ang = 0; ang < 12; ang++)
+        {
+            ushort frm, first_frm;
+            int guard;
+
+            if (&nstart_ani[people_frames[SubTT_PERS_ZEALOT][anim] + ang] >= nstart_ani_end)
+                break;
+            frm = nstart_ani[people_frames[SubTT_PERS_ZEALOT][anim] + ang];
+            first_frm = frm;
+            // The frames of the animation, one after another
+            for (guard = 0; (guard < 64) && (&frame[frm] < frame_end); guard++)
+            {
+                ushort el;
+                int eguard;
+
+                for (el = frame[frm].FirstElement, eguard = 0; (el > 0) && (eguard < 64) && (&melement_ani[el] < mele_ani_end);
+                  el = melement_ani[el].Next, eguard++)
+                {
+                    long si = melement_ani[el].ToSprite / sizeof(struct TbSprite);
+
+                    if ((si > 0) && (si < n))
+                        mask[si] = 1;
+                }
+                frm = frame[frm].Next;
+                if ((frm == first_frm) || (frm == 0))
+                    break;
+            }
+        }
+    }
+
+    custom_costume_make_lut(lut);
+    // Each pixel of those sprites is mapped; the markers are not in the range of the replaced shades, so
+    // sprites which share their data can be mapped again without harm
+    for (i = 0; i < n; i++)
+    {
+        long p;
+        int y;
+
+        if (!mask[i])
+            continue;
+        p = (long)(ulong)tab[i].Data;
+        if ((tab[i].SWidth == 0) || (tab[i].SHeight == 0) || (p >= dat_len))
+            continue;
+        for (y = 0; y < tab[i].SHeight; y++)
+        {
+            // Lines of: n > 0 - n pixels follow; n < 0 - skip n pixels; 0 - end of line
+            while (p < dat_len)
+            {
+                int c, k;
+
+                c = (signed char)dat[p++];
+                if (c == 0)
+                    break;
+                if (c < 0)
+                    continue;
+                for (k = 0; (k < c) && (p + k < dat_len); k++)
+                    dat[p + k] = lut[dat[p + k]];
+                p += c;
+            }
+        }
+    }
+    free(mask);
+}
+
 TbResult load_multicolor_sprites(const char *dir)
 {
     char locstr[DISKPATH_SIZE];
-    long len;
+    long len, dat_len;
     TbResult ret;
 
     ret = Lb_OK;
@@ -530,6 +898,7 @@ TbResult load_multicolor_sprites(const char *dir)
         ret = Lb_FAIL;
         len = 0;
     }
+    dat_len = len;
     // additional 512 bytes are always reserved by LbDataLoad()
     assert(m_sprites_data_end + 512 >= m_sprites_data + len);
     sprintf(locstr, "%s/mspr-%d.tab", dir, ingame.TrenchcoatPreference);
@@ -540,6 +909,20 @@ TbResult load_multicolor_sprites(const char *dir)
         LbMemorySet(m_sprites, '\0', len);
     }
     m_sprites_end = (struct TbSprite *)((ubyte *)m_sprites + len);
+
+    if (ret == Lb_OK) {
+        // The Epoch members look the same in all the costumes; the agents have the colours only in costume 3
+        if (game_custom_team() == CUSTOM_TEAM_EPOCH)
+            custom_costume_apply_zealots(m_sprites_data, dat_len, m_sprites, len);
+        else if (ingame.TrenchcoatPreference == CUSTOM_COSTUME_BASE)
+            custom_costume_apply(dir, m_sprites_data, dat_len, m_sprites, len);
+    }
+    // The GPU has the colours for the markers only while the sprites have them
+    if (((game_custom_team() == CUSTOM_TEAM_EPOCH) || (ingame.TrenchcoatPreference == CUSTOM_COSTUME_BASE))
+      && game_custom_costume_active())
+        game_custom_costume_publish();
+    else
+        LbHwCustomColoursSet(0, NULL, NULL, NULL);
 
     return ret;
 }

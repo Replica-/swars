@@ -97,6 +97,49 @@ extern ubyte game_enemy_costume;
 /** Loads the multicolor sprites of the enemy costume, to the alternative set. */
 TbResult load_multicolor_sprites_alt(const char *dir);
 
+/** The costume which has colours that can be replaced: the pixels of its trench coat and shoulders
+ * get marker palette indices when the sprites are loaded, and the GPU shows them in any colour
+ * chosen by the player. This works only with the hardware rendering. */
+#define CUSTOM_COSTUME_BASE 3
+#define CUSTOM_COSTUME_COAT 0
+#define CUSTOM_COSTUME_SHOULDERS 1
+#define CUSTOM_COSTUME_PARTS 2
+/** The teams which the player can play: the Eurocorp agents (costume 3 has the colours which can be replaced)
+ * and the Epoch members (the zealots, in all costume files). Each has its own parts, colours, and shades
+ * as the entry points of the lighting. The team is the one of the campaign which is played. */
+#define CUSTOM_TEAM_EUROCORP 0
+#define CUSTOM_TEAM_EPOCH 1
+#define CUSTOM_TEAMS 2
+int game_custom_team(void);
+/** The name of the part of the costume of the team which is played. */
+const char *game_custom_costume_part_name(int part);
+/** Whether the colour of each part is replaced, and the colour (8 bits per channel) which it is
+ * replaced with: the colour of the reference shade of the part, the other shades are darker or brighter.
+ * game_custom_used and game_custom_rgb are those of the team which is played. */
+extern TbBool game_custom_used_all[CUSTOM_TEAMS][CUSTOM_COSTUME_PARTS];
+extern ubyte game_custom_rgb_all[CUSTOM_TEAMS][CUSTOM_COSTUME_PARTS][3];
+#define game_custom_used (game_custom_used_all[game_custom_team()])
+#define game_custom_rgb (game_custom_rgb_all[game_custom_team()])
+/** Tells how many shades the original colour of the part has. */
+int game_custom_costume_shades(int part);
+/** Gives the palette index to draw a swatch of the given palette entry with, while the screen shows
+ * the marker indices in the chosen colours: the same index, or the nearest one which is not a marker. */
+int game_custom_costume_swatch(int idx);
+/** Palette index which the sprites have for the shade of the part, when its colour is not replaced. */
+ubyte game_custom_costume_original(int part, int shade);
+/** Palette index which the sprites have for the shade of the part, when its colour is replaced. */
+ubyte game_custom_costume_marker(int part, int shade);
+/** The original colour of the part, to start with when choosing. */
+void game_custom_costume_default_rgb(int part, ubyte *rgb);
+/** The colour of a palette entry, 8 bits per channel. */
+void game_custom_costume_palette_rgb(int idx, ubyte *rgb);
+/** Tells if the replacing of colours can work now: the GPU has to draw the scene. */
+TbBool game_custom_costume_hw(void);
+/** Tells if any part of the costume has a replaced colour, and it is shown. */
+TbBool game_custom_costume_active(void);
+/** Gives the GPU the colours chosen; the sprites do not have to be loaded again when only a colour changes. */
+void game_custom_costume_publish(void);
+
 extern ubyte *dword_1C6DE4;
 extern ubyte *dword_1C6DE8;
 

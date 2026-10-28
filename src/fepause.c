@@ -1,4 +1,4 @@
-﻿/******************************************************************************/
+/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file fepause.c
@@ -29,10 +29,13 @@
 #include "bfaudio.h"
 #include "bfmusic.h"
 #include "bfscd.h"
+#include "bfhwrend.h"
 #include "ssampply.h"
 
 #include "app_box.h"
 #include "engincolour.h"
+
+#include "frame_sprani.h"
 
 #include "campaign.h"
 #include "display.h"
@@ -44,6 +47,7 @@
 #include "guitext.h"
 #include "keyboard.h"
 #include "mouse.h"
+#include "people.h"
 #include "mydraw.h"
 #include "sound.h"
 #include "swlog.h"
@@ -66,8 +70,22 @@ static struct ScreenButton abort_btn;
 
 /** The box with the game settings, next to the pause box. */
 static struct ScreenBox options_box;
+/** The button in the settings box which opens the screen choosing the colours of the costume. */
+static struct ScreenButton custom_open_btn;
 static struct ScreenBox option_arrow_l_box[PAUSE_OPT_COUNT];
 static struct ScreenBox option_arrow_r_box[PAUSE_OPT_COUNT];
+
+/** The translucent fill of the boxes. With the GPU drawing the scene, the software screen has nothing
+ * to blend with, so it gets an index which the GPU shows as a translucent colour over the scene. */
+static ubyte pause_fill_flags(void)
+{
+    return (LbHwOverlay() >= 0) ? 0 : Lb_SPRITE_TRANSPAR4;
+}
+
+static TbPixel pause_fill_colour(TbPixel colr)
+{
+    return (LbHwOverlay() >= 0) ? HWREND_OVERLAY_INDEX : colr;
+}
 
 ubyte draw_ingame_button(struct ScreenButton *p_button, ubyte enabled)
 {
@@ -76,8 +94,9 @@ ubyte draw_ingame_button(struct ScreenButton *p_button, ubyte enabled)
 
     margin = p_button->Border + 1;
 
-    lbDisplay.DrawFlags = Lb_SPRITE_TRANSPAR4;
-    LbDrawBox(p_button->X - margin, p_button->Y - margin, p_button->Width + 2 * margin, p_button->Height + 2 * margin, p_button->BGColour);
+    lbDisplay.DrawFlags = pause_fill_flags();
+    LbDrawBox(p_button->X - margin, p_button->Y - margin, p_button->Width + 2 * margin, p_button->Height + 2 * margin,
+      pause_fill_colour(p_button->BGColour));
 
     lbDisplay.DrawFlags = Lb_SPRITE_OUTLINE;
     lbDisplay.DrawColour = colour_lookup[ColLU_WHITE];
@@ -191,16 +210,16 @@ void draw_box_cutedge(struct ScreenBox *box, TbPixel colr1)
     stp = pop1_sprites_scale;
     cut = 25 * pop1_sprites_scale;
 
-    lbDisplay.DrawFlags = Lb_SPRITE_TRANSPAR4;
-    LbDrawBox(box->X + 0, box->Y + 0, box->Width - cut, box->Height - cut, colr1);
-    LbDrawBox(box->X + box->Width - cut, box->Y +  cut, cut, box->Height - 2*cut, colr1);
-    LbDrawBox(box->X + cut, box->Y + box->Height - cut, box->Width - cut, cut, colr1);
+    lbDisplay.DrawFlags = pause_fill_flags();
+    LbDrawBox(box->X + 0, box->Y + 0, box->Width - cut, box->Height - cut, pause_fill_colour(colr1));
+    LbDrawBox(box->X + box->Width - cut, box->Y +  cut, cut, box->Height - 2*cut, pause_fill_colour(colr1));
+    LbDrawBox(box->X + cut, box->Y + box->Height - cut, box->Width - cut, cut, pause_fill_colour(colr1));
     LbDrawTriangle(box->X + box->Width - cut, box->Y + 0,
       box->X + box->Width, box->Y + cut,
-      box->X + box->Width - cut, box->Y + cut, colr1);
+      box->X + box->Width - cut, box->Y + cut, pause_fill_colour(colr1));
     LbDrawTriangle(box->X + stp, box->Y + box->Height - cut,
       box->X + cut, box->Y + box->Height - cut,
-      box->X + cut, box->Y + box->Height - stp, colr1);
+      box->X + cut, box->Y + box->Height - stp, pause_fill_colour(colr1));
 
     lbDisplay.DrawFlags = 0;
     LbDrawLine(box->X + 0, box->Y + 0, box->X + box->Width - cut, box->Y + 0, colr1);
@@ -390,6 +409,10 @@ void init_pause_screen_boxes(void)
             option_arrow_r_box[i].X = options_box.X + options_box.Width * 88 / 100;
             option_arrow_r_box[i].Y = option_arrow_l_box[i].Y;
         }
+        init_ingame_screen_button(&custom_open_btn,
+          options_box.X + options_box.Width * 72 / 100,
+          row_y + pitch * PAUSE_OPT_CUSTOM_COSTUME + pitch / 8 - pop1_sprites_scale,
+          "EDIT", small_font, 0);
     }
 
     slider_w = pause_main_box.Width * 131 / 256;
@@ -611,6 +634,12 @@ static void draw_options_box(void)
           y + pitch * 52 / 100, keys, 0);
         lbDisplay.DrawFlags &= ~Lb_TEXT_ONE_COLOR;
 
+        if (i == PAUSE_OPT_CUSTOM_COSTUME) {
+            // Opens the screen for the costume and its colours, so it is a button, which is lit while
+            // the colours are replaced
+            draw_ingame_button(&custom_open_btn, game_custom_costume_active());
+            continue;
+        }
         draw_slant_left_arrow(&option_arrow_l_box[i], ingame_boxes_colr2);
         draw_slant_right_arrow(&option_arrow_r_box[i], ingame_boxes_colr2);
         w = my_string_width(val);
@@ -620,6 +649,368 @@ static void draw_options_box(void)
     lbDisplay.DrawFlags = 0;
 }
 
+/** Number of colours of the palette which can be chosen; the last 32 are special colours. */
+#define CUSTOM_PAL_COLOURS 224
+#define CUSTOM_PAL_COLS 16
+/** Number of sides of the agent shown in the preview, and the angles (0..7) of the person animation. */
+#define CUSTOM_PREVIEW_ANGLES 2
+static const ubyte custom_preview_angle[CUSTOM_PREVIEW_ANGLES] = { 1, 5 };
+
+static struct ScreenBox custom_box;
+static struct ScreenButton custom_coat_btn;
+static struct ScreenButton custom_shoulders_btn;
+static struct ScreenButton custom_reset_btn;
+static struct ScreenButton custom_done_btn;
+static short custom_cell, custom_grid_x, custom_grid_y;
+static short custom_strip_cell, custom_strip_x[CUSTOM_COSTUME_PARTS], custom_strip_y[CUSTOM_COSTUME_PARTS];
+static short custom_slider_x, custom_slider_y[3], custom_slider_w, custom_slider_h;
+/** The arrows which choose the costume of the agents. */
+static struct ScreenBox custom_cost_l_box, custom_cost_r_box;
+
+static void init_custom_costume_boxes(void)
+{
+    short u, cx;
+    int i;
+
+    u = pop1_sprites_scale;
+    custom_box.Width = 233 * u;
+    custom_box.Height = 122 * u;
+    custom_box.X = (lbDisplay.GraphicsScreenWidth - custom_box.Width) / 2;
+    if (custom_box.X < 0)
+        custom_box.X = 0;
+    custom_box.Y = (lbDisplay.GraphicsScreenHeight - custom_box.Height) / 2;
+
+    custom_cell = 5 * u;
+    custom_grid_x = custom_box.X + 6 * u;
+    custom_grid_y = custom_box.Y + custom_box.Height * 16 / 100;
+
+    // Under the palette, the sliders of the three channels of the colour
+    custom_cost_l_box.Width = custom_cost_r_box.Width = 8 * u;
+    custom_cost_l_box.Height = custom_cost_r_box.Height = 6 * u;
+    custom_cost_l_box.X = custom_box.X + 152 * u;
+    custom_cost_r_box.X = custom_box.X + 188 * u;
+    custom_cost_l_box.Y = custom_cost_r_box.Y = custom_box.Y + custom_box.Height * 4 / 100 - 2 * u;
+    custom_slider_x = custom_box.X + 14 * u;
+    custom_slider_w = 72 * u;
+    custom_slider_h = 5 * u;
+    for (i = 0; i < 3; i++)
+        custom_slider_y[i] = custom_grid_y + 72 * u + i * 8 * u;
+
+    // The right part has the buttons choosing the part of the costume, with its shades below each
+    cx = custom_box.X + 196 * u;
+    custom_strip_cell = 4 * u;
+    init_ingame_screen_button(&custom_coat_btn, cx, custom_box.Y + custom_box.Height * 17 / 100,
+      game_custom_costume_part_name(CUSTOM_COSTUME_COAT), small_font, 0);
+    custom_strip_x[CUSTOM_COSTUME_COAT] = cx - game_custom_costume_shades(CUSTOM_COSTUME_COAT) * custom_strip_cell / 2;
+    custom_strip_y[CUSTOM_COSTUME_COAT] = custom_box.Y + custom_box.Height * 33 / 100;
+    init_ingame_screen_button(&custom_shoulders_btn, cx, custom_box.Y + custom_box.Height * 47 / 100,
+      game_custom_costume_part_name(CUSTOM_COSTUME_SHOULDERS), small_font, 0);
+    custom_strip_x[CUSTOM_COSTUME_SHOULDERS] = cx - game_custom_costume_shades(CUSTOM_COSTUME_SHOULDERS) * custom_strip_cell / 2;
+    custom_strip_y[CUSTOM_COSTUME_SHOULDERS] = custom_box.Y + custom_box.Height * 63 / 100;
+
+    init_ingame_screen_button(&custom_reset_btn, custom_box.X + 150 * u,
+      custom_box.Y + custom_box.Height * 80 / 100, "ORIGINAL", small_font, 0);
+    init_ingame_screen_button(&custom_done_btn, custom_box.X + 200 * u,
+      custom_box.Y + custom_box.Height * 80 / 100, gui_strings[455], small_font, 0); // "continue"
+}
+
+/** Draws the standing agent, with the sprites loaded now, scaled to fit in the given rectangle. */
+static void draw_custom_costume_agent(short rx, short ry, short rw, short rh, ubyte angle)
+{
+    const struct Frame *p_frm;
+    const struct Element *p_elem;
+    ushort frm, el;
+    int min_x, min_y, max_x, max_y;
+    int k, ox, oy;
+    int pass;
+
+    // The team which is played: the agents, or the Epoch members
+    frm = nstart_ani[people_frames[(game_custom_team() == CUSTOM_TEAM_EPOCH) ? SubTT_PERS_ZEALOT : SubTT_PERS_AGENT]
+      [ANIM_PERS_IDLE] + angle];
+    if (&frame[frm] >= frame_end)
+        return;
+    p_frm = &frame[frm];
+
+    // Pass 0 finds the size of the agent, pass 1 draws it; the elements are positioned in half pixels
+    min_x = min_y = 0x7FFFFFF;
+    max_x = max_y = -0x7FFFFFF;
+    k = 1;
+    ox = oy = 0;
+    for (pass = 0; pass < 2; pass++)
+    {
+        for (el = p_frm->FirstElement; el > 0; el = p_elem->Next)
+        {
+            struct TbSprite *p_spr;
+            int ex, ey;
+
+            p_elem = &melement_ani[el];
+            p_spr = (struct TbSprite *)((ubyte *)m_sprites + p_elem->ToSprite);
+            if ((p_spr <= m_sprites) || (p_spr >= m_sprites_end) || ((p_elem->Flags & 0xFE00) != 0))
+                continue;
+            ex = p_elem->X >> 1;
+            ey = p_elem->Y >> 1;
+            if (pass == 0) {
+                if (min_x > ex) min_x = ex;
+                if (min_y > ey) min_y = ey;
+                if (max_x < ex + p_spr->SWidth) max_x = ex + p_spr->SWidth;
+                if (max_y < ey + p_spr->SHeight) max_y = ey + p_spr->SHeight;
+            } else {
+                lbDisplay.DrawFlags = p_elem->Flags & 0x07;
+                LbSpriteDrawScaled(ox + (ex - min_x) * k, oy + (ey - min_y) * k, p_spr,
+                  p_spr->SWidth * k, p_spr->SHeight * k);
+            }
+        }
+        if (pass == 0) {
+            if (max_x <= min_x)
+                return;
+            // The biggest whole multiplication which fits, with a margin
+            k = (rw * 9 / 10) / (max_x - min_x);
+            if (k > (rh * 9 / 10) / (max_y - min_y))
+                k = (rh * 9 / 10) / (max_y - min_y);
+            if (k < 1)
+                k = 1;
+            ox = rx + (rw - (max_x - min_x) * k) / 2;
+            oy = ry + (rh - (max_y - min_y) * k) / 2;
+        }
+    }
+    lbDisplay.DrawFlags = 0;
+}
+
+/** Gives the colour of the part which the sliders show: the chosen one, or the original. */
+static void custom_costume_part_rgb(int part, ubyte *rgb)
+{
+    if (game_custom_used[part])
+        memcpy(rgb, game_custom_rgb[part], 3);
+    else
+        game_custom_costume_default_rgb(part, rgb);
+}
+
+/** Sets the colour of the part. The colours are of the costume which has them, so it is put on; the
+ * sprites get the marker colours the first time; after that only the colour which the GPU shows for
+ * the markers changes, so it is immediate. */
+static void custom_costume_set_rgb(int part, const ubyte *rgb)
+{
+    TbBool reload;
+
+    reload = !game_custom_used[part];
+    memcpy(game_custom_rgb[part], rgb, 3);
+    game_custom_used[part] = true;
+    // The colours of the agents are in costume 3; the Epoch members have them in all of the costumes
+    if ((game_custom_team() == CUSTOM_TEAM_EUROCORP) && (ingame.TrenchcoatPreference != CUSTOM_COSTUME_BASE)) {
+        ingame.TrenchcoatPreference = CUSTOM_COSTUME_BASE;
+        reload = true;
+    }
+    if (reload)
+        prep_multicolor_sprites();
+    else
+        game_custom_costume_publish();
+}
+
+/** Changes the costume of the agents by one. */
+static void custom_costume_change(int dir)
+{
+    if (dir > 0)
+        game_option_inc(GOpt_TrenchcoatPreference);
+    else
+        game_option_dec(GOpt_TrenchcoatPreference);
+    prep_multicolor_sprites();
+}
+
+static void draw_custom_costume_screen(int part)
+{
+    static const ubyte slider_colr[3] = { 121, 242, 17 };
+    static const char *slider_name[3] = { "R", "G", "B" };
+    ubyte rgb[3];
+    const char *s;
+    int i, w, x, y;
+
+    draw_box_cutedge(&custom_box, ingame_boxes_colr1);
+
+    lbFontPtr = small_font;
+    my_set_text_window(0, 0, lbDisplay.PhysicalScreenWidth,
+      lbDisplay.PhysicalScreenHeight);
+    lbDisplay.DrawFlags = 0;
+    s = (game_custom_team() == CUSTOM_TEAM_EPOCH) ? "EPOCH COSTUME" : "AGENT COSTUME";
+    my_draw_text(custom_box.X + 6 * pop1_sprites_scale,
+      custom_box.Y + custom_box.Height * 4 / 100, s, 0);
+    // The costume of the agents: which one is worn, with arrows to change it; the Epoch members have one costume
+    if (game_custom_team() == CUSTOM_TEAM_EUROCORP)
+    {
+        char buf[16];
+
+        snprintf(buf, sizeof(buf), "%d", (int)ingame.TrenchcoatPreference);
+        draw_slant_left_arrow(&custom_cost_l_box, ingame_boxes_colr2);
+        draw_slant_right_arrow(&custom_cost_r_box, ingame_boxes_colr2);
+        w = my_string_width(buf);
+        my_draw_text(custom_box.X + 177 * pop1_sprites_scale - w / 2,
+          custom_box.Y + custom_box.Height * 4 / 100, buf, 0);
+    }
+    if (!game_custom_costume_hw()) {
+        s = "COLOURS: GPU RENDERING ONLY";
+        w = my_string_width(s);
+        my_draw_text(custom_box.X + (custom_box.Width - w) / 2,
+          custom_box.Y + custom_box.Height * 93 / 100, s, 0);
+    }
+
+    // The palette, as a quick way to get a colour; the colour under the mouse is framed
+    for (i = 0; i < CUSTOM_PAL_COLOURS; i++)
+    {
+        x = custom_grid_x + (i % CUSTOM_PAL_COLS) * custom_cell;
+        y = custom_grid_y + (i / CUSTOM_PAL_COLS) * custom_cell;
+        lbDisplay.DrawFlags = 0;
+        LbDrawBox(x, y, custom_cell - 1, custom_cell - 1, game_custom_costume_swatch(i));
+        if (mouse_move_over_box_coords(x, y, x + custom_cell - 1, y + custom_cell - 1)) {
+            lbDisplay.DrawFlags = Lb_SPRITE_OUTLINE;
+            LbDrawBox(x - 1, y - 1, custom_cell + 1, custom_cell + 1, colour_lookup[ColLU_WHITE]);
+        }
+    }
+
+    // The sliders of the red, green and blue of the part which is chosen
+    custom_costume_part_rgb(part, rgb);
+    for (i = 0; i < 3; i++)
+    {
+        lbDisplay.DrawFlags = 0;
+        my_draw_text(custom_box.X + 6 * pop1_sprites_scale, custom_slider_y[i], slider_name[i], 0);
+        LbDrawBox(custom_slider_x, custom_slider_y[i], custom_slider_w, custom_slider_h, 72);
+        LbDrawBox(custom_slider_x, custom_slider_y[i], custom_slider_w * rgb[i] / 255, custom_slider_h, slider_colr[i]);
+    }
+
+    draw_ingame_button(&custom_coat_btn, (part == CUSTOM_COSTUME_COAT));
+    draw_ingame_button(&custom_shoulders_btn, (part == CUSTOM_COSTUME_SHOULDERS));
+    draw_ingame_button(&custom_reset_btn, 0);
+    draw_ingame_button(&custom_done_btn, 0);
+
+    // The preview: the whole agent from two sides, drawn from the sprites; the marker colours in
+    // them are shown by the GPU in the exact colours
+    {
+        short u;
+
+        u = pop1_sprites_scale;
+        x = custom_box.X + 92 * u;
+        y = custom_box.Y + custom_box.Height * 17 / 100;
+        lbDisplay.DrawFlags = 0;
+        LbDrawBox(x, y, 76 * u, 76 * u, 72);
+        for (i = 0; i < CUSTOM_PREVIEW_ANGLES; i++)
+            draw_custom_costume_agent(x + i * 38 * u, y, 38 * u, 76 * u, custom_preview_angle[i]);
+    }
+
+    // The shades the parts have now: the markers for the colours which are replaced
+    for (w = 0; (w < CUSTOM_COSTUME_PARTS) && game_custom_costume_hw()
+      && ((game_custom_team() == CUSTOM_TEAM_EPOCH) || (ingame.TrenchcoatPreference == CUSTOM_COSTUME_BASE)); w++)
+    {
+        for (i = 0; i < game_custom_costume_shades(w); i++)
+        {
+            TbPixel colr;
+
+            if (game_custom_used[w])
+                colr = game_custom_costume_marker(w, i);
+            else
+                colr = game_custom_costume_original(w, i);
+            lbDisplay.DrawFlags = 0;
+            LbDrawBox(custom_strip_x[w] + i * custom_strip_cell, custom_strip_y[w],
+              custom_strip_cell, custom_strip_cell, colr);
+        }
+    }
+    lbDisplay.DrawFlags = 0;
+}
+
+/** Opens the screen of the agents' costume: the costume which is worn, and the colours of the
+ * shoulders and trench coat of costume 3, which can be changed only when the GPU draws the scene.
+ * Choosing a colour puts costume 3 on.
+ */
+static void custom_costume_screen(void)
+{
+    TbBool done, hw;
+    int part, i;
+
+    part = CUSTOM_COSTUME_COAT;
+    init_custom_costume_boxes();
+    // The screen has the marker indices of the preview, which the GPU replaces
+    LbHwCustomLayerSet(true);
+
+    done = false;
+    while (!done)
+    {
+        JoyUpdateInputs(&joy);
+
+        hw = game_custom_costume_hw();
+        if (lbDisplay.LeftButton && (game_custom_team() == CUSTOM_TEAM_EUROCORP))
+        {
+            if (mouse_move_over_slant_box(&custom_cost_l_box)) {
+                lbDisplay.LeftButton = 0;
+                custom_costume_change(-1);
+            } else if (mouse_move_over_slant_box(&custom_cost_r_box)) {
+                lbDisplay.LeftButton = 0;
+                custom_costume_change(1);
+            }
+        }
+        if (input_ingame_button(&custom_coat_btn, part == CUSTOM_COSTUME_COAT) && hw)
+            part = CUSTOM_COSTUME_COAT;
+        if (input_ingame_button(&custom_shoulders_btn, part == CUSTOM_COSTUME_SHOULDERS) && hw)
+            part = CUSTOM_COSTUME_SHOULDERS;
+        if (input_ingame_button(&custom_reset_btn, 0) && hw) {
+            for (i = 0; i < CUSTOM_COSTUME_PARTS; i++)
+                game_custom_used[i] = false;
+            prep_multicolor_sprites();
+        }
+        if (input_ingame_button(&custom_done_btn, 0))
+            done = true;
+        if (hw && lbDisplay.LeftButton)
+        {
+            // A click on the palette takes its colour
+            for (i = 0; i < CUSTOM_PAL_COLOURS; i++)
+            {
+                int x, y;
+
+                x = custom_grid_x + (i % CUSTOM_PAL_COLS) * custom_cell;
+                y = custom_grid_y + (i / CUSTOM_PAL_COLS) * custom_cell;
+                if (mouse_move_over_box_coords(x, y, x + custom_cell - 1, y + custom_cell - 1)) {
+                    ubyte rgb[3];
+
+                    lbDisplay.LeftButton = 0;
+                    game_custom_costume_palette_rgb(i, rgb);
+                    custom_costume_set_rgb(part, rgb);
+                    break;
+                }
+            }
+        }
+        if (hw && lbDisplay.MLeftButton)
+        {
+            // Holding the mouse button on a slider sets the channel to where the mouse is
+            for (i = 0; i < 3; i++)
+            {
+                int mx, my;
+
+                mx = lbDisplay.MMouseX;
+                my = lbDisplay.MMouseY;
+                if ((my >= custom_slider_y[i]) && (my < custom_slider_y[i] + custom_slider_h)
+                  && (mx >= custom_slider_x - custom_slider_h) && (mx <= custom_slider_x + custom_slider_w + custom_slider_h)) {
+                    ubyte rgb[3];
+                    int v;
+
+                    custom_costume_part_rgb(part, rgb);
+                    v = (mx - custom_slider_x) * 255 / custom_slider_w;
+                    rgb[i] = (v < 0) ? 0 : ((v > 255) ? 255 : v);
+                    custom_costume_set_rgb(part, rgb);
+                }
+            }
+        }
+
+        game_pause_scene_backdrop_restore();
+        draw_custom_costume_screen(part);
+
+        lbDisplay.DrawFlags = 0;
+        process_sound_heap();
+        PlayCDTrack(ingame.CDTrack);
+
+        swap_wscreen();
+        game_update();
+    }
+
+    LbHwCustomLayerSet(false);
+    lbDisplay.LeftButton = 0;
+}
+
 /** Applies a click on one of the arrows of the settings. */
 static void input_options_box(void)
 {
@@ -627,18 +1018,25 @@ static void input_options_box(void)
 
     if (!lbDisplay.LeftButton)
         return;
+    if (input_ingame_button(&custom_open_btn, 0)) {
+        custom_costume_screen();
+        return;
+    }
     for (i = 0; i < PAUSE_OPT_COUNT; i++)
     {
-        if (mouse_move_over_slant_box(&option_arrow_l_box[i])) {
-            lbDisplay.LeftButton = 0;
-            pause_option_change(i, -1);
-            return;
-        }
-        if (mouse_move_over_slant_box(&option_arrow_r_box[i])) {
-            lbDisplay.LeftButton = 0;
-            pause_option_change(i, 1);
-            return;
-        }
+        int dir;
+
+        if (i == PAUSE_OPT_CUSTOM_COSTUME)
+            continue;
+        if (mouse_move_over_slant_box(&option_arrow_l_box[i]))
+            dir = -1;
+        else if (mouse_move_over_slant_box(&option_arrow_r_box[i]))
+            dir = 1;
+        else
+            continue;
+        lbDisplay.LeftButton = 0;
+        pause_option_change(i, dir);
+        return;
     }
 }
 
@@ -728,6 +1126,8 @@ TbBool pause_screen_handle(void)
     init_pause_screen_boxes();
     game_pause_scene_backdrop_begin();
     start_pause_screen();
+    // With the scene drawn by the GPU, the boxes are translucent over it by the GPU
+    LbHwOverlaySet(game_pause_scene_on_gpu() ? ingame_boxes_colr1 : -1);
 
     // Wait for the pause key to be released
     wait_for_keypress_end(GKey_PAUSE, true);
@@ -765,7 +1165,9 @@ TbBool pause_screen_handle(void)
             bang_set_detail(1 - ingame.DetailLevel);
         }
 
-        // The boxes are translucent, so everything is drawn again over the scene each frame
+        // The boxes are translucent, so everything is drawn again over the scene each frame;
+        // with the GPU drawing the scene they are translucent by the GPU, and the renderer can change
+        LbHwOverlaySet(game_pause_scene_on_gpu() ? ingame_boxes_colr1 : -1);
         game_pause_scene_backdrop_restore();
         pause_main_box.Flags &= ~GBxFlg_BkgndDrawn;
         show_pause_screen(&pause_main_box);
@@ -775,6 +1177,7 @@ TbBool pause_screen_handle(void)
 
         if (input_ingame_button(&abort_btn, 0))
         {
+            LbHwOverlaySet(-1);
             game_pause_scene_backdrop_end();
             swap_wscreen();
             SetMusicVolume(100, 0);
@@ -794,6 +1197,7 @@ TbBool pause_screen_handle(void)
         game_update();
     }
 
+    LbHwOverlaySet(-1);
     game_pause_scene_backdrop_end();
     // Wait for the pause key to be released
     wait_for_keypress_end(GKey_PAUSE, false);

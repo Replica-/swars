@@ -194,12 +194,21 @@ void game_handle_sdl_events (void);
  * renderer. The two functions are called at the start and at the end of the pause. */
 void game_pause_scene_backdrop_begin(void);
 void game_pause_scene_backdrop_end(void);
+/** Tells if the scene behind the pause is drawn by the GPU, as it is when the hardware rendering is on;
+ * then the boxes of the pause are shown translucent by the GPU over the scene. With the software
+ * rendering, the scene is drawn by software into the screen under the boxes. */
+TbBool game_pause_scene_on_gpu(void);
 /** Puts the scene drawn at the start of the pause back on the screen, so that the pause boxes
  * can be drawn again over it. */
 void game_pause_scene_backdrop_restore(void);
 
+/** Loads the multicolor sprites of the costumes again, from the files. */
+TbResult prep_multicolor_sprites(void);
+
 /** The settings which can be changed on the pause screen, and by shortcut keys during the game. */
 #define PAUSE_OPT_COUNT 12
+/** The agent costume has a button, not arrows: it opens a screen to choose the costume and its colours. */
+#define PAUSE_OPT_CUSTOM_COSTUME 5
 /** Gives the name of the setting and its shortcut key. */
 void pause_option_label(int opt, char *name, char *keys, int len);
 /** Gives the current value of the setting as text. */

@@ -1046,6 +1046,9 @@ ubyte game_graphics_inputs(void)
         if (LbGlIsActive()) {
             LbHwRenderSetEnabled(!LbHwRenderEnabled());
             LOGSYNC("3D scene rendering by %s", LbHwRenderEnabled() ? "hardware" : "software");
+            // The custom colours of the costume are for the hardware rendering only
+            if (game_custom_used[0] || game_custom_used[1])
+                prep_multicolor_sprites();
         }
         did_inp |= GINPUT_DIRECT;
     }
@@ -6213,24 +6216,34 @@ static void smooth_cam_subframes(void)
     lbSeed_ps = smooth_cam_seed_ps_end;
 }
 
-static TbBool pause_hw_was_enabled = false;
+/** Whether the scene behind the pause is drawn by the GPU. The recorded scene stays until the next
+ * frame begins, so the GPU draws it again for each frame of the pause, and the software screen has
+ * only what is over the scene. */
+static TbBool pause_scene_on_gpu = false;
 static TbBool pause_backdrop_valid = false;
 static ubyte *pause_backdrop_buf = NULL;
+
+TbBool game_pause_scene_on_gpu(void)
+{
+    return pause_scene_on_gpu;
+}
 
 void game_pause_scene_backdrop_begin(void)
 {
     long size;
 
-    pause_hw_was_enabled = false;
+    pause_scene_on_gpu = false;
     pause_backdrop_valid = false;
     if ((ingame.DisplayMode != DpM_ENGINEPLY) || (lbDisplay.WScreen == NULL))
         return;
-    pause_hw_was_enabled = LbHwRenderEnabled() && LbGlIsActive();
-    if (pause_hw_was_enabled)
-        LbHwRenderSetEnabled(false);
+    pause_scene_on_gpu = LbHwRenderEnabled() && LbGlIsActive();
     // The buildings are drawn once per drawing turn
     drawturn++;
-    LbScreenClear(0);
+    if (pause_scene_on_gpu) {
+        LbHwFrameBegin();
+        LbHwSetTexturePages(vec_tmap, VEC_TMAP_LIMIT);
+    }
+    LbScreenClear(pause_scene_on_gpu ? HWREND_CLEAR_COLOUR : 0);
     prepare_drawlist();
     engine_draw_whole_screen_top_down();
 
@@ -6256,12 +6269,10 @@ void game_pause_scene_backdrop_end(void)
 {
     if (pause_backdrop_valid) {
         // What the pause drew is not to stay in the layer over the scene
-        LbScreenClear(pause_hw_was_enabled ? HWREND_CLEAR_COLOUR : 0);
+        LbScreenClear(pause_scene_on_gpu ? HWREND_CLEAR_COLOUR : 0);
         pause_backdrop_valid = false;
     }
-    if (pause_hw_was_enabled)
-        LbHwRenderSetEnabled(true);
-    pause_hw_was_enabled = false;
+    pause_scene_on_gpu = false;
 }
 
 void pause_option_label(int opt, char *name, char *keys, int len)
@@ -6295,7 +6306,7 @@ void pause_option_value(int opt, char *buf, int len)
         if (!LbGlIsActive())
             snprintf(buf, len, "SOFTWARE");
         else
-            snprintf(buf, len, "%s", (pause_hw_was_enabled || LbHwRenderEnabled()) ? "GPU" : "SOFTWARE");
+            snprintf(buf, len, "%s", LbHwRenderEnabled() ? "GPU" : "SOFTWARE");
         break;
     case 1:
         snprintf(buf, len, "%s", (LbHwLightingMode() == HwLight_Enhanced) ? "ENHANCED" : "CLASSIC");
@@ -6345,10 +6356,15 @@ void pause_option_change(int opt, int dir)
     {
     case 0:
         if (LbGlIsActive()) {
-            if (pause_backdrop_valid)
-                pause_hw_was_enabled = !pause_hw_was_enabled; // takes effect when the pause ends
-            else
-                LbHwRenderSetEnabled(!LbHwRenderEnabled());
+            LbHwRenderSetEnabled(!LbHwRenderEnabled());
+            // The custom colours of the costume are for the hardware rendering only
+            if (game_custom_used[0] || game_custom_used[1])
+                prep_multicolor_sprites();
+            // The scene behind the pause is drawn again by the other renderer
+            if (pause_backdrop_valid) {
+                game_pause_scene_backdrop_end();
+                game_pause_scene_backdrop_begin();
+            }
         }
         break;
     case 1:
@@ -6801,17 +6817,12 @@ void game_process(void)
 {
     debug_multicolor_sprite(193);
     LOGDBG("WSCREEN 0x%p", (void *)lbDisplay.WScreen);
-    // The hardware scene rendering is on by default; the environment can change that:
-    // SWFX_HW=0 (or "software") starts with the software renderer,
+    // The game always starts with the hardware (OpenGL) scene rendering; it falls back to the
+    // software one only if the window has no GL context. Shift+F3 switches during the game.
     // SWFX_HW=classic keeps the hardware rendering but with the classic lighting
-    if (getenv("SWFX_HW") != NULL) {
-        const char *hwval = getenv("SWFX_HW");
-
-        if ((strcmp(hwval, "0") == 0) || (strcmp(hwval, "software") == 0))
-            LbHwRenderSetEnabled(false);
-        else if (strcmp(hwval, "classic") == 0)
-            LbHwLightingSetMode(HwLight_Classic);
-    }
+    LbHwRenderSetEnabled(true);
+    if ((getenv("SWFX_HW") != NULL) && (strcmp(getenv("SWFX_HW"), "classic") == 0))
+        LbHwLightingSetMode(HwLight_Classic);
 
     if ((getenv("SWFX_SMOOTH_CAMERA") != NULL) && (strcmp(getenv("SWFX_SMOOTH_CAMERA"), "0") == 0))
         game_camera_smoothing = false;

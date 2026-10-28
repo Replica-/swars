@@ -62,7 +62,7 @@ and are covered by the same license.
   smoke, effects) and lines (such as lamp post poles) are drawn by the GPU as well, in
   the same order as the polygons, so what is in front of them hides them correctly. The draw time in a mission dropped
   from about 15 ms to about 4-5 ms. `Shift+F3` switches between hardware and
-  software rendering at any time; `SWFX_HW=0` starts with software rendering.
+  software rendering at any time; the game always starts with hardware rendering (when the window has a GL context).
 * **Improved ("enhanced") lighting in the hardware renderer.** Shade is
   interpolated smoothly between the rows of the game's fade table instead of
   jumping from row to row, which removes the banding in light pools; shadows darken
@@ -104,14 +104,43 @@ and are covered by the same license.
   adds no delay. `SWFX_SMOOTH_CAMERA=0` turns it off.
 * **Separate costumes for enemy agents.** Enemy syndicate agents (not the zealots of the
   Epoch, and not your own agents) can wear another of the six costumes than yours. `F10` changes
-  your costume (`pspr`), `F11` the enemy one (`espr`); both are shown in the counter at the top right.
+  your costume, `F11` the enemy one; both are also in the pause screen settings.
   The sprites are loaded again when a costume changes, and the GPU renderer forgets its copies of
   the old ones. The enemy costume is not saved with the settings.
 * **Game settings box on the pause screen.** The pause screen (`P`) has a second box next to it, with
   the settings which are otherwise changed with shortcut keys: renderer, lighting, frame rate cap, frame skip,
   smooth camera, agent and enemy costume, brightness, scanner brightness and camera view. Each shows its
-  shortcut key and current value, and the arrows change it. The scene behind the translucent boxes is drawn
-  by the software renderer while the game is paused.
+  shortcut key and current value, and the arrows change it (the agent costume has an Edit button instead, see below). With the hardware rendering, the scene behind the
+  pause stays drawn by the GPU, and the boxes are shown translucent over it by the GPU (the software screen marks
+  them with a palette index). With the software rendering, the scene behind them is drawn by the software renderer.
+* **Blood drawn by the GPU.** With the hardware rendering and the enhanced lighting:
+  the pools of blood under dead bodies are drawn by a shader instead of the flat sprites: a glossy liquid which
+  follows the outline of the sprite, with a darker thick middle, a lighter rim and wet highlights, lit by the
+  brightness of the place. The pool starts as a spot when the person dies and grows to its full size in about ten
+  seconds, as the person bleeds. When a person is hit by a gun, the blood is a spray of drops which fly in the
+  direction of the shot, away from the shooter, as streaks under gravity, and where they land they leave splatters
+  on the ground, with a tongue and small drops in the direction of the spatter; wet and glossy at first, dry and
+  dark later, and fading after a few minutes. The drops are checked against the solid parts of the map (the
+  collision of the buildings), and stop at them: a drop which hits a wall leaves a stain on it with a short drip,
+  and one which lands on a roof leaves a splatter there. In a rainy mission the rain washes the splatters and
+  stains away: they start to fade after about two seconds and are gone after six. The drops and splatters are in the sorted sprites, so buildings and
+  people hide them correctly. `SWFX_NO_BLOODFX=1` brings back the sprites and sparks; `SWFX_BLOOD_TEST=1` draws
+  a few pools in the middle of the screen and `SWFX_BLOODSPRAY_TEST=1` hits the first agent now and then, for
+  looking at them.
+* **Agent costume screen, with custom colours (colours: hardware rendering only).** The "Agent costume"
+  row of the settings box has an Edit button which opens a screen for the team which is played, with a preview of
+  the whole person from two sides. With the Eurocorp agents it has the costume of the agents (arrows to change
+  it), and for costume 3 the colours of the trench coat and of the shoulders can be replaced. With the Epoch members
+  (the Church campaign) it has the colours of the robe and of the hood and sleeves, in all the costumes. The colours
+  are any RGB colour: from the palette, or with the red, green and blue sliders. The colour is shaded to the
+  brightness of each original shade, and the GPU shows it exactly, lit as the scene is; each team has its own
+  shades as the entry points of the lighting. The agents' pixels are found as those which differ from costume 0,
+  the Epoch members' as those of the sprites of the zealot frames, so other people are not touched. Choosing a
+  colour of the agents puts costume 3 on; "Original" restores the colours. With the software rendering the colours
+  are disabled and the original ones are used. The colours are not saved with the settings.
+* **Softer light of explosions on lit surfaces.** With the enhanced lighting, the light of explosions, shots and
+  lamps added to the shade of a surface rises slower the brighter the surface already is, and cannot pass a
+  ceiling, so an explosion over a lit tile no longer burns it out to white.
 * **Faster map scrolling.** Panning with the keys or the screen edge is 1.5 times
   faster than in the original game.
 * **Faster software renderer.** The textured polygon fill (`poly_gp.c`) is
@@ -188,8 +217,10 @@ Environment variables:
 | Variable | Meaning |
 |---|---|
 | `SWFX_NO_GL` | do not use OpenGL at all (use the plain SDL window) |
-| `SWFX_HW=0` / `software` | start with the software renderer for the 3D scene |
 | `SWFX_HW=classic` | hardware rendering with the classic lighting |
+| `SWFX_NO_BLOODFX` | draw the blood (pools, sprays) with the sprites and sparks, not by the GPU |
+| `SWFX_BLOOD_TEST` | draw a few GPU pools of blood in the middle of the screen (for tests) |
+| `SWFX_BLOODSPRAY_TEST` | hit the first agent with a spray of blood every second or so (for tests); a number above 1 makes the drops that many times faster, to reach the buildings |
 | `SWFX_SMOOTH_CAMERA=0` | turn off the smooth camera (extra frames between game turns while panning, zooming and rotating) |
 | `SWFX_SOFT_CURSOR` | draw the mouse pointer in the game image instead of the OS |
 | `SWFX_ESPR_ALL` | all agents, also yours, wear the enemy costume (to preview the costumes with `F11`) |

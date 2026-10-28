@@ -94,6 +94,10 @@ TbBool LbHwRecordTriangle(const struct PolyPoint *point_a,
 #define HWREND_MODE_FLAT_GHOST 103   /**< Flat colour, half transparent. */
 #define HWREND_MODE_SMOKE 105        /**< A puff of smoke, drawn by the shader; blended over the screen. */
 #define HWREND_MODE_FLAME 104        /**< A tongue of flame, drawn by the shader; added to the screen. */
+#define HWREND_MODE_BLOOD 106        /**< A pool of blood, drawn by the shader from the shape of a sprite; blended over the screen. */
+#define HWREND_MODE_BLOOD_DROP 107   /**< A flying drop of blood, a streak along its way; blended over the screen. */
+#define HWREND_MODE_BLOOD_SPLAT 108  /**< A splatter of blood on the ground; blended over the screen. */
+#define HWREND_MODE_SPARK 109        /**< A hot spark in flight, a glowing streak; added to the screen. */
 
 /** Records drawing of a sprite into the given area of the screen buffer.
  *
@@ -133,6 +137,38 @@ void LbHwRecordSmokePuff(float x0, float y0, float x1, float y1, int seed, int k
 void LbHwNoteSmoke(float sx, float sy, float size, int seed, int kind, float alpha);
 void LbHwFlushSmoke(void);
 TbBool LbHwRecordFlame(float x0, float y0, float x1, float y1, int seed, float strength);
+
+/** Records a pool of blood in place of the sprite which draws it. The GPU draws a glossy liquid with the
+ * outline of the sprite, a bit wider, moving slowly. Works with the enhanced lighting only.
+ * @param x0,y0,x1,y1 The area of the sprite on the screen.
+ * @param seed Makes each pool a bit different.
+ * @param bright Lighting of the place, 1.0 for the neutral one.
+ * @param growth Size of the pool compared to the sprite, from 0 (a spot) to 1; it grows as the person bleeds.
+ * @return False if the GPU does not draw it, and the sprite has to be drawn. */
+TbBool LbHwRecordBloodPool(const struct TbSprite *spr, long x0, long y0, long x1, long y1, int seed, float bright,
+  float growth);
+/** Records a drop of blood in flight: a streak from the place where it was (tail) to where it is (head).
+ * @param width Width of the streak in pixels. @param bright Lighting of the place, 1.0 for the neutral one.
+ * @return False if the GPU does not draw it. */
+TbBool LbHwRecordBloodStreak(float hx, float hy, float tx, float ty, float width, float alpha, int seed, float bright);
+/** Records a hot spark in flight (from a ricochet): a glowing streak from the tail to the head, orange at the
+ * tail and white at the head, which is added to the screen; the alpha is how hot it still is. */
+TbBool LbHwRecordSparkStreak(float hx, float hy, float tx, float ty, float width, float alpha, int seed);
+/** Records a splatter of blood on the ground, an ellipse around the centre.
+ * @param age 0 for fresh and wet, 1 for dried. @param dirx,diry Direction of the spatter, in the plane of the
+ *   ground (a circle before it is flattened to the ellipse); the splatter has spikes that way.
+ * @return False if the GPU does not draw it. */
+TbBool LbHwRecordBloodSplat(float cx, float cy, float rx, float ry, int seed, float age, float alpha,
+  float bright, float dirx, float diry);
+/** The same for a splatter on any surface, such as a wall: the circle of the splatter is a parallelogram on the
+ * screen, with the half-sides (ux, uy) and (vx, vy); the direction of the spatter is in that circle, where
+ * (0, 1) is along the second side. @param tongue How long the tongue and the rays in the direction of the spatter
+ * are, 1.0 for a splatter on the ground, less for a stain on a wall. */
+TbBool LbHwRecordBloodSplatOriented(float cx, float cy, float ux, float uy, float vx, float vy, int seed,
+  float age, float alpha, float bright, float dirx, float diry, float tongue);
+/** The same for the sprite drawn with the scaling set by SetAlphaScalingData(), like LbHwRecordSpriteDrawAlphaScaled(). */
+TbBool LbHwRecordBloodPoolAlphaScaled(const struct TbSprite *spr, long posx, long posy, int seed, float bright,
+  float growth);
 
 /** Per-pixel lights. The game gives the lights near the camera of the frame, as positions on the
  * screen (where the light touches the ground) with a radius on the ground and an intensity; and how
@@ -190,6 +226,29 @@ const struct HwVertex *LbHwRecordedVertices(long *p_count);
 
 /** Whether anything was recorded since the last LbHwFrameBegin(). */
 TbBool LbHwHasRecorded(void);
+
+/** Replacement colours: sprite pixels which have one of the marker palette indices are shown by
+ * the GPU in an exact colour, not from the palette. The pixel is lit as the original shade
+ * (a palette index) would be, so the replaced colours follow the lighting of the scene.
+ */
+#define HW_CUSTOM_MAX 24
+/** @param markers Palette indices which the sprites have in place of the original shades.
+ * @param orig The original shade (palette index) of each marker.
+ * @param rgb Three bytes for each marker: the colour to show, when the original shade is not darkened. */
+void LbHwCustomColoursSet(int count, const ubyte *markers, const ubyte *orig, const ubyte *rgb);
+/** Gives the replacement colours for upload to the GPU: `markers` has HW_CUSTOM_MAX floats; `data` has
+ * four for each marker (red, green, blue in 0..1, and the original shade). Returns the count. */
+int LbHwCustomColoursGet(const float **p_markers, const float **p_data);
+/** Tells that the software screen, not only the sprites, has the marker indices to be replaced. */
+void LbHwCustomLayerSet(TbBool on);
+TbBool LbHwCustomLayer(void);
+
+/** A palette index of the software screen which is shown as a translucent colour over what the
+ * GPU drew; for the boxes of the pause screen. */
+#define HWREND_OVERLAY_INDEX 254
+/** Sets the palette colour of the translucent overlay, or -1 to have no such index. */
+void LbHwOverlaySet(int colour);
+int LbHwOverlay(void);
 
 /******************************************************************************/
 #ifdef __cplusplus

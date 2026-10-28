@@ -440,6 +440,9 @@ void switch_person_anim_mode(struct Thing *p_person, ubyte animode);
  * lead to outranged value.
  */
 ushort get_person_anim_subframe(struct Thing *p_person);
+/** The game turn in which each person started dying, by thing index; 0 for the ones which did not
+ * die in this game. The pool of blood under a body grows from that moment. */
+extern ulong person_death_turn[];
 
 /** Sets new AnimMode of a person, replacing the old frame number.
  */

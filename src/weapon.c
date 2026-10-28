@@ -17,6 +17,7 @@
  */
 /******************************************************************************/
 #include "weapon.h"
+#include "lvdraw3d.h"
 
 #include "bfmath.h"
 #include "bfmemory.h"
@@ -3010,8 +3011,14 @@ void init_uzi(struct Thing *p_owner)
         do_shockwave(cor_fin_x, cor_fin_y, cor_fin_z, -50, 1, p_owner);
     }
 
-    if (make_sparks_sprouts)
-        init_sparks(cor_fin_x, cor_fin_y, cor_fin_z, 3, 2, blood_sprout);
+    if (make_sparks_sprouts) {
+        // With the GPU drawing the scene, the blood is a spray of drops which leaves splatters
+        if (!(blood_sprout ? blood_fx_spawn(cor_fin_x, cor_fin_y, cor_fin_z,
+          cor_fin_x - cor_beg_x, cor_fin_z - cor_beg_z, 3)
+          : spark_fx_spawn(cor_fin_x, cor_fin_y, cor_fin_z,
+          cor_beg_x - cor_fin_x, cor_beg_z - cor_fin_z, 3)))
+            init_sparks(cor_fin_x, cor_fin_y, cor_fin_z, 3, 2, blood_sprout);
+    }
 
     if ((wdef->HitDamage > 0) && ((p_owner->Flag2 & TgF2_ExistsOffMap) == 0))
         alert_peeps(cor_fin_x, cor_fin_y, cor_fin_z, p_owner);
@@ -3156,7 +3163,11 @@ void init_minigun(struct Thing *p_owner)
     if (make_sparks_sprouts)
     {
         short vel = blood_sprout ? 2 : 3;
-        init_sparks(cor_fin_x, cor_fin_y, cor_fin_z, 4, vel, blood_sprout);
+        if (!(blood_sprout ? blood_fx_spawn(cor_fin_x, cor_fin_y, cor_fin_z,
+          cor_fin_x - cor_beg_x, cor_fin_z - cor_beg_z, 4)
+          : spark_fx_spawn(cor_fin_x, cor_fin_y, cor_fin_z,
+          cor_beg_x - cor_fin_x, cor_beg_z - cor_fin_z, 4)))
+            init_sparks(cor_fin_x, cor_fin_y, cor_fin_z, 4, vel, blood_sprout);
     }
 
     if ((wdef->HitDamage > 0) && ((p_owner->Flag2 & TgF2_ExistsOffMap) == 0))
@@ -3308,7 +3319,11 @@ void init_long_range(struct Thing *p_owner)
     if (make_sparks_sprouts)
     {
         short vel = blood_sprout ? 2 : 4;
-        init_sparks(cor_fin_x, cor_fin_y, cor_fin_z, 3, vel, blood_sprout);
+        if (!(blood_sprout ? blood_fx_spawn(cor_fin_x, cor_fin_y, cor_fin_z,
+          cor_fin_x - cor_beg_x, cor_fin_z - cor_beg_z, 3)
+          : spark_fx_spawn(cor_fin_x, cor_fin_y, cor_fin_z,
+          cor_beg_x - cor_fin_x, cor_beg_z - cor_fin_z, 3)))
+            init_sparks(cor_fin_x, cor_fin_y, cor_fin_z, 3, vel, blood_sprout);
     }
 
     if ((wdef->HitDamage > 0) && ((p_owner->Flag2 & TgF2_ExistsOffMap) == 0))
