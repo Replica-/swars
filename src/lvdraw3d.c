@@ -237,6 +237,7 @@ struct BloodFx {
                                  for a stain on a wall, vy is 0 if the wall faces along X, 1 if along Z. */
     float t0;               /**< Game turn (with fraction) when it started. */
     float lt;               /**< For a drop, the time (from t0) up to which its way was checked for a wall; for a spark, how many times it bounced. */
+    ubyte stain;            /**< For a drop of blood: whether it leaves a splatter or a stain where it lands. */
     float born;             /**< For a spark, the game turn when it was made, as it can bounce and start its way again. */
     float size;             /**< Width of a drop, radius of a splatter, in map units. */
     int seed;
@@ -357,7 +358,7 @@ static void bloodfx_add_splat(float x, float y, float z, float dx, float dz, flo
     b->seed = (int)(bloodfx_rand() * 1000.0f);
 }
 
-TbBool blood_fx_spawn(int x, int y, int z, int dirx, int dirz, int amount)
+TbBool blood_fx_spawn_ex(int x, int y, int z, int dirx, int dirz, int amount, TbBool stain)
 {
     float fx, fz, len, now, speed_scale;
     int i, n, slot;
@@ -402,6 +403,7 @@ TbBool blood_fx_spawn(int x, int y, int z, int dirx, int dirz, int amount)
             spd = 8.0f + bloodfx_rand() * 14.0f;
         }
         b->kind = 1;
+        b->stain = stain;
         b->x = (float)x + (bloodfx_rand() - 0.5f) * 10.0f;
         b->y = (float)y;
         b->z = (float)z + (bloodfx_rand() - 0.5f) * 10.0f;
@@ -415,6 +417,11 @@ TbBool blood_fx_spawn(int x, int y, int z, int dirx, int dirz, int amount)
         b->seed = (int)(bloodfx_rand() * 1000.0f);
     }
     return true;
+}
+
+TbBool blood_fx_spawn(int x, int y, int z, int dirx, int dirz, int amount)
+{
+    return blood_fx_spawn_ex(x, y, z, dirx, dirz, amount, true);
 }
 
 /** Sparks from a ricochet: hot streaks which fly back from the surface, and fall. */
@@ -620,7 +627,7 @@ static void blood_fx_enlist(void)
             b->lt = tau;
             if (outcome != 0) {
                 // It lands: some of the drops leave a splatter, or a stain on the wall
-                if ((outcome != 4) && (bloodfx_rand() < 0.6f)) {
+                if ((outcome != 4) && b->stain && (bloodfx_rand() < 0.6f)) {
                     if (outcome == 1)
                         bloodfx_add_splat(fx, bloodfx_ground(fx, fz), fz, b->vx, b->vz,
                           20.0f + bloodfx_rand() * 24.0f, now, 2, 0);

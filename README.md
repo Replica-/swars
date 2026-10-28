@@ -122,7 +122,8 @@ and are covered by the same license.
   on the ground, with a tongue and small drops in the direction of the spatter; wet and glossy at first, dry and
   dark later, and fading after a few minutes. The drops are checked against the solid parts of the map (the
   collision of the buildings), and stop at them: a drop which hits a wall leaves a stain on it with a short drip,
-  and one which lands on a roof leaves a splatter there. In a rainy mission the rain washes the splatters and
+  and one which lands on a roof leaves a splatter there. Shooting a corpse with a gun makes the same spray, in the
+  direction of the shot, in place of the sprite animation which made the body twitch. In a rainy mission the rain washes the splatters and
   stains away: they start to fade after about two seconds and are gone after six. The drops and splatters are in the sorted sprites, so buildings and
   people hide them correctly. `SWFX_NO_BLOODFX=1` brings back the sprites and sparks; `SWFX_BLOOD_TEST=1` draws
   a few pools in the middle of the screen and `SWFX_BLOODSPRAY_TEST=1` hits the first agent now and then, for

@@ -2695,10 +2695,21 @@ TbBool weapon_shooting_fluid_creates_splash(MapCoord cor_x, MapCoord cor_z, usho
     return false;
 }
 
-void weapon_shooting_creates_unkn2(MapCoord cor_x, MapCoord cor_y, MapCoord cor_z)
+/** The blood splat which comes when a shot hits a corpse. With the GPU drawing the scene it is a spray of blood in
+ * the direction of the shot, in place of the sprite effect. */
+void weapon_shooting_creates_unkn2(struct Thing *p_corpse, int dirx, int dirz)
 {
     struct SimpleThing *p_sthing;
+    MapCoord cor_x, cor_y, cor_z;
     short dx, dz;
+
+    cor_x = PRCCOORD_TO_MAPCOORD(p_corpse->X);
+    cor_y = PRCCOORD_TO_MAPCOORD(p_corpse->Y);
+    cor_z = PRCCOORD_TO_MAPCOORD(p_corpse->Z);
+    if (blood_fx_spawn_ex(cor_x, cor_y + 8, cor_z, dirx, dirz, 6, false)) {
+        play_dist_sample(p_corpse, 0x44, FULL_VOL, EQUL_PAN, NORM_PTCH, LOOP_NO, 1);
+        return;
+    }
 
     dz = (LbRandomAnyShort() & 0x3F) - 32;
     dx = (LbRandomAnyShort() & 0x3F) - 32;
@@ -2989,11 +3000,7 @@ void init_uzi(struct Thing *p_owner)
               cor_fin_z - cor_beg_z, p_owner, wdmgtyp);
             if ((p_hittng->Flag & TngF_Destroyed) != 0)
             {
-                MapCoord cor_eff_x, cor_eff_y, cor_eff_z;
-                cor_eff_x = PRCCOORD_TO_MAPCOORD(p_hittng->X);
-                cor_eff_y = PRCCOORD_TO_MAPCOORD(p_hittng->Y);
-                cor_eff_z = PRCCOORD_TO_MAPCOORD(p_hittng->Z);
-                weapon_shooting_creates_unkn2(cor_eff_x, cor_eff_y, cor_eff_z);
+                weapon_shooting_creates_unkn2(p_hittng, cor_fin_x - cor_beg_x, cor_fin_z - cor_beg_z);
             }
             if (p_hittng->Type == TT_PERSON) {
                 make_sparks_sprouts = blood_sprout =
@@ -3138,11 +3145,7 @@ void init_minigun(struct Thing *p_owner)
               cor_fin_z - cor_beg_z, p_owner, wdmgtyp);
             if ((p_hittng->Flag & TngF_Destroyed) != 0)
             {
-                MapCoord cor_eff_x, cor_eff_y, cor_eff_z;
-                cor_eff_x = PRCCOORD_TO_MAPCOORD(p_hittng->X);
-                cor_eff_y = PRCCOORD_TO_MAPCOORD(p_hittng->Y);
-                cor_eff_z = PRCCOORD_TO_MAPCOORD(p_hittng->Z);
-                weapon_shooting_creates_unkn2(cor_eff_x, cor_eff_y, cor_eff_z);
+                weapon_shooting_creates_unkn2(p_hittng, cor_fin_x - cor_beg_x, cor_fin_z - cor_beg_z);
             }
             if (p_hittng->Type == TT_PERSON) {
                 make_sparks_sprouts = blood_sprout =
@@ -3294,11 +3297,7 @@ void init_long_range(struct Thing *p_owner)
               cor_fin_z - cor_beg_z, p_owner, wdmgtyp);
             if ((p_hittng->Flag & TngF_Destroyed) != 0)
             {
-                MapCoord cor_eff_x, cor_eff_y, cor_eff_z;
-                cor_eff_x = PRCCOORD_TO_MAPCOORD(p_hittng->X);
-                cor_eff_y = PRCCOORD_TO_MAPCOORD(p_hittng->Y);
-                cor_eff_z = PRCCOORD_TO_MAPCOORD(p_hittng->Z);
-                weapon_shooting_creates_unkn2(cor_eff_x, cor_eff_y, cor_eff_z);
+                weapon_shooting_creates_unkn2(p_hittng, cor_fin_x - cor_beg_x, cor_fin_z - cor_beg_z);
             }
             if (p_hittng->Type == TT_PERSON) {
                 make_sparks_sprouts = blood_sprout =

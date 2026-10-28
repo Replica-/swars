@@ -44,6 +44,8 @@ void engine_draw_whole_screen_top_down(void);
  * the shot (map coordinates; the direction is on the ground), and leave splatters where they land.
  * @return False if the GPU is not drawing the scene; the caller then makes the plain blood sparks. */
 TbBool blood_fx_spawn(int x, int y, int z, int dirx, int dirz, int amount);
+/** The same, with the choice of whether the drops leave splatters and stains where they land. */
+TbBool blood_fx_spawn_ex(int x, int y, int z, int dirx, int dirz, int amount, TbBool stain);
 /** Starts the sparks of a ricochet, drawn by the GPU: hot streaks which fly back from the surface (the direction
  * is on the ground, from the surface toward where the shot came from), and a small light which fades.
  * @return False if the GPU is not drawing the scene; the caller then makes the plain sparks. */
