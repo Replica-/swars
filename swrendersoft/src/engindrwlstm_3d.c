@@ -866,7 +866,7 @@ static void enlist_draw_lightning_bolt(int x1, int y1, int z1, int x2, int y2, i
     enlist_draw_lightning_bolt(mx, my, mz, x2, y2, z2, depth - 1, itime, slflags, glow_flags, p_step);
 
     // A fork, from some of the joints of the main bolt, going out to a side, shorter and fading
-    if (((glow_flags & SLF_ARC_BRANCH) == 0) && (depth >= 2) && (len > 24) && ((LbRandomPosShort() % 9) == 0))
+    if (((glow_flags & SLF_ARC_BRANCH) == 0) && (depth >= 2) && (len > 24) && ((LbRandomPosShort() % 14) == 0))
     {
         int side, ang_x, ang_y, bx, by;
 
@@ -1204,7 +1204,23 @@ TbBool enlist_draw_face3_prealloc(int face, short depth_shift,
       p_face->PointNo[2], p_face->PointNo[1], -1,
       p_face->GFlags | edflags);
     if (depth_max < SHRT_MIN)
+    {
+        // Seen through, the back sides of the buildings show the outline of their bottom too
+        if (engine_see_through_objects && ((edflags & (EnFaceF_Reflective|EnFaceF_SemiTranspr|EnFaceF_MovingObject)) == 0))
+        {
+            depth_max = object_face_get_visible_max_depth(p_face->PointNo[0],
+              p_face->PointNo[2], p_face->PointNo[1], -1,
+              p_face->GFlags | edflags | FGFlg_Unkn01);
+            if (depth_max >= SHRT_MIN)
+            {
+                bckt = BUCKET_MID + depth_shift + depth_max;
+                if (*bckt_max < bckt)
+                    *bckt_max = bckt;
+                return draw_item_add(DrIT_ObOutline3, face, bckt);
+            }
+        }
         return true;
+    }
 
     if ((edflags & EnFaceF_Reflective) != 0)
         ditype = DrIT_ObFace3Refl;
@@ -1235,7 +1251,23 @@ TbBool enlist_draw_face4_prealloc(int face, short depth_shift,
       p_face4->PointNo[2], p_face4->PointNo[1], p_face4->PointNo[3],
       p_face4->GFlags | edflags);
     if (depth_max < SHRT_MIN)
+    {
+        // Seen through, the back sides of the buildings show the outline of their bottom too
+        if (engine_see_through_objects && ((edflags & (EnFaceF_Reflective|EnFaceF_SemiTranspr|EnFaceF_MovingObject)) == 0))
+        {
+            depth_max = object_face_get_visible_max_depth(p_face4->PointNo[0],
+              p_face4->PointNo[2], p_face4->PointNo[1], p_face4->PointNo[3],
+              p_face4->GFlags | edflags | FGFlg_Unkn01);
+            if (depth_max >= SHRT_MIN)
+            {
+                bckt = BUCKET_MID + depth_shift + depth_max;
+                if (*bckt_max < bckt)
+                    *bckt_max = bckt;
+                return draw_item_add(DrIT_ObOutline4, face, bckt);
+            }
+        }
         return true;
+    }
 
     if ((edflags & EnFaceF_Reflective) != 0)
         ditype = DrIT_ObFace4Refl;
@@ -1351,7 +1383,7 @@ void enlist_draw_plasma_sparks_on_object(struct SingleObject *point_object)
     rnd_range = points_num - 4;
     assert(rnd_range < next_screen_point);
 
-    for (i = 0; i < 3 + (int)(LbRandomPosShort() & 1); i++)
+    for (i = 0; i < 2 + (int)(LbRandomPosShort() & 1); i++)
     {
         struct SpecialPoint *p_specpt2;
         struct SpecialPoint *p_specpt1;

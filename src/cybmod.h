@@ -98,6 +98,9 @@ extern ushort mod_group_type_strid[];
 void read_cybmods_conf_file(void);
 const char *cybmod_codename(ushort mtype);
 
+/** Gives every upgrade at the highest level; for testing. */
+void cybmod_set_all_max(union Mod *p_umod);
+
 ubyte cybmod_chest_level(union Mod *p_umod);
 void set_cybmod_chest_level(union Mod *p_umod, ubyte nmod);
 ubyte cybmod_legs_level(union Mod *p_umod);

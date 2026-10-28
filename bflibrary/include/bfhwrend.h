@@ -256,6 +256,18 @@ TbBool LbHwCustomLayer(void);
  * GPU drew; for the boxes of the pause screen. */
 #define HWREND_OVERLAY_INDEX 254
 /** Sets the palette colour of the translucent overlay, or -1 to have no such index. */
+/** The colours of the interface (panels, and the lines and text of the accent) in the missions: the pixels of
+ * the screen which have the colours of the interface are shown by the GPU in the chosen colour, with their own
+ * shades kept. Part 0 is the panels, 1 the accent colour. */
+#define HW_UI_TINT_PARTS 2
+void LbHwUiTintSet(int part, TbBool on, const ubyte *rgb, ubyte alpha);
+/** Gives for each part four numbers: the colour in 0..1 and 1 if it is on. */
+const float *LbHwUiTintGet(void);
+/** Gives for each part the opacity of its colour, 0..1: below 1 the scene shows through. */
+const float *LbHwUiAlphaGet(void);
+/** Opacity (0..1) of the textured triangles which are recorded from now on; 1 is solid. The buildings are seen
+ * through when the player holds the key for it. */
+void LbHwFaceAlphaSet(float alpha);
 void LbHwOverlaySet(int colour);
 int LbHwOverlay(void);
 

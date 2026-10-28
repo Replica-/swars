@@ -87,6 +87,10 @@ enum DrawItemType {
     DrIT_SFrmPersB,
     /** Frame of sprite elements with version selections, representing an effect or overlay for a thing. */
     DrIT_SFrmEfctV,
+    /** Back side of a triangular object face, drawn only as the outline of its bottom, when the buildings are seen through. */
+    DrIT_ObOutline3,
+    /** The same, for a quadrangular object face. */
+    DrIT_ObOutline4,
 };
 
 #pragma pack()

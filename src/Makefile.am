@@ -274,6 +274,12 @@ if HAS_WINDRES
 	$(WINDRES) $(syndwarsfx_RCFLAGS) -i $< -J rc -o $@ -O coff
 endif
 
+# The game opens its own window: no console window (the "DOS box") is wanted with it. The program still has
+# its standard output, when it is started from a terminal or a debugger which gives it one.
+if TARGET_WINDOWS
+syndwarsfx_LDFLAGS = -mwindows
+endif
+
 # Include dynamic libraries in the package
 if TARGET_WINDOWS
 install-exec-hook:

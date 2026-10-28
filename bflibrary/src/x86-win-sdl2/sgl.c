@@ -38,6 +38,7 @@ static GLuint tex_screen = 0;
 static GLuint tex_palette = 0;
 static long tex_screen_w = 0, tex_screen_h = 0;
 static GLint loc_idx = -1, loc_pal = -1, loc_keyed = -1;
+static GLint loc_uitint = -1, loc_uialpha = -1;
 static GLint loc_overlay = -1, loc_clayer = -1, loc_cn = -1, loc_cm = -1, loc_cdata = -1;
 
 static ubyte palette_rgba[256 * 4];
@@ -68,6 +69,41 @@ static const char *present_fs_src =
     "uniform int uCustN;\n"
     "uniform vec4 uCustM[6];\n"
     "uniform vec4 uCust[24];\n"
+    "// The colours of the interface: for the panels, the colour and 1 if it is used\n"
+    "uniform vec4 uUiTint[2];\n"
+    "uniform vec2 uUiAlpha;\n"
+    "vec3 rgb2hsv(vec3 c)\n"
+    "{\n"
+    "    vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);\n"
+    "    vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));\n"
+    "    vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));\n"
+    "    float d = q.x - min(q.w, q.y);\n"
+    "    return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + 1.0e-10)), d / (q.x + 1.0e-10), q.x);\n"
+    "}\n"
+    "vec3 hsv2rgb(vec3 c)\n"
+    "{\n"
+    "    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);\n"
+    "    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);\n"
+    "    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);\n"
+    "}\n"
+    "// The colours of the interface are changed to the chosen ones, with the shades of the pixels kept: the\n"
+    "// hue is the chosen one, and the saturation and brightness go by the chosen colour compared with the\n"
+    "// colour the interface has (the panels are blue-purple, the accent is the cyan)\n"
+    "vec4 uiTint(vec3 rgb)\n"
+    "{\n"
+    "    vec3 hsv = rgb2hsv(rgb);\n"
+    "    float hd = hsv.x * 360.0;\n"
+    "    // the panels: the blue-purple colours with their light blue edges, and the accent: the cyan of what lights up or changes; the two ranges do not overlap\n"
+    "    if (uUiTint[0].a > 0.5 && hd >= 191.0 && hd <= 280.0 && hsv.y > 0.3 && hsv.z > 0.06) {\n"
+    "        vec3 t = rgb2hsv(uUiTint[0].rgb);\n"
+    "        return vec4(hsv2rgb(vec3(t.x, clamp(hsv.y * t.y / 0.70, 0.0, 1.0), clamp(hsv.z * t.z / 0.86, 0.0, 1.0))), uUiAlpha.x);\n"
+    "    }\n"
+    "    if (uUiTint[1].a > 0.5 && hd >= 160.0 && hd < 191.0 && hsv.y > 0.45 && hsv.z > 0.4) {\n"
+    "        vec3 t = rgb2hsv(uUiTint[1].rgb);\n"
+    "        return vec4(hsv2rgb(vec3(t.x, clamp(hsv.y * t.y, 0.0, 1.0), clamp(hsv.z * t.z / 0.99, 0.0, 1.0))), uUiAlpha.y);\n"
+    "    }\n"
+    "    return vec4(rgb, 1.0);\n"
+    "}\n"
     "void main()\n"
     "{\n"
     "    int i = int(texture(uIdx, uv).r * 255.0 + 0.5);\n"
@@ -76,17 +112,23 @@ static const char *present_fs_src =
     "    if (uKeyed != 0 && i == 255)\n"
     "        discard;\n"
     "    if (uKeyed != 0 && uOverlay >= 0 && i == 254) {\n"
-    "        outColor = vec4(texelFetch(uPal, ivec2(uOverlay, 0), 0).rgb, 0.6);\n"
+    "        outColor = vec4(uiTint(texelFetch(uPal, ivec2(uOverlay, 0), 0).rgb).rgb, 0.6);\n"
     "        return;\n"
     "    }\n"
     "    vec3 rgb = texelFetch(uPal, ivec2(i, 0), 0).rgb;\n"
+    "    float ualpha = 1.0;\n"
+    "    if (uKeyed != 0) {\n"
+    "        vec4 tc = uiTint(rgb);\n"
+    "        rgb = tc.rgb;\n"
+    "        ualpha = tc.a;\n"
+    "    }\n"
     "    if (uCustLayer != 0) {\n"
     "        for (int k = 0; k < uCustN; k++) {\n"
     "            if (int(uCustM[k >> 2][k & 3] + 0.5) == i)\n"
     "                rgb = uCust[k].rgb;\n"
     "        }\n"
     "    }\n"
-    "    outColor = vec4(rgb, 1.0);\n"
+    "    outColor = vec4(rgb, ualpha);\n"
     "}\n";
 
 #define LOAD_GL(NAME) \
@@ -263,6 +305,8 @@ TbBool LbGlCreateContext(SDL_Window *window)
     loc_cn = gl.GetUniformLocation(present_program, "uCustN");
     loc_cm = gl.GetUniformLocation(present_program, "uCustM");
     loc_cdata = gl.GetUniformLocation(present_program, "uCust");
+    loc_uitint = gl.GetUniformLocation(present_program, "uUiTint");
+    loc_uialpha = gl.GetUniformLocation(present_program, "uUiAlpha");
 
     gl.GenVertexArrays(1, &present_vao);
     gl.GenTextures(1, &tex_screen);
@@ -381,6 +425,8 @@ TbResult LbGlPresentIndexed(const ubyte *pixels, long width, long height, long p
     gl.Uniform1i(loc_pal, 1);
     gl.Uniform1i(loc_keyed, keyed);
     gl.Uniform1i(loc_overlay, LbHwOverlay());
+    gl.Uniform4fv(loc_uitint, HW_UI_TINT_PARTS, LbHwUiTintGet());
+    gl.Uniform2f(loc_uialpha, LbHwUiAlphaGet()[0], LbHwUiAlphaGet()[1]);
     {
         const float *cm, *cdata;
         int cn;

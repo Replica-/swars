@@ -18,6 +18,7 @@
 /******************************************************************************/
 #include <math.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "bfhwrend.h"
@@ -73,6 +74,39 @@ void LbHwCustomLayerSet(TbBool on)
 TbBool LbHwCustomLayer(void)
 {
     return cust_layer;
+}
+
+static float hw_face_alpha = 1.0f;
+
+void LbHwFaceAlphaSet(float alpha)
+{
+    hw_face_alpha = alpha;
+}
+
+static float ui_tint[HW_UI_TINT_PARTS * 4];
+static float ui_alpha[HW_UI_TINT_PARTS] = { 1.0f, 1.0f };
+
+void LbHwUiTintSet(int part, TbBool on, const ubyte *rgb, ubyte alpha)
+{
+    if ((part < 0) || (part >= HW_UI_TINT_PARTS))
+        return;
+    if (on && (rgb != NULL)) {
+        ui_tint[part * 4 + 0] = rgb[0] / 255.0f;
+        ui_tint[part * 4 + 1] = rgb[1] / 255.0f;
+        ui_tint[part * 4 + 2] = rgb[2] / 255.0f;
+    }
+    ui_tint[part * 4 + 3] = on ? 1.0f : 0.0f;
+    ui_alpha[part] = on ? (alpha / 255.0f) : 1.0f;
+}
+
+const float *LbHwUiAlphaGet(void)
+{
+    return ui_alpha;
+}
+
+const float *LbHwUiTintGet(void)
+{
+    return ui_tint;
 }
 
 void LbHwOverlaySet(int colour)
@@ -478,6 +512,9 @@ TbBool LbHwRecordTriangle(const struct PolyPoint *point_a,
         p_vtx[i].s = (float)pts[i]->S * (1.0f / 65536.0f);
         p_vtx[i].mode = (float)vec_mode;
         p_vtx[i].colour = (float)vec_colour;
+        // A textured triangle which is seen through carries its opacity in the colour, which the textured modes do not use
+        if ((hw_face_alpha < 1.0f) && ((vec_mode == 2) || (vec_mode == 3) || (vec_mode == 5) || (vec_mode == 6) || (vec_mode == 27)))
+            p_vtx[i].colour = 1000.0f + (float)(int)(hw_face_alpha * 100.0f + 0.5f);
         p_vtx[i].layer = layer;
     }
     rec_count += 3;

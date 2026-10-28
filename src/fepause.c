@@ -72,6 +72,7 @@ static struct ScreenButton abort_btn;
 static struct ScreenBox options_box;
 /** The button in the settings box which opens the screen choosing the colours of the costume. */
 static struct ScreenButton custom_open_btn;
+static struct ScreenButton ui_open_btn;
 static struct ScreenBox option_arrow_l_box[PAUSE_OPT_COUNT];
 static struct ScreenBox option_arrow_r_box[PAUSE_OPT_COUNT];
 
@@ -413,6 +414,10 @@ void init_pause_screen_boxes(void)
           options_box.X + options_box.Width * 72 / 100,
           row_y + pitch * PAUSE_OPT_CUSTOM_COSTUME + pitch / 8 - pop1_sprites_scale,
           "EDIT", small_font, 0);
+        init_ingame_screen_button(&ui_open_btn,
+          options_box.X + options_box.Width * 72 / 100,
+          row_y + pitch * PAUSE_OPT_CUSTOM_UI + pitch / 8 - pop1_sprites_scale,
+          "EDIT", small_font, 0);
     }
 
     slider_w = pause_main_box.Width * 131 / 256;
@@ -634,6 +639,11 @@ static void draw_options_box(void)
           y + pitch * 52 / 100, keys, 0);
         lbDisplay.DrawFlags &= ~Lb_TEXT_ONE_COLOR;
 
+        if (i == PAUSE_OPT_CUSTOM_UI) {
+            // Opens the screen for the colours of the interface; lit while colours are chosen
+            draw_ingame_button(&ui_open_btn, game_ui_colour_active());
+            continue;
+        }
         if (i == PAUSE_OPT_CUSTOM_COSTUME) {
             // Opens the screen for the costume and its colours, so it is a button, which is lit while
             // the colours are replaced
@@ -663,7 +673,7 @@ static struct ScreenButton custom_reset_btn;
 static struct ScreenButton custom_done_btn;
 static short custom_cell, custom_grid_x, custom_grid_y;
 static short custom_strip_cell, custom_strip_x[CUSTOM_COSTUME_PARTS], custom_strip_y[CUSTOM_COSTUME_PARTS];
-static short custom_slider_x, custom_slider_y[3], custom_slider_w, custom_slider_h;
+static short custom_slider_x, custom_slider_y[4], custom_slider_w, custom_slider_h;
 /** The arrows which choose the costume of the agents. */
 static struct ScreenBox custom_cost_l_box, custom_cost_r_box;
 
@@ -693,8 +703,8 @@ static void init_custom_costume_boxes(void)
     custom_slider_x = custom_box.X + 14 * u;
     custom_slider_w = 72 * u;
     custom_slider_h = 5 * u;
-    for (i = 0; i < 3; i++)
-        custom_slider_y[i] = custom_grid_y + 72 * u + i * 8 * u;
+    for (i = 0; i < 4; i++)
+        custom_slider_y[i] = custom_grid_y + 70 * u + i * 7 * u;
 
     // The right part has the buttons choosing the part of the costume, with its shades below each
     cx = custom_box.X + 196 * u;
@@ -1011,6 +1021,202 @@ static void custom_costume_screen(void)
     lbDisplay.LeftButton = 0;
 }
 
+static struct ScreenButton ui_panel_btn;
+static struct ScreenButton ui_accent_btn;
+
+/** The screen for the colours of the interface: the panels and the accent. It is laid out like the one of
+ * the costume: the palette and the sliders of the colour on the left, the parts to choose on the right. */
+static void init_ui_colour_boxes(void)
+{
+    short u, cx;
+
+    u = pop1_sprites_scale;
+    // The geometry of the costume screen is used again: the box, the palette, the sliders, the two buttons below
+    init_custom_costume_boxes();
+    cx = custom_box.X + 196 * u;
+    init_ingame_screen_button(&ui_panel_btn, cx, custom_box.Y + custom_box.Height * 17 / 100,
+      game_ui_colour_part_name(0), small_font, 0);
+    init_ingame_screen_button(&ui_accent_btn, cx, custom_box.Y + custom_box.Height * 47 / 100,
+      game_ui_colour_part_name(1), small_font, 0);
+}
+
+static void ui_colour_part_rgb(int part, ubyte *rgb)
+{
+    if (game_ui_colour_used[part])
+        memcpy(rgb, game_ui_colour_rgb[part], 3);
+    else
+        game_ui_colour_default_rgb(part, rgb);
+}
+
+static void draw_ui_colour_screen(int part)
+{
+    static const ubyte slider_colr[4] = { 121, 242, 17, 72 };
+    static const char *slider_name[4] = { "R", "G", "B", "A" };
+    ubyte rgb[3];
+    const char *s;
+    int i, w, x, y;
+    short u;
+
+    u = pop1_sprites_scale;
+    draw_box_cutedge(&custom_box, ingame_boxes_colr1);
+
+    lbFontPtr = small_font;
+    my_set_text_window(0, 0, lbDisplay.PhysicalScreenWidth,
+      lbDisplay.PhysicalScreenHeight);
+    lbDisplay.DrawFlags = 0;
+    my_draw_text(custom_box.X + 6 * u, custom_box.Y + custom_box.Height * 4 / 100, "INTERFACE COLOUR", 0);
+    if (!game_ui_colour_hw()) {
+        s = "COLOURS: GPU RENDERING ONLY";
+        w = my_string_width(s);
+        my_draw_text(custom_box.X + (custom_box.Width - w) / 2,
+          custom_box.Y + custom_box.Height * 93 / 100, s, 0);
+    }
+
+    // The palette, as a quick way to get a colour; the colour under the mouse is framed
+    for (i = 0; i < CUSTOM_PAL_COLOURS; i++)
+    {
+        x = custom_grid_x + (i % CUSTOM_PAL_COLS) * custom_cell;
+        y = custom_grid_y + (i / CUSTOM_PAL_COLS) * custom_cell;
+        lbDisplay.DrawFlags = 0;
+        LbDrawBox(x, y, custom_cell - 1, custom_cell - 1, game_custom_costume_swatch(i));
+        if (mouse_move_over_box_coords(x, y, x + custom_cell - 1, y + custom_cell - 1)) {
+            lbDisplay.DrawFlags = Lb_SPRITE_OUTLINE;
+            LbDrawBox(x - 1, y - 1, custom_cell + 1, custom_cell + 1, colour_lookup[ColLU_WHITE]);
+        }
+    }
+
+    // The sliders of the red, green and blue of the part which is chosen, and the opacity of its colour
+    ui_colour_part_rgb(part, rgb);
+    for (i = 0; i < 4; i++)
+    {
+        int val = (i < 3) ? rgb[i] : game_ui_colour_alpha[part];
+
+        lbDisplay.DrawFlags = 0;
+        my_draw_text(custom_box.X + 6 * u, custom_slider_y[i], slider_name[i], 0);
+        LbDrawBox(custom_slider_x, custom_slider_y[i], custom_slider_w, custom_slider_h, 72);
+        LbDrawBox(custom_slider_x, custom_slider_y[i], custom_slider_w * val / 255, custom_slider_h,
+          (i < 3) ? slider_colr[i] : colour_lookup[ColLU_WHITE]);
+    }
+
+    draw_ingame_button(&ui_panel_btn, (part == 0));
+    draw_ingame_button(&ui_accent_btn, (part == 1));
+    draw_ingame_button(&custom_reset_btn, 0);
+    draw_ingame_button(&custom_done_btn, 0);
+
+    // A sample of the interface in the middle: the screen itself has the colours which are chosen
+    x = custom_box.X + 92 * u;
+    y = custom_box.Y + custom_box.Height * 17 / 100;
+    lbDisplay.DrawFlags = 0;
+    LbDrawBox(x, y, 76 * u, 76 * u, 72);
+    {
+        struct ScreenBox sample;
+
+        sample.X = x + 4 * u;
+        sample.Y = y + 4 * u;
+        sample.Width = 68 * u;
+        sample.Height = 26 * u;
+        draw_box_cutedge(&sample, ingame_boxes_colr1);
+        lbDisplay.DrawFlags = 0;
+        my_draw_text(sample.X + 3 * u, sample.Y + 3 * u, "PANEL", 0);
+        lbDisplay.DrawFlags |= Lb_TEXT_ONE_COLOR;
+        lbDisplay.DrawColour = ingame_boxes_colr2;
+        my_draw_text(sample.X + 3 * u, sample.Y + 14 * u, "SHADES OF THE PANEL", 0);
+        lbDisplay.DrawFlags &= ~Lb_TEXT_ONE_COLOR;
+    }
+    // The accent: a line and some text in the colour of the map and its marks
+    LbDrawBox(x + 4 * u, y + 38 * u, 68 * u, u, colour_lookup[ColLU_CYAN]);
+    LbDrawBox(x + 4 * u, y + 48 * u, 68 * u, u, colour_lookup[ColLU_CYAN]);
+    LbDrawBox(x + 4 * u, y + 38 * u, u, 11 * u, colour_lookup[ColLU_CYAN]);
+    LbDrawBox(x + 71 * u, y + 38 * u, u, 11 * u, colour_lookup[ColLU_CYAN]);
+    lbDisplay.DrawFlags |= Lb_TEXT_ONE_COLOR;
+    lbDisplay.DrawColour = colour_lookup[ColLU_CYAN];
+    my_draw_text(x + 8 * u, y + 40 * u, "ACCENT", 0);
+    lbDisplay.DrawFlags &= ~Lb_TEXT_ONE_COLOR;
+    lbDisplay.DrawFlags = 0;
+}
+
+static void ui_colour_screen(void)
+{
+    TbBool done, hw;
+    int part, i;
+
+    part = 0;
+    init_ui_colour_boxes();
+
+    done = false;
+    while (!done)
+    {
+        JoyUpdateInputs(&joy);
+
+        hw = game_ui_colour_hw();
+        if (input_ingame_button(&ui_panel_btn, part == 0) && hw)
+            part = 0;
+        if (input_ingame_button(&ui_accent_btn, part == 1) && hw)
+            part = 1;
+        if (input_ingame_button(&custom_reset_btn, 0) && hw)
+            game_ui_colour_reset();
+        if (input_ingame_button(&custom_done_btn, 0))
+            done = true;
+        if (hw && lbDisplay.LeftButton)
+        {
+            // A click on the palette takes its colour
+            for (i = 0; i < CUSTOM_PAL_COLOURS; i++)
+            {
+                int x, y;
+
+                x = custom_grid_x + (i % CUSTOM_PAL_COLS) * custom_cell;
+                y = custom_grid_y + (i / CUSTOM_PAL_COLS) * custom_cell;
+                if (mouse_move_over_box_coords(x, y, x + custom_cell - 1, y + custom_cell - 1)) {
+                    ubyte rgb[3];
+
+                    lbDisplay.LeftButton = 0;
+                    game_custom_costume_palette_rgb(i, rgb);
+                    game_ui_colour_set(part, rgb);
+                    break;
+                }
+            }
+        }
+        if (hw && lbDisplay.MLeftButton)
+        {
+            // Holding the mouse button on a slider sets the channel to where the mouse is
+            for (i = 0; i < 4; i++)
+            {
+                int mx, my;
+
+                mx = lbDisplay.MMouseX;
+                my = lbDisplay.MMouseY;
+                if ((my >= custom_slider_y[i]) && (my < custom_slider_y[i] + custom_slider_h)
+                  && (mx >= custom_slider_x - custom_slider_h) && (mx <= custom_slider_x + custom_slider_w + custom_slider_h)) {
+                    ubyte rgb[3];
+                    int v;
+
+                    v = (mx - custom_slider_x) * 255 / custom_slider_w;
+                    v = (v < 0) ? 0 : ((v > 255) ? 255 : v);
+                    if (i == 3) {
+                        // the opacity; a little opacity is kept, so the interface is not lost
+                        game_ui_colour_set_alpha(part, (v < 30) ? 30 : v);
+                    } else {
+                        ui_colour_part_rgb(part, rgb);
+                        rgb[i] = v;
+                        game_ui_colour_set(part, rgb);
+                    }
+                }
+            }
+        }
+
+        game_pause_scene_backdrop_restore();
+        draw_ui_colour_screen(part);
+
+        lbDisplay.DrawFlags = 0;
+        process_sound_heap();
+        PlayCDTrack(ingame.CDTrack);
+
+        swap_wscreen();
+        game_update();
+    }
+
+    lbDisplay.LeftButton = 0;
+}
 /** Applies a click on one of the arrows of the settings. */
 static void input_options_box(void)
 {
@@ -1022,11 +1228,15 @@ static void input_options_box(void)
         custom_costume_screen();
         return;
     }
+    if (input_ingame_button(&ui_open_btn, 0)) {
+        ui_colour_screen();
+        return;
+    }
     for (i = 0; i < PAUSE_OPT_COUNT; i++)
     {
         int dir;
 
-        if (i == PAUSE_OPT_CUSTOM_COSTUME)
+        if ((i == PAUSE_OPT_CUSTOM_COSTUME) || (i == PAUSE_OPT_CUSTOM_UI))
             continue;
         if (mouse_move_over_slant_box(&option_arrow_l_box[i]))
             dir = -1;

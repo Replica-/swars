@@ -591,13 +591,16 @@ void build_rocket(struct Thing *p_thing)
       p_sobj, p_thing);
 }
 
+extern TbBool engine_see_through_objects;
+
 void build_building(struct Thing *p_thing)
 {
     struct SingleObject *p_sobj;
 
     if (ingame.DisplayMode == DpM_ENGINEPLY)
     {
-        if (is_gamekey_pressed(GKey_TRANS_OBJECTS))
+        // While the key is held, the buildings are not built at all; with the GPU rendering they are seen through instead
+        if (is_gamekey_pressed(GKey_TRANS_OBJECTS) && !engine_see_through_objects)
             return;
     }
 

@@ -713,6 +713,9 @@ void reset_default_player_agent(PlayerIdx plyr, short plagent, struct Thing *p_a
         if (getenv("SWFX_ALL_WEAPONS") != NULL)
             p_agent->U.UPerson.WeaponsCarried |= (1u << (WEP_UNUSED1F - 1)) - 1;
         p_agent->U.UPerson.UMod = p_player->Mods[plagent];
+        // For testing: SWFX_ALL_MODS=1 gives every upgrade, at the highest level, to the agents of the player
+        if (getenv("SWFX_ALL_MODS") != NULL)
+            cybmod_set_all_max(&p_agent->U.UPerson.UMod);
         p_agent->U.UPerson.CurrentWeapon = WEP_NULL;
     }
     if (in_network_game)
@@ -784,6 +787,8 @@ void reset_group_member_player_agent(PlayerIdx plyr, ushort plagent, ushort high
     if (getenv("SWFX_ALL_WEAPONS") != NULL) {
         p_agent->U.UPerson.WeaponsCarried |= (1u << (WEP_UNUSED1F - 1)) - 1;
     }
+    if (getenv("SWFX_ALL_MODS") != NULL)
+        cybmod_set_all_max(&p_agent->U.UPerson.UMod);
 
     person_init_preplay_command(p_agent);
 

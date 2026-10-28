@@ -1,4 +1,4 @@
-﻿/******************************************************************************/
+/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file game.c
@@ -803,6 +803,9 @@ void process_overall_scale(int zoom)
     overall_scale = scale;
 }
 
+/** Whether the weapon in the hands of the agent sets the minimum zoom of the camera; off by default. */
+TbBool game_weapon_zoom = false;
+
 void process_view_inputs(int thing)
 {
     struct Thing *p_person;
@@ -810,8 +813,15 @@ void process_view_inputs(int thing)
 
     p_person = &things[thing];
     (void)p_person;
-    // User zoom is not scaled to resolution; no weapon-range based minimum,
-    // the zoom is only kept within the sane bounds
+    // User zoom is not scaled to resolution; the weapon decides the minimum zoom (how far out the camera must
+    // be to see the range of the weapon) only when the option for it is on, which it is not by default;
+    // otherwise the zoom is only kept within the sane bounds
+    if (game_weapon_zoom && (p_person->Type == TT_PERSON) && (p_person->U.UPerson.CurrentWeapon != WEP_NULL)) {
+        int wzoom = get_weapon_zoom_min(p_person->U.UPerson.CurrentWeapon);
+
+        if (ingame.UserZoom < wzoom)
+            ingame.UserZoom = wzoom;
+    }
     if (ingame.UserZoom < user_zoom_min)
         ingame.UserZoom = user_zoom_min;
     else if (ingame.UserZoom > user_zoom_max)
@@ -862,6 +872,10 @@ ubyte get_engine_inputs(void)
     ubyte did_inp;
 
     did_inp = GINPUT_NONE;
+    // While the key is held (B), the buildings are seen through: nearly transparent, with outlines; the GPU draws
+    // them so, and the software rendering does not
+    engine_see_through_objects = LbHwRenderEnabled() && LbGlIsActive() && (kbkeys[GKey_TRANS_OBJECTS] != 0)
+      && lbKeyOn[kbkeys[GKey_TRANS_OBJECTS]];
     if (is_gamekey_pressed(GKey_TRANS_OBJ_SURF_COL))
     {
         if (lbShift & KMod_SHIFT)
@@ -1475,6 +1489,9 @@ void init_level_unknsub01_person(struct Thing *p_person)
     // For testing the weapons: SWFX_ALL_WEAPONS=1 gives every weapon to the agents of the player
     if (((p_person->Flag & TngF_PlayerAgent) != 0) && (getenv("SWFX_ALL_WEAPONS") != NULL))
         p_person->U.UPerson.WeaponsCarried |= (1u << (WEP_UNUSED1F - 1)) - 1;
+    // For testing: SWFX_ALL_MODS=1 gives every upgrade, at the highest level, to the agents of the player
+    if (((p_person->Flag & TngF_PlayerAgent) != 0) && (getenv("SWFX_ALL_MODS") != NULL))
+        cybmod_set_all_max(&p_person->U.UPerson.UMod);
     p_person->OldTarget = 0;
 
     if ((p_person->Flag & TngF_Destroyed) != 0) {
@@ -6293,6 +6310,8 @@ void pause_option_label(int opt, char *name, char *keys, int len)
     case 9: n = "CAMERA VIEW";   k = "F"; break;
     case 10: n = "PIXEL LIGHTS"; k = "SHIFT+F6"; break;
     case 11: n = "APP FPS CAP";  k = "SHIFT+F7"; break;
+    case 12: n = "UI COLOUR";    k = ""; break;
+    case 13: n = "WEAPON ZOOM";  k = ""; break;
     }
     snprintf(name, len, "%s", n);
     snprintf(keys, len, "%s", k);
@@ -6343,6 +6362,9 @@ void pause_option_value(int opt, char *buf, int len)
         break;
     case 11:
         snprintf(buf, len, "%d", (int)game_app_fps_cap);
+        break;
+    case 13:
+        snprintf(buf, len, "%s", game_weapon_zoom ? "ON" : "OFF");
         break;
     default:
         buf[0] = '\0';
@@ -6416,6 +6438,9 @@ void pause_option_change(int opt, int dir)
         break;
     case 11:
         game_app_fps_cap_step(dir);
+        break;
+    case 13:
+        game_weapon_zoom = !game_weapon_zoom;
         break;
     }
 }

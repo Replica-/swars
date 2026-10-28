@@ -20,6 +20,7 @@
 #include "game_sprts.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "bffile.h"
@@ -777,6 +778,131 @@ void game_custom_costume_publish(void)
     LbHwCustomColoursSet(n, markers, orig, rgb);
 }
 
+/** The colours of the interface which the player chose, and whether they were loaded from the file. */
+TbBool game_ui_colour_used[GAME_UI_COLOUR_PARTS];
+ubyte game_ui_colour_rgb[GAME_UI_COLOUR_PARTS][3];
+ubyte game_ui_colour_alpha[GAME_UI_COLOUR_PARTS] = { 255, 255 };
+static TbBool game_ui_colour_loaded = false;
+
+#define GAME_UI_COLOUR_FILE "uicolour.txt"
+
+/** The colours which the interface has, shown when choosing: the panels and the accent. */
+void game_ui_colour_default_rgb(int part, ubyte *rgb)
+{
+    static const ubyte def[GAME_UI_COLOUR_PARTS][3] = { { 92, 64, 220 }, { 0, 252, 252 } };
+
+    memcpy(rgb, def[part], 3);
+}
+
+const char *game_ui_colour_part_name(int part)
+{
+    return (part == 0) ? "PANELS" : "ACCENT";
+}
+
+TbBool game_ui_colour_hw(void)
+{
+    return LbGlIsActive() && LbHwRenderEnabled();
+}
+
+TbBool game_ui_colour_active(void)
+{
+    int part;
+
+    if (!game_ui_colour_hw())
+        return false;
+    for (part = 0; part < GAME_UI_COLOUR_PARTS; part++)
+        if (game_ui_colour_used[part])
+            return true;
+    return false;
+}
+
+void game_ui_colour_publish(void)
+{
+    int part;
+
+    for (part = 0; part < GAME_UI_COLOUR_PARTS; part++)
+        LbHwUiTintSet(part, game_ui_colour_used[part], game_ui_colour_rgb[part], game_ui_colour_alpha[part]);
+}
+
+void game_ui_colour_save(void)
+{
+    FILE *fh;
+    int part;
+
+    fh = fopen(GAME_UI_COLOUR_FILE, "w");
+    if (fh == NULL)
+        return;
+    for (part = 0; part < GAME_UI_COLOUR_PARTS; part++)
+        fprintf(fh, "%d %d %d %d %d\n", game_ui_colour_used[part] ? 1 : 0, (int)game_ui_colour_rgb[part][0],
+          (int)game_ui_colour_rgb[part][1], (int)game_ui_colour_rgb[part][2], (int)game_ui_colour_alpha[part]);
+    fclose(fh);
+}
+
+/** Loads the colours chosen earlier, once, and gives them to the GPU. */
+void game_ui_colour_init(void)
+{
+    FILE *fh;
+    int part;
+
+    if (game_ui_colour_loaded) {
+        game_ui_colour_publish();
+        return;
+    }
+    game_ui_colour_loaded = true;
+    fh = fopen(GAME_UI_COLOUR_FILE, "r");
+    if (fh != NULL) {
+        for (part = 0; part < GAME_UI_COLOUR_PARTS; part++)
+        {
+            int used, r, g, b, a;
+            int n;
+
+            n = fscanf(fh, "%d %d %d %d %d", &used, &r, &g, &b, &a);
+            if (n < 4)
+                break;
+            if (n < 5)
+                a = 255;
+            game_ui_colour_used[part] = (used != 0);
+            game_ui_colour_rgb[part][0] = (ubyte)r;
+            game_ui_colour_rgb[part][1] = (ubyte)g;
+            game_ui_colour_rgb[part][2] = (ubyte)b;
+            game_ui_colour_alpha[part] = (ubyte)a;
+        }
+        fclose(fh);
+    }
+    game_ui_colour_publish();
+}
+
+void game_ui_colour_set(int part, const ubyte *rgb)
+{
+    memcpy(game_ui_colour_rgb[part], rgb, 3);
+    game_ui_colour_used[part] = true;
+    game_ui_colour_publish();
+    game_ui_colour_save();
+}
+
+void game_ui_colour_set_alpha(int part, ubyte alpha)
+{
+    if (!game_ui_colour_used[part]) {
+        // The colour stays what the interface has, only the opacity changes
+        game_ui_colour_default_rgb(part, game_ui_colour_rgb[part]);
+        game_ui_colour_used[part] = true;
+    }
+    game_ui_colour_alpha[part] = alpha;
+    game_ui_colour_publish();
+    game_ui_colour_save();
+}
+
+void game_ui_colour_reset(void)
+{
+    int part;
+
+    for (part = 0; part < GAME_UI_COLOUR_PARTS; part++) {
+        game_ui_colour_used[part] = false;
+        game_ui_colour_alpha[part] = 255;
+    }
+    game_ui_colour_publish();
+    game_ui_colour_save();
+}
 /** Fills the table which says what a shade of the replaced colours becomes: its marker. */
 static void custom_costume_make_lut(ubyte *lut)
 {
@@ -1001,6 +1127,8 @@ TbResult load_multicolor_sprites(const char *dir)
         game_custom_costume_publish();
     else
         LbHwCustomColoursSet(0, NULL, NULL, NULL);
+    // The colours of the interface which the player chose before
+    game_ui_colour_init();
 
     return ret;
 }

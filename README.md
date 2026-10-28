@@ -159,6 +159,9 @@ and are covered by the same license.
   not added to it, so they do not burn out a bright place. `SWFX_NO_FLAMEFX=1` brings the flame thrower sprites back;
   `SWFX_FLAME_TEST=1`, `SWFX_FLAMER_TEST=1` and `SWFX_BANG_TEST=<type>` show flames, the flame thrower and an
   explosion of the given type (80 for a grenade).
+* **Interface colours.** In the missions the panels and frames of the interface, and separately the accent (the cyan lines and text of the map), can be shown in colours of your choice: the pause menu has a row **UI COLOUR** with an EDIT button, which opens a screen like the one of the costume, with the palette and sliders for red, green, blue and opacity (so the scene shows through the interface), for the panels and for the accent. The GPU changes the colours of the interface when the screen is shown, keeping the shades of the original, so the change is immediate; it needs the GPU rendering, and the colours are kept in uicolour.txt next to the executable.
+* **Weapon zoom option.** The pause menu has a row **WEAPON ZOOM**, off by default: the weapon an agent holds does not set the zoom of the camera. Turning it on brings back the original rule, where a weapon with a long range does not let the camera come closer than the range needs.
+* **See-through buildings.** Holding **B** with the GPU rendering makes the buildings 80% transparent, with cyan outlines which show where each building is; the people and the ground behind them can be seen. Without the GPU rendering, B hides the buildings, as it did in the original game.
 * **Softer light of explosions on lit surfaces.** With the enhanced lighting, the light of explosions, shots and
   lamps added to the shade of a surface rises slower the brighter the surface already is, and cannot pass a
   ceiling about 10% under the old one, so an explosion over a lit tile, or many effects on top of each other, no longer

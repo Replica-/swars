@@ -3951,10 +3951,11 @@ int dead_person_hit_by_bullet(struct Thing *p_thing, short hp,
         }
         if (type == DMG_UZI || type == DMG_MINIGUN || type == DMG_LONGRANGE || type == DMG_UNKN9)
         {
-            // With the GPU drawing the scene, the hit makes a spray of blood in the direction of the shot, and the corpse does not twitch
-            if (!blood_fx_spawn_ex(PRCCOORD_TO_MAPCOORD(p_thing->X), PRCCOORD_TO_MAPCOORD(p_thing->Y) + 8,
-              PRCCOORD_TO_MAPCOORD(p_thing->Z), vx, vz, 6, false))
-                p_thing->Frame = frame[p_thing->Frame].Next;
+            // With the GPU drawing the scene, the hit makes a spray of blood in the direction of the shot; the
+            // body twitches either way
+            blood_fx_spawn_ex(PRCCOORD_TO_MAPCOORD(p_thing->X), PRCCOORD_TO_MAPCOORD(p_thing->Y) + 8,
+              PRCCOORD_TO_MAPCOORD(p_thing->Z), vx, vz, 6, false);
+            p_thing->Frame = frame[p_thing->Frame].Next;
             return 1;
         }
         // With the GPU drawing the scene, any other hit on a corpse is the spray of blood too, not the sprite animation

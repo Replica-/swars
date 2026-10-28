@@ -1,4 +1,4 @@
-﻿/******************************************************************************/
+/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file engindrwlstx.h
@@ -92,6 +92,12 @@ typedef void (*ScreenSortSpriteRenderCallback)(ushort sspr);
 
 #pragma pack()
 /******************************************************************************/
+/** When on, the textured faces of the buildings are drawn mostly transparent, with outlines; set by the game while
+ * the player holds the key for it. The GPU rendering does this only. */
+extern TbBool engine_see_through_objects;
+/** The opacity of the faces seen through, 0..1. */
+#define ENGINE_SEE_THROUGH_ALPHA 0.2f
+
 extern struct DrawItem *game_draw_list;
 extern struct DrawItem *p_current_draw_item;
 extern ushort next_draw_item;

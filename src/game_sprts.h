@@ -1,4 +1,4 @@
-﻿/******************************************************************************/
+/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file game_sprts.h
@@ -140,6 +140,25 @@ TbBool game_custom_costume_active(void);
 /** Gives the GPU the colours chosen; the sprites do not have to be loaded again when only a colour changes. */
 void game_custom_costume_publish(void);
 
+/** The colours of the interface in the missions (the panels and the accent: the lines and text of the map): chosen by the player on a screen of the
+ * pause menu, shown by the GPU in place of the colours the interface has, and kept in a file. */
+#define GAME_UI_COLOUR_PARTS 2
+extern TbBool game_ui_colour_used[GAME_UI_COLOUR_PARTS];
+extern ubyte game_ui_colour_rgb[GAME_UI_COLOUR_PARTS][3];
+/** The opacity of the colour, 255 is solid; below it the scene shows through the interface. */
+extern ubyte game_ui_colour_alpha[GAME_UI_COLOUR_PARTS];
+void game_ui_colour_default_rgb(int part, ubyte *rgb);
+const char *game_ui_colour_part_name(int part);
+/** Tells if the colours can be shown now: the GPU has to draw the screen. */
+TbBool game_ui_colour_hw(void);
+/** Tells if any colour is chosen, and shown. */
+TbBool game_ui_colour_active(void);
+/** Loads what was chosen before (once) and gives it to the GPU. */
+void game_ui_colour_init(void);
+void game_ui_colour_publish(void);
+void game_ui_colour_set(int part, const ubyte *rgb);
+void game_ui_colour_set_alpha(int part, ubyte alpha);
+void game_ui_colour_reset(void);
 extern ubyte *dword_1C6DE4;
 extern ubyte *dword_1C6DE8;
 

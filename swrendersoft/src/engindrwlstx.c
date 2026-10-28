@@ -17,9 +17,11 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
+#include "bfhwrend.h"
 #include "engindrwlstx.h"
 
 #include <assert.h>
+#include <stdio.h>
 
 #include "enginbckt.h"
 #include "enginfloor.h"
@@ -39,6 +41,8 @@ ushort tnext_screen_point = 0;
 /******************************************************************************/
 // from engindrwlstx_spr
 void draw_sort_line1a(ushort sln);
+
+TbBool engine_see_through_objects = false;
 void draw_sort_sprite1c(ushort sspr);
 void draw_hud_frame_on_screen_unscaled_but_scale_pos(short scr_x, short scr_y, ushort frm, int sscale);
 void draw_hud_frame_on_screen(short scr_x, short scr_y, ushort frm, int sscale);
@@ -67,6 +71,8 @@ void draw_special_object_face4(ushort face4);
 void draw_object_face4_pole(ushort face4);
 void draw_object_face4d_textrd(ushort face4);
 void draw_object_face3d_textrd(ushort face);
+void draw_object_face3_outline(ushort face3);
+void draw_object_face4_outline(ushort face4);
 void draw_object_face3d_textrd_dk(ushort face);
 void draw_object_face3_tran_tint(ushort face);
 void draw_object_face4_tran_tint(ushort face4);
@@ -180,7 +186,10 @@ void draw_drawitem_2(ushort dihead)
       {
       case DrIT_ObFace3Txtr:
       case DrIT_Unkn10:
+          if (engine_see_through_objects)
+              LbHwFaceAlphaSet(ENGINE_SEE_THROUGH_ALPHA);
           draw_object_face3d_textrd(p_itm->Offset);
+          LbHwFaceAlphaSet(1.0f);
           break;
       case DrIT_SFrmStatc:
           draw_sort_sprite1a(p_itm->Offset);
@@ -198,7 +207,10 @@ void draw_drawitem_2(ushort dihead)
           draw_object_face3g_textrd(p_itm->Offset);
           break;
       case DrIT_ObFace4Txtr:
+          if (engine_see_through_objects)
+              LbHwFaceAlphaSet(ENGINE_SEE_THROUGH_ALPHA);
           draw_object_face4d_textrd(p_itm->Offset);
+          LbHwFaceAlphaSet(1.0f);
           break;
       case DrIT_Unkn11:
           draw_sort_line1a(p_itm->Offset);
@@ -256,6 +268,12 @@ void draw_drawitem_2(ushort dihead)
           break;
       case DrIT_ShortText:
           draw_sort_sprite_short_text(p_itm->Offset);
+          break;
+      case DrIT_ObOutline3:
+          draw_object_face3_outline(p_itm->Offset);
+          break;
+      case DrIT_ObOutline4:
+          draw_object_face4_outline(p_itm->Offset);
           break;
       default:
           break;

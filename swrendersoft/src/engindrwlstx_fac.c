@@ -17,6 +17,7 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
+#include <stdio.h>
 #include "engindrwlstx.h"
 
 #include <assert.h>
@@ -1409,6 +1410,9 @@ void draw_object_face4_pole(ushort face4)
     stat_drawexec_faces++;
 }
 
+static void draw_object_face_see_through_outline(struct PolyPoint *p1, struct PolyPoint *p2,
+  struct PolyPoint *p3, struct PolyPoint *p4, short pn1, short pn2, short pn3, short pn4);
+
 /**
  * Draw triangular face with textured surface.
  *
@@ -1547,8 +1551,101 @@ void draw_object_face3d_textrd(ushort face3)
     {
         screen_position_face_render_cb(&point1, &point2, &point3, face3, 1);
     }
+    draw_object_face_see_through_outline(&point1, &point2, &point3, NULL,
+      p_face->PointNo[0], p_face->PointNo[2], p_face->PointNo[1], -1);
 }
 
+/** The points of the faces which are this near the ground, in the units of the object, are the bottom of the building. */
+#define SEE_THROUGH_GROUND_Y 12
+
+static TbBool object_point_near_ground(short pn)
+{
+    short y;
+
+    y = game_object_points[pn].Y;
+    return (y <= SEE_THROUGH_GROUND_Y) && (y >= -8);
+}
+
+static void see_through_outline_edge(struct PolyPoint *pa, short pna, struct PolyPoint *pb, short pnb)
+{
+    struct PolyPoint a2, b2;
+
+    if (!object_point_near_ground(pna) || !object_point_near_ground(pnb))
+        return;
+    // Drawn three times, shifted by a pixel, so that the outline is thicker
+    poly_line(pa, pb);
+    a2 = *pa;
+    b2 = *pb;
+    a2.X++;
+    b2.X++;
+    poly_line(&a2, &b2);
+    a2.X--;
+    b2.X--;
+    a2.Y++;
+    b2.Y++;
+    poly_line(&a2, &b2);
+}
+
+/** When the buildings are seen through, the outline of the bottom of the building shows where it stands: the
+ * edges of the faces which are near the ground, and not the diagonal across a face. */
+static void draw_object_face_see_through_outline(struct PolyPoint *p1, struct PolyPoint *p2,
+  struct PolyPoint *p3, struct PolyPoint *p4, short pn1, short pn2, short pn3, short pn4)
+{
+    if (!engine_see_through_objects)
+        return;
+    vec_colour = colour_lookup[ColLU_CYAN];
+    if (p4 != NULL)
+    {
+        // the quad is drawn as the triangles (1,2,3) and (4,3,2), the diagonal is 2-3
+        see_through_outline_edge(p1, pn1, p2, pn2);
+        see_through_outline_edge(p1, pn1, p3, pn3);
+        see_through_outline_edge(p4, pn4, p2, pn2);
+        see_through_outline_edge(p4, pn4, p3, pn3);
+    }
+    else
+    {
+        see_through_outline_edge(p1, pn1, p2, pn2);
+        see_through_outline_edge(p1, pn1, p3, pn3);
+        see_through_outline_edge(p2, pn2, p3, pn3);
+    }
+}
+
+static void object_point_to_poly_point(short pn, struct PolyPoint *pp)
+{
+    struct SpecialPoint *p_scrpoint;
+
+    p_scrpoint = &game_screen_point_pool[game_object_points[pn].PointOffset];
+    pp->X = p_scrpoint->X + dword_176D00;
+    pp->Y = p_scrpoint->Y + dword_176D04;
+}
+
+/** The back side of a face, which is not seen: only the outline of its bottom is drawn. */
+void draw_object_face3_outline(ushort face3)
+{
+    struct SingleObjectFace3 *p_face;
+    struct PolyPoint point1, point2, point3;
+
+    p_face = &game_object_faces3[face3];
+    object_point_to_poly_point(p_face->PointNo[0], &point1);
+    object_point_to_poly_point(p_face->PointNo[2], &point2);
+    object_point_to_poly_point(p_face->PointNo[1], &point3);
+    draw_object_face_see_through_outline(&point1, &point2, &point3, NULL,
+      p_face->PointNo[0], p_face->PointNo[2], p_face->PointNo[1], -1);
+}
+
+void draw_object_face4_outline(ushort face4)
+{
+    struct SingleObjectFace4 *p_face4;
+    struct PolyPoint point1, point2, point3, point4;
+
+    p_face4 = &game_object_faces4[face4];
+    object_point_to_poly_point(p_face4->PointNo[0], &point1);
+    object_point_to_poly_point(p_face4->PointNo[2], &point2);
+    object_point_to_poly_point(p_face4->PointNo[1], &point3);
+    object_point_to_poly_point(p_face4->PointNo[3], &point4);
+    draw_object_face_see_through_outline(&point1, &point2, &point3, &point4,
+      p_face4->PointNo[0], p_face4->PointNo[2], p_face4->PointNo[1], p_face4->PointNo[3]);
+}
 /**
  * Draw rectangular face with textured surface, version D.
  * TODO: figure out how this version is unique.
@@ -1718,6 +1815,8 @@ void draw_object_face4d_textrd(ushort face4)
     {
         screen_position_face_render_cb(&point4, &point3, &point2, face4, 3);
     }
+    draw_object_face_see_through_outline(&point1, &point2, &point3, &point4,
+      p_face4->PointNo[0], p_face4->PointNo[2], p_face4->PointNo[1], p_face4->PointNo[3]);
 }
 
 /**

@@ -354,6 +354,15 @@ void set_cybmod_skin_level(union Mod *p_umod, ubyte nmod)
     p_umod->Mods |= (nmod << 12);
 }
 
+void cybmod_set_all_max(union Mod *p_umod)
+{
+    set_cybmod_legs_level(p_umod, 3);
+    set_cybmod_arms_level(p_umod, 3);
+    set_cybmod_chest_level(p_umod, 3);
+    set_cybmod_brain_level(p_umod, 3);
+    set_cybmod_skin_level(p_umod, 4);
+}
+
 TbBool cybmod_fix_all(union Mod *p_umod)
 {
     TbBool fixed = false;
