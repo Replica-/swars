@@ -18,6 +18,7 @@
 /******************************************************************************/
 #include <time.h>
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include "bfhwrend.h"
 #include "tngobjdrw.h"
@@ -25,6 +26,7 @@
 #include "bfkeybd.h"
 #include "bfpalette.h"
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -396,6 +398,9 @@ void build_vehicle(struct Thing *p_thing)
 }
 
 void person_muzzle_sprite_offset(struct Thing *p_person, short *p_ofs_x, short *p_ofs_y);
+int person_sprite_pose(struct Thing *p_person);
+TbBool game_muzzle_flash_gpu(void);
+void game_muzzle_flash_enlist(int mx, int my, int mz, float sx, float sy, float dx, float dy, int weapon, int seed);
 
 void build_person(struct Thing *p_thing)
 {
@@ -403,6 +408,25 @@ void build_person(struct Thing *p_thing)
     int cor_dx, cor_dy, cor_dz;
     char locstr[12];
 
+    // For looking at the muzzle flash of the guns: SWFX_FLASH_TEST=1 (uzi), 2 (minigun) or 3 (long range rifle) makes
+    // the agents which the player controls show it all the time
+    // While looking at the flash, only the first agent is drawn, so that nothing else gets in the way
+    if ((getenv("SWFX_FLASH_TEST") != NULL) && (p_thing->Type == TT_PERSON)
+      && (p_thing->ThingOffset != players[local_player_no].DirectControl[0]))
+        return;
+    if ((getenv("SWFX_FLASH_TEST") != NULL) && (p_thing->Type == TT_PERSON) && ((p_thing->Flag & TngF_PlayerAgent) != 0))
+    {
+        int wk = atoi(getenv("SWFX_FLASH_TEST"));
+
+        p_thing->U.UPerson.CurrentWeapon = (wk == 2) ? WEP_MINIGUN : ((wk == 3) ? WEP_LONGRANGE : WEP_UZI);
+        p_thing->Flag |= TngF_TriggerUse;
+        p_thing->U.UPerson.FrameId.Version[4] = 1;
+        // SWFX_FLASH_SPIN=1 also turns the agents round, one way of the eight after another
+        if (getenv("SWFX_FLASH_SPIN") != NULL)
+            p_thing->U.UPerson.Angle = (gameturn / 60) & 7;
+        if (getenv("SWFX_FLASH_SPIN") != NULL)
+            LbHwDumpTagSet(p_thing->U.UPerson.Angle & 7);
+    }
     // A weapon which is charging or firing lights up what is around the gun, from the very start;
     // the stronger the weapon, the stronger and wider the light, and it goes in front of the agent
     if (((p_thing->Flag & (TngF_WepCharging | TngF_TriggerUse)) != 0)
@@ -413,6 +437,7 @@ void build_person(struct Thing *p_thing)
     {
         struct ShEnginePoint msp;
         short mx, my, mz, ofs_x, ofs_y;
+        int base_x, base_y;
         float strength, radius;
         int colour;
         TbBool has_light;
@@ -448,6 +473,8 @@ void build_person(struct Thing *p_thing)
             get_thing_position_mapcoords(&mx, &my, &mz, p_thing->ThingOffset);
             person_muzzle_sprite_offset(p_thing, &ofs_x, &ofs_y);
             transform_shpoint(&msp, mx - engn_xc, 8 * (my >> 3) - 8 * engn_yc, mz - engn_zc);
+            base_x = msp.X;
+            base_y = msp.Y;
             msp.X += (ofs_x * overall_scale) >> 9;
             msp.Y += (ofs_y * overall_scale) >> 9;
             // The way the shots go: at the target, or straight forward in the way the agent faces
@@ -467,6 +494,69 @@ void build_person(struct Thing *p_thing)
                 dz /= len;
             }
             LbHwNoteMuzzle((float)msp.X, (float)msp.Y, colour, strength, radius, dx, dz);
+            // The flash of the gun, which the GPU draws in the place where the sprite of the flash was (the tip of the
+            // gun), pointing the way the sprite of the person faces, seen on the screen; the Epoch members have
+            // guns on both shoulders, so they flash from both
+            if (((p_thing->U.UPerson.CurrentWeapon == WEP_UZI) || (p_thing->U.UPerson.CurrentWeapon == WEP_MINIGUN)
+              || (p_thing->U.UPerson.CurrentWeapon == WEP_LONGRANGE)) && game_muzzle_flash_gpu())
+            {
+                struct ShEnginePoint lsp;
+                float qx, qz, qlen, fdx, fdy, lx, ly;
+                int fwk, fseed;
+
+                // The sprite has one of eight ways to face, not the exact way of the shots
+                qx = (float)angle_direction[p_thing->U.UPerson.Angle & 7].DiX;
+                qz = (float)angle_direction[p_thing->U.UPerson.Angle & 7].DiY;
+                qlen = sqrtf(qx * qx + qz * qz);
+                if (qlen < 1.0f) {
+                    qx = 0.0f;
+                    qz = 1.0f;
+                } else {
+                    qx /= qlen;
+                    qz /= qlen;
+                }
+                {
+                    // The way the barrel points on the screen, for each of the eight views of the person which the
+                    // sprites have, as they are drawn (read from the sprites, with the gun and its flash seen one view
+                    // after another): view 0 is facing up, then clockwise - up and right, right, down and right, down,
+                    // down and left, left, up and left
+                    static const float barrel_dir[8][2] = {
+                        { 0.0f, -1.0f }, { 0.89f, -0.45f }, { 1.0f, 0.0f }, { 0.9f, 0.43f },
+                        { 0.0f, 1.0f }, { -0.9f, 0.43f }, { -1.0f, 0.0f }, { -0.89f, -0.45f }
+                    };
+                    int pose = person_sprite_pose(p_thing);
+
+                    fdx = barrel_dir[pose][0];
+                    fdy = barrel_dir[pose][1];
+                }
+                // The long range rifle has the flash of the minigun; the uzi is held higher on the body than the muzzle point
+                // of the person is, so its flash is lifted to where the sprite of it was
+                fwk = (p_thing->U.UPerson.CurrentWeapon == WEP_UZI) ? 0 : 1;
+                if (fwk == 0)
+                    msp.Y -= (4 * overall_scale) >> 9;
+                fseed = (int)(gameturn * 7 + p_thing->ThingOffset * 13);
+                game_muzzle_flash_enlist(mx, my >> 3, mz, (float)msp.X, (float)msp.Y, fdx, fdy, fwk, fseed);
+                if (p_thing->SubType == SubTT_PERS_ZEALOT)
+                {
+                    float d_x, d_y;
+
+                    // The other shoulder: the muzzle of the sprite is on one shoulder; the other one is the same, on the other
+                    // side of the way the person faces. On the screen that is the muzzle mirrored left to right, moved
+                    // up or down by the slant of the line across the shoulders
+                    transform_shpoint(&lsp, mx - engn_xc + (int)(-qz * 256.0f), 8 * (my >> 3) - 8 * engn_yc,
+                      mz - engn_zc + (int)(qx * 256.0f));
+                    lx = (float)(lsp.X - base_x);
+                    ly = (float)(lsp.Y - base_y);
+                    d_x = (float)(msp.X - base_x);
+                    d_y = (float)(msp.Y - base_y);
+                    if (fabsf(lx) > 0.5f) {
+                        float m_x = base_x - d_x;
+                        float m_y = base_y + d_y - 2.0f * (d_x / lx) * ly;
+
+                        game_muzzle_flash_enlist(mx, my >> 3, mz, m_x, m_y, fdx, fdy, fwk, fseed + 5);
+                    }
+                }
+            }
         }
     }
     if (p_thing->State == PerSt_BEING_PERSUADED)
@@ -596,6 +686,10 @@ extern TbBool engine_see_through_objects;
 void build_building(struct Thing *p_thing)
 {
     struct SingleObject *p_sobj;
+
+    // While looking at the muzzle flash, nothing but the agent is drawn
+    if (getenv("SWFX_FLASH_TEST") != NULL)
+        return;
 
     if (ingame.DisplayMode == DpM_ENGINEPLY)
     {

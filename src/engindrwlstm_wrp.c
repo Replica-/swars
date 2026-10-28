@@ -1,4 +1,4 @@
-﻿/******************************************************************************/
+/******************************************************************************/
 // Syndicate Wars Fan Expansion, source port of the classic game from Bullfrog.
 /******************************************************************************/
 /** @file engindrwlstm_wrp.c
@@ -194,6 +194,8 @@ static void draw_pers_frame_basic(struct Thing *p_thing,
       angl, bright, (intptr_t)p_thing);
 }
 
+TbBool game_muzzle_flash_gpu(void);
+
 static void draw_pers_frame_versioned(struct Thing *p_thing,
   int scr_x, int scr_y, int scr_depth, int frame, short bright)
 {
@@ -211,8 +213,13 @@ static void draw_pers_frame_versioned(struct Thing *p_thing,
 
     // The GPU draws the jet of the flame thrower itself, so the muzzle flash of the sprite, which looks
     // out of place with it, is left out; the version of the frame with the flash is the one with the number 4
-    if ((p_thing->Type == TT_PERSON) && (p_thing->U.UPerson.CurrentWeapon == WEP_FLAMER)
-      && (frv[4] != 0) && LbHwRenderEnabled() && (getenv("SWFX_NO_FLAMEFX") == NULL))
+    if ((p_thing->Type == TT_PERSON) && (frv[4] != 0) &&
+      ((LbHwRenderEnabled() && (p_thing->U.UPerson.CurrentWeapon == WEP_FLAMER) && (getenv("SWFX_NO_FLAMEFX") == NULL))
+      // the flash of the guns is drawn by the GPU too, in the place of the sprite of it
+      || (((p_thing->Flag & (TngF_WepCharging | TngF_TriggerUse)) != 0)
+          && ((p_thing->U.UPerson.CurrentWeapon == WEP_UZI) || (p_thing->U.UPerson.CurrentWeapon == WEP_MINIGUN)
+            || (p_thing->U.UPerson.CurrentWeapon == WEP_LONGRANGE))
+          && game_muzzle_flash_gpu())))
     {
         ubyte frv_noflash[5];
 
@@ -417,6 +424,13 @@ void person_muzzle_sprite_offset(struct Thing *p_person, short *p_ofs_x, short *
     frame = p_person->StartFrame + 1 + mangle;
     *p_ofs_x = bul_starts[frame].OffsetX;
     *p_ofs_y = bul_starts[frame].OffsetY;
+}
+
+/** Gives which of the eight views of the person is drawn, counted the way the sprites are: 0 faces up and right,
+ * then clockwise on the screen - right, down and right, down, down and left, left, up and left, up. */
+int person_sprite_pose(struct Thing *p_person)
+{
+    return (p_person->U.UPerson.Angle + 8 - byte_176D49) & 7;
 }
 
 void draw_bang(struct SimpleThing *p_pow)

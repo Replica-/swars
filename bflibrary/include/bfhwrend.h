@@ -98,6 +98,7 @@ TbBool LbHwRecordTriangle(const struct PolyPoint *point_a,
 #define HWREND_MODE_BLOOD_DROP 107   /**< A flying drop of blood, a streak along its way; blended over the screen. */
 #define HWREND_MODE_BLOOD_SPLAT 108  /**< A splatter of blood on the ground; blended over the screen. */
 #define HWREND_MODE_SPARK 109        /**< A hot spark in flight, a glowing streak; added to the screen. */
+#define HWREND_MODE_FLASH 113        /**< The muzzle flash of a gun: a hot core with spikes, mostly in the way the gun points; blended over the scene. */
 #define HWREND_MODE_JET 112          /**< A tongue of the flame thrower, from the gun to a puff: fire which widens and cools along it; blended over the scene. */
 #define HWREND_MODE_ARC 111          /**< A segment of an electric arc: a blue-white core with a soft blue glow; added to the screen. */
 #define HWREND_MODE_BEAM 110        /**< A beam of a laser: a white-hot core in a halo of the colour of the beam, with an electric flicker; added to the screen. */
@@ -191,7 +192,7 @@ void LbHwPixelLightsSetEnabled(TbBool enabled);
 void LbHwNoteBeam(float sx1, float sy1, float sx2, float sy2, int colour, int itime);
 /** Notes the light which an electric arc throws on the ground around it. */
 void LbHwNoteArcLight(float sx1, float sy1, float sx2, float sy2, int colour);
-/** Records one piece of a glowing laser beam (kind 0, strength 0..1), of a flame thrower jet (kind 2, param the age\r\n * in percents, strength the half width in pixels, colour a seed) or of a lightning (kind 1, param bit 0 = a
+/** Records one piece of a glowing laser beam (kind 0, strength 0..1), of a flame thrower jet (kind 3, a muzzle flash: the quad is centred on the point 1, `strength` is its half size in pixels, the point 2 only gives the direction, param is the weapon: 0 uzi, 1 minigun, 2 long range, colour a seed), (kind 2, param the age\r\n * in percents, strength the half width in pixels, colour a seed) or of a lightning (kind 1, param bit 0 = a
  * branch, bit 1 = white flash). Called when the line of the piece is drawn, so that the scene in front of it covers
  * it. Works with the enhanced lighting only; returns false when the caller has to draw the plain line. */
 TbBool LbHwRecordGlowSeg(float sx1, float sy1, float sx2, float sy2, int kind, int param, float strength, int colour);
@@ -268,6 +269,10 @@ const float *LbHwUiAlphaGet(void);
 /** Opacity (0..1) of the textured triangles which are recorded from now on; 1 is solid. The buildings are seen
  * through when the player holds the key for it. */
 void LbHwFaceAlphaSet(float alpha);
+/** For testing: with SWFX_DUMP_DIR set, the middle of the frames is written there as pictures, named after the tag which
+ * the game sets (a number 0..7; -1 for none). */
+void LbHwDumpTagSet(int tag);
+int LbHwDumpTagGet(void);
 void LbHwOverlaySet(int colour);
 int LbHwOverlay(void);
 

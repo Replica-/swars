@@ -825,7 +825,10 @@ void process_view_inputs(int thing)
     if (ingame.UserZoom < user_zoom_min)
         ingame.UserZoom = user_zoom_min;
     else if (ingame.UserZoom > user_zoom_max)
-        ingame.UserZoom = user_zoom_max;
+        ingame.UserZoom = (user_zoom_min + 3 * user_zoom_max) / 4;
+    // For looking at the muzzle flash (SWFX_FLASH_TEST): near, but not as near as the zoom goes
+    if (getenv("SWFX_FLASH_TEST") != NULL)
+        ingame.UserZoom = (user_zoom_min + 3 * user_zoom_max) / 4;
     zoom = ingame.UserZoom;
 
     process_overall_scale(zoom);

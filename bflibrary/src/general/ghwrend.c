@@ -76,6 +76,18 @@ TbBool LbHwCustomLayer(void)
     return cust_layer;
 }
 
+static int hw_dump_tag = -1;
+
+void LbHwDumpTagSet(int tag)
+{
+    hw_dump_tag = tag;
+}
+
+int LbHwDumpTagGet(void)
+{
+    return hw_dump_tag;
+}
+
 static float hw_face_alpha = 1.0f;
 
 void LbHwFaceAlphaSet(float alpha)
@@ -848,6 +860,40 @@ TbBool LbHwRecordGlowSeg(float x1, float y1, float x2, float y2, int kind, int p
         return false;
     dx /= len;
     dy /= len;
+    if (kind == 3)
+    {
+        // A muzzle flash: the square around the muzzle, turned the way the gun points
+        half = strength;
+        ex = dx * half;
+        ey = dy * half;
+        phase = 0.0f;
+        nx = -dy * half;
+        ny = dx * half;
+        px[0] = x1 - ex - nx; py[0] = y1 - ey - ny;
+        px[1] = x1 - ex + nx; py[1] = y1 - ey + ny;
+        px[2] = x1 + ex + nx; py[2] = y1 + ey + ny;
+        px[3] = x1 + ex - nx; py[3] = y1 + ey - ny;
+        v = &rec_verts[rec_count];
+        for (k = 0; k < 6; k++)
+        {
+            int c = tri[k];
+
+            v[k].x = px[c] - 0.5f;
+            v[k].y = py[c] - 0.5f;
+            v[k].u = cs[c];
+            v[k].v = ct[c] * 2.0f - 1.0f;
+            v[k].s = 0.0f;
+            v[k].umax = v[k].vmax = 1.0e9f;
+            v[k].tx0 = dx;
+            v[k].ty0 = dy;
+            v[k].tx1 = v[k].ty1 = v[k].tx2 = v[k].ty2 = 0.0f;
+            v[k].mode = HWREND_MODE_FLASH;
+            v[k].colour = (float)(colour & 1023);
+            v[k].layer = (float)(param / 1000) + (float)(param % 1000) * 0.001f;
+        }
+        rec_count += 6;
+        return true;
+    }
     if (kind == 2)
     {
         // A tongue of the flame thrower, from the gun to a puff: it widens towards the puff

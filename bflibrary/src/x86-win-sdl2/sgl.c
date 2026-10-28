@@ -448,6 +448,52 @@ TbResult LbGlPresentIndexed(const ubyte *pixels, long width, long height, long p
     gl.DrawArrays(GL_TRIANGLES, 0, 3);
     gl.Disable(GL_BLEND);
 
+    // For testing: the middle of the frame is written to a picture, named after the tag the game gave
+    if (getenv("SWFX_DUMP_DIR") != NULL)
+    {
+        static int frame_no = 0;
+        static int dumped[8];
+        int tag;
+
+        tag = LbHwDumpTagGet();
+        if ((tag >= 0) && (tag < 8) && (frame_no++ > 400) && ((frame_no % 12) == 0) && (dumped[tag] < 4))
+        {
+            enum { DW = 400, DH = 400 };
+            static ubyte px[DW * DH * 4];
+            static ubyte bmp[54 + DW * DH * 3];
+            char path[512];
+            FILE *fh;
+            int x, y, off;
+
+            gl.PixelStorei(GL_PACK_ALIGNMENT, 1);
+            gl.ReadPixels(dw / 2 - DW / 2, dh / 2 - DH / 2, DW, DH, GL_RGBA, GL_UNSIGNED_BYTE, px);
+            memset(bmp, 0, 54);
+            bmp[0] = 'B';
+            bmp[1] = 'M';
+            *(unsigned int *)&bmp[2] = 54 + DW * DH * 3;
+            *(unsigned int *)&bmp[10] = 54;
+            *(unsigned int *)&bmp[14] = 40;
+            *(int *)&bmp[18] = DW;
+            *(int *)&bmp[22] = DH;
+            *(unsigned short *)&bmp[26] = 1;
+            *(unsigned short *)&bmp[28] = 24;
+            off = 54;
+            // the rows of the picture go from the bottom, as the rows of the GL read do
+            for (y = 0; y < DH; y++)
+                for (x = 0; x < DW; x++) {
+                    bmp[off++] = px[(y * DW + x) * 4 + 2];
+                    bmp[off++] = px[(y * DW + x) * 4 + 1];
+                    bmp[off++] = px[(y * DW + x) * 4 + 0];
+                }
+            snprintf(path, sizeof(path), "%s/a%d_%d.bmp", getenv("SWFX_DUMP_DIR"), tag, dumped[tag]);
+            dumped[tag]++;
+            fh = fopen(path, "wb");
+            if (fh != NULL) {
+                fwrite(bmp, 1, sizeof(bmp), fh);
+                fclose(fh);
+            }
+        }
+    }
     SDL_GL_SwapWindow(gl_window);
     return Lb_SUCCESS;
 }

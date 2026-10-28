@@ -768,6 +768,70 @@ static void blood_fx_enlist(void)
     }
 }
 
+/******************************************************************************/
+/* The muzzle flash of the guns (uzi, minigun, long range rifle): with the GPU drawing the scene it is a flash
+ * drawn by a shader, in the place where the sprite of the flash was, which is the tip of the gun; the sprites of the
+ * person do not have the flash then. It is a sorted sprite in front of the person, which carries the flash. */
+
+#define MUZZLEFX_MAX 48
+
+struct MuzzleFlashFx {
+    float sx, sy;           /**< The muzzle on the screen. */
+    float dx, dy;           /**< The way the gun points on the screen, a unit vector. */
+    int weapon;             /**< 0 uzi, 1 minigun, 2 long range rifle. */
+    int seed;
+};
+
+static struct MuzzleFlashFx muzzlefx[MUZZLEFX_MAX];
+static int muzzlefx_count = 0;
+
+TbBool game_muzzle_flash_gpu(void)
+{
+    return LbHwRenderEnabled() && LbGlIsActive() && (LbHwLightingMode() == HwLight_Enhanced)
+      && (getenv("SWFX_NO_MUZZLEFX") == NULL);
+}
+
+void game_muzzle_flash_enlist(int mx, int my, int mz, float sx, float sy, float dx, float dy, int weapon, int seed)
+{
+    struct MuzzleFlashFx *m;
+
+    if (muzzlefx_count >= MUZZLEFX_MAX)
+        return;
+    m = &muzzlefx[muzzlefx_count++];
+    m->sx = sx;
+    m->sy = sy;
+    m->dx = dx;
+    m->dy = dy;
+    m->weapon = weapon;
+    m->seed = seed;
+    // In front of the person, so that the flash is over the sprite of the gun
+    enlist_draw_frame_graphic_scale(mx - engn_xc, my, mz - engn_zc, BLOODFX_FRAME, 330, 32, 250, (intptr_t)m);
+}
+
+/** Draws the flash in the place of its sorted sprite; false if the item is not a flash. */
+static TbBool muzzle_flash_draw_item(intptr_t src)
+{
+    struct MuzzleFlashFx *m;
+    float size;
+
+    if ((src < (intptr_t)&muzzlefx[0]) || (src >= (intptr_t)&muzzlefx[MUZZLEFX_MAX]))
+        return false;
+    m = (struct MuzzleFlashFx *)src;
+    // The flash lives in a short cycle: it rises quickly to a peak, then recedes, smaller and dimmer
+    {
+        float now = bloodfx_now() * 0.7f + (float)(m->seed & 7) * 0.13f;
+        float ph = now - floorf(now);
+        float e = (ph < 0.15f) ? ph / 0.15f : powf(1.0f - (ph - 0.15f) / 0.85f, 1.6f);
+        float base = (m->weapon == 0) ? 9.0f : ((m->weapon == 1) ? 16.0f : 13.0f);
+
+        size = base * ((m->weapon >= 1) ? (0.85f + 0.3f * e) : (0.45f + 0.75f * e)) * (float)overall_scale / 256.0f;
+        // the weapon and the point in the cycle go in one number
+        // While testing, only the teardrop is shown: no streaks
+    LbHwRecordGlowSeg(m->sx, m->sy, m->sx + m->dx, m->sy + m->dy, 3,
+      ((m->weapon == 1) && (getenv("SWFX_FLASH_TEST") != NULL) ? 2 : m->weapon) * 1000 + (int)(ph * 990.0f),
+          size, m->seed);
+    }    return true;
+}
 /** Draws a drop or splatter of blood in the place of its sorted sprite; false if the item is not blood. */
 static TbBool blood_fx_draw_item(intptr_t src, int sx, int sy)
 {
@@ -858,6 +922,8 @@ TbBool screen_sorted_sprite_effect_replace_callback(ushort sspr, int x0, int y0,
     if (!lbHwRecording || !LbHwRenderEnabled())
         return false;
     if (blood_fx_draw_item(game_sort_sprites[sspr].SrcItem, game_sort_sprites[sspr].X, game_sort_sprites[sspr].Y))
+        return true;
+    if (muzzle_flash_draw_item(game_sort_sprites[sspr].SrcItem))
         return true;
     if (getenv("SWFX_NO_GASSMOKE") != NULL)
         return false;
@@ -2180,6 +2246,7 @@ void engine_draw_whole_screen_top_down(void)
     screen_sorted_sprite_effect_replace_cb = screen_sorted_sprite_effect_replace_callback;
     screen_blood_pool_growth_cb = screen_blood_pool_growth_callback;
 
+    muzzlefx_count = 0;
     player_target_clear(local_player_no); // set during HUD redraw (should be separated!)
 
     engine_check_draw_billboard_frame();
@@ -2204,7 +2271,8 @@ void engine_draw_whole_screen_top_down(void)
         if (game_perspective == ProjM_IsomFloorStars) {
             draw_background_stars();
         } else {
-            lvdraw_do_floor();
+            if (getenv("SWFX_FLASH_TEST") == NULL)
+                lvdraw_do_floor();
         }
     }
 
@@ -2223,6 +2291,8 @@ void engine_draw_whole_screen_top_down(void)
         // With the GPU drawing the scene, the primitives are recorded now, and
         // drawn when the screen is presented
         lbHwRecording = LbHwRenderEnabled() && LbGlIsActive();
+        if (lbHwRecording && (getenv("SWFX_FLASH_TEST") != NULL))
+            LbHwRecordBox(0, 0, lbDisplay.GraphicsScreenWidth, lbDisplay.GraphicsScreenHeight, colour_lookup[ColLU_GREEN], false);
         draw_explode();
         draw_screen();
         if (lbHwRecording)
