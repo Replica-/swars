@@ -476,7 +476,10 @@ TbBool spark_fx_spawn(int x, int y, int z, int dirx, int dirz, int amount)
         b = &bloodfx[slot];
         // A ricochet: the opposite of the way the shot went (the direction given is the one toward where it came
         // from), in a narrow fan, along the ground and not up, and a bit slower than the blood
-        ang = atan2f(fz, fx) + (bloodfx_rand() - 0.5f) * 2.2f;
+        if (bloodfx_rand() < 0.7f)
+            ang = atan2f(fz, fx) + (bloodfx_rand() - 0.5f) * 2.2f;
+        else
+            ang = bloodfx_rand() * 6.2831853f; // and some in any direction
         spd = 5.0f + bloodfx_rand() * 14.0f;
         b->kind = 4;
         b->x = (float)x + fx * 4.0f;
@@ -484,8 +487,8 @@ TbBool spark_fx_spawn(int x, int y, int z, int dirx, int dirz, int amount)
         b->z = (float)z + fz * 4.0f;
         b->vx = cosf(ang) * spd;
         b->vz = sinf(ang) * spd;
-        // Mostly low, and some a bit up, so they fly in different ways and fall in arcs
-        b->vy = -1.0f + bloodfx_rand() * bloodfx_rand() * 9.0f;
+        // Some low, some up, so they fly in different ways and fall in arcs
+        b->vy = -1.0f + bloodfx_rand() * 13.0f;
         b->t0 = now;
         b->born = now;
         b->lt = 0.0f;

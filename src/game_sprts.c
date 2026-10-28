@@ -522,34 +522,49 @@ void reset_sprites_small2_font(void)
     LbSpriteReset(small2_font, small2_font_end, small2_font_data);
 }
 
-/** One part of a team's costume which can get another colour. The original colour of the part is a run of
- * shades in the palette; the entry points of the lighting are those shades, so they are different for each team. */
+/** One part of a team's costume which can get another colour. The original colour of the part is a set of shades
+ * in the palette; the shades are put in bands by their brightness, and each band has a marker, which the GPU
+ * shows in the chosen colour. The first shade of a band, its brightest, is the entry point of the lighting. */
 struct CustomCostumePart {
-    /** The first shade (palette index), the distance between the shades which get their own marker, and their count. */
-    ubyte first, step, shades;
-    /** The shade which gets exactly the chosen colour. */
+    /** The palette indices of the shades of the part, and how many. */
+    const ubyte *indices;
+    ubyte count;
+    /** The number of bands, each with its own marker. */
+    ubyte bands;
+    /** The shade (palette index) which gets exactly the chosen colour. */
     ubyte ref;
     /** Palette indices which the sprites never use; the pixels of the replaced shades get these, and the GPU shows
-     * them in the chosen colour. One for each shade. */
+     * them in the chosen colour. One for each band. */
     const ubyte *markers;
     const char *name;
 };
 
-/* The same markers are used by both teams, as only one team's colours are replaced at a time */
+/* The shades of the parts. The Eurocorp agents: the greenish trench coat and the yellow shoulders of costume 3 */
+static const ubyte eur_coat_shades[12] = { 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47 };
+static const ubyte eur_shoulder_shades[8] = { 167, 168, 169, 170, 171, 172, 173, 174 };
+/* The Epoch members: the white cloak, from white to dark blue-grey, with the darkest shades of it which show when it
+ * faces away; and the robe, which is the red of the hood and sleeves and the brown which goes with it */
+static const ubyte epoch_cloak_shades[28] = {
+    80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103,
+    104, 105, 106, 107 };
+static const ubyte epoch_robe_shades[32] = {
+    120, 121, 122, 123, 124, 125, 126, 127,
+    136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151,
+    152, 153, 154, 155, 156, 157, 158, 159 };
+
+/* The markers. The teams are not replaced together, so both can use the same ones */
 static const ubyte custom_markers_a[12] = { 224, 225, 226, 227, 228, 229, 230, 231, 26, 28, 112, 246 };
-static const ubyte custom_markers_b[8] = { 176, 177, 178, 179, 208, 209, 210, 253 };
+static const ubyte custom_markers_b[10] = { 176, 177, 178, 179, 208, 209, 210, 253, 26, 28 };
+static const ubyte custom_markers_c[10] = { 224, 225, 226, 227, 228, 229, 230, 231, 112, 246 };
 
 static const struct CustomCostumePart custom_costume_parts[CUSTOM_TEAMS][CUSTOM_COSTUME_PARTS] = {
     {
-        // Eurocorp agents, in costume 3: the greenish trench coat, and the yellow shoulders
-        { 36, 1, 12, 41, custom_markers_a, "TRENCH COAT" },
-        { 167, 1, 8, 170, custom_markers_b, "SHOULDERS" },
+        { eur_coat_shades, 12, 12, 41, custom_markers_a, "TRENCH COAT" },
+        { eur_shoulder_shades, 8, 8, 170, custom_markers_b, "SHOULDERS" },
     },
     {
-        // Epoch members: the white robe, which has shades from white to dark blue-grey; each marker
-        // takes two of them; and the dark red of the hood and sleeves
-        { 80, 2, 12, 90, custom_markers_a, "ROBE" },
-        { 120, 1, 8, 123, custom_markers_b, "HOOD" },
+        { epoch_cloak_shades, 28, 10, 90, custom_markers_c, "CLOAK" },
+        { epoch_robe_shades, 32, 10, 124, custom_markers_b, "ROBE" },
     },
 };
 
@@ -559,20 +574,79 @@ ubyte game_custom_rgb_all[CUSTOM_TEAMS][CUSTOM_COSTUME_PARTS][3];
 static ubyte custom_costume_pal[768];
 static TbBool custom_costume_pal_loaded = false;
 
+/** How the shades of each part are put in bands; made once the palette is known. */
+static struct {
+    /** The band of each palette index, or 0xFF if it is not a shade of the part. */
+    ubyte band_of[256];
+    /** The brightest shade of the band, and the brightness which the band has on the average. */
+    ubyte band_first[16];
+    int band_lum[16];
+} custom_costume_bands[CUSTOM_TEAMS][CUSTOM_COSTUME_PARTS];
+static TbBool custom_costume_bands_made = false;
+
+static int custom_costume_lum(int idx)
+{
+    const ubyte *c = &custom_costume_pal[idx * 3];
+    return c[0] * 30 + c[1] * 59 + c[2] * 11;
+}
+
 static void custom_costume_pal_load(void)
 {
+    int team, part, i, j;
+
     if (custom_costume_pal_loaded)
         return;
     // The palette without brightness changes; 6 bits per channel
     if (LbFileLoadAt("qdata/pal0.dat", custom_costume_pal) == -1)
         LbMemorySet(custom_costume_pal, '\0', sizeof(custom_costume_pal));
     custom_costume_pal_loaded = true;
-}
 
-static int custom_costume_lum(int idx)
-{
-    const ubyte *c = &custom_costume_pal[idx * 3];
-    return c[0] * 30 + c[1] * 59 + c[2] * 11;
+    // The shades of each part, from the brightest, in bands of the same number of shades
+    if (custom_costume_bands_made)
+        return;
+    for (team = 0; team < CUSTOM_TEAMS; team++)
+    {
+        for (part = 0; part < CUSTOM_COSTUME_PARTS; part++)
+        {
+            const struct CustomCostumePart *p_part = &custom_costume_parts[team][part];
+            ubyte order[64];
+            int nband[16];
+
+            memset(custom_costume_bands[team][part].band_of, 0xFF, 256);
+            memset(nband, 0, sizeof(nband));
+            for (i = 0; i < p_part->count; i++)
+                order[i] = p_part->indices[i];
+            for (i = 1; i < p_part->count; i++)
+            {
+                ubyte key = order[i];
+
+                for (j = i - 1; (j >= 0) && (custom_costume_lum(order[j]) < custom_costume_lum(key)); j--)
+                    order[j + 1] = order[j];
+                order[j + 1] = key;
+            }
+            for (i = 0; i < p_part->bands; i++)
+            {
+                custom_costume_bands[team][part].band_lum[i] = 0;
+                custom_costume_bands[team][part].band_first[i] = order[0];
+            }
+            for (i = 0; i < p_part->count; i++)
+            {
+                int band = i * p_part->bands / p_part->count;
+
+                custom_costume_bands[team][part].band_of[order[i]] = band;
+                if (nband[band] == 0)
+                    custom_costume_bands[team][part].band_first[band] = order[i];
+                custom_costume_bands[team][part].band_lum[band] += custom_costume_lum(order[i]);
+                nband[band]++;
+            }
+            for (i = 0; i < p_part->bands; i++)
+            {
+                if (nband[i] > 0)
+                    custom_costume_bands[team][part].band_lum[i] /= nband[i];
+            }
+        }
+    }
+    custom_costume_bands_made = true;
 }
 
 int game_custom_team(void)
@@ -593,14 +667,13 @@ const char *game_custom_costume_part_name(int part)
 
 int game_custom_costume_shades(int part)
 {
-    return custom_costume_part(part)->shades;
+    return custom_costume_part(part)->bands;
 }
 
 ubyte game_custom_costume_original(int part, int shade)
 {
-    const struct CustomCostumePart *p_part = custom_costume_part(part);
-
-    return p_part->first + shade * p_part->step;
+    custom_costume_pal_load();
+    return custom_costume_bands[game_custom_team()][part].band_first[shade];
 }
 
 int game_custom_costume_swatch(int idx)
@@ -614,7 +687,7 @@ int game_custom_costume_swatch(int idx)
         for (s = 0; s < 12; s++)
             if (custom_markers_a[s] == idx)
                 goto is_marker;
-        for (s = 0; s < 8; s++)
+        for (s = 0; s < 10; s++)
             if (custom_markers_b[s] == idx)
                 goto is_marker;
         return idx;
@@ -668,9 +741,10 @@ TbBool game_custom_costume_active(void)
 void game_custom_costume_publish(void)
 {
     ubyte markers[HW_CUSTOM_MAX], orig[HW_CUSTOM_MAX], rgb[HW_CUSTOM_MAX * 3];
-    int part, s, n, i;
+    int part, s, n, i, team;
 
     n = 0;
+    team = game_custom_team();
     custom_costume_pal_load();
     for (part = 0; part < CUSTOM_COSTUME_PARTS; part++)
     {
@@ -682,16 +756,15 @@ void game_custom_costume_publish(void)
         lref = custom_costume_lum(p_part->ref);
         if (lref < 1)
             lref = 1;
-        for (s = 0; s < p_part->shades; s++)
+        for (s = 0; s < p_part->bands; s++)
         {
-            int o, lo;
+            int lo;
 
-            // The entry point of the lighting is the first shade which the marker stands for; the brightness is
-            // the middle of the shades it stands for
-            o = p_part->first + s * p_part->step;
-            lo = (custom_costume_lum(o) + custom_costume_lum(o + p_part->step - 1)) / 2;
+            // The entry point of the lighting is the brightest shade of the band, and the brightness of
+            // the band is the average of its shades
+            lo = custom_costume_bands[team][part].band_lum[s];
             markers[n] = p_part->markers[s];
-            orig[n] = o;
+            orig[n] = custom_costume_bands[team][part].band_first[s];
             // The chosen colour for the reference shade, darker or brighter for the other shades
             for (i = 0; i < 3; i++)
             {
@@ -707,8 +780,10 @@ void game_custom_costume_publish(void)
 /** Fills the table which says what a shade of the replaced colours becomes: its marker. */
 static void custom_costume_make_lut(ubyte *lut)
 {
-    int part, s, k, i;
+    int part, i, team;
 
+    team = game_custom_team();
+    custom_costume_pal_load();
     for (i = 0; i < 256; i++)
         lut[i] = i;
     for (part = 0; part < CUSTOM_COSTUME_PARTS; part++)
@@ -717,9 +792,12 @@ static void custom_costume_make_lut(ubyte *lut)
 
         if (!game_custom_used[part])
             continue;
-        for (s = 0; s < p_part->shades; s++)
-            for (k = 0; k < p_part->step; k++)
-                lut[p_part->first + s * p_part->step + k] = p_part->markers[s];
+        for (i = 0; i < p_part->count; i++)
+        {
+            int idx = p_part->indices[i];
+
+            lut[idx] = p_part->markers[custom_costume_bands[team][part].band_of[idx]];
+        }
     }
 }
 

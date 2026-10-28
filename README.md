@@ -131,10 +131,12 @@ and are covered by the same license.
   row of the settings box has an Edit button which opens a screen for the team which is played, with a preview of
   the whole person from two sides. With the Eurocorp agents it has the costume of the agents (arrows to change
   it), and for costume 3 the colours of the trench coat and of the shoulders can be replaced. With the Epoch members
-  (the Church campaign) it has the colours of the robe and of the hood and sleeves, in all the costumes. The colours
+  (the Church campaign) it has the colours of the cloak (the white, with its darkest shades which show from behind)
+  and of the robe (the red and brown of the hood and sleeves), in all the costumes. The colours
   are any RGB colour: from the palette, or with the red, green and blue sliders. The colour is shaded to the
-  brightness of each original shade, and the GPU shows it exactly, lit as the scene is; each team has its own
-  shades as the entry points of the lighting. The agents' pixels are found as those which differ from costume 0,
+  brightness of each original shade (the shades of a part are put in bands of the same brightness, with one colour
+  each), and the GPU shows it exactly, lit as the scene is; each team has its own shades as the entry points of the
+  lighting. The agents' pixels are found as those which differ from costume 0,
   the Epoch members' as those of the sprites of the zealot frames, so other people are not touched. Choosing a
   colour of the agents puts costume 3 on; "Original" restores the colours. With the software rendering the colours
   are disabled and the original ones are used. The colours are not saved with the settings.
