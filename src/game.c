@@ -545,10 +545,152 @@ TbBool game_setup_stuff(void)
     return ret;
 }
 
+/******************************************************************************/
+/* The high definition music mode: when it is on, and the files hidef_city.ogg and hidef_combat.ogg are in the music
+ * folder, they play in place of the music of the CD tracks and of the tension music: the first in the normal course
+ * of the mission, the second while the player agents are under attack, or an enemy who targets them is near. */
+
+TbBool game_hidef_music = false;
+static TbBool hidef_music_loaded = false;
+/** The game turn until which the fight music goes on. */
+static ulong hidef_fight_until = 0;
+
+#define HIDEF_MUSIC_FILE "hidef_music.txt"
+/** Game turns which the fight music goes on after the last sign of a fight. */
+#define HIDEF_FIGHT_HOLD 240
+/** How near an enemy who targets the agents has to be, in map units (a tile is 256). */
+#define HIDEF_FIGHT_RANGE 2560
+
+static void hidef_music_load_once(void)
+{
+    FILE *fh;
+    int val;
+
+    if (hidef_music_loaded)
+        return;
+    hidef_music_loaded = true;
+    fh = fopen(HIDEF_MUSIC_FILE, "r");
+    if (fh != NULL) {
+        if (fscanf(fh, "%d", &val) == 1)
+            game_hidef_music = (val != 0);
+        fclose(fh);
+    }
+}
+
+TbBool game_hidef_music_get(void)
+{
+    hidef_music_load_once();
+    return game_hidef_music;
+}
+
+/** Tells if the high definition music will play: the mode is on and the files are there. */
+TbBool game_hidef_music_active(void)
+{
+    return game_hidef_music_get() && HiDefMusicAvailable();
+}
+
+void game_hidef_music_set(TbBool on)
+{
+    FILE *fh;
+
+    hidef_music_load_once();
+    game_hidef_music = on;
+    fh = fopen(HIDEF_MUSIC_FILE, "w");
+    if (fh != NULL) {
+        fprintf(fh, "%d\n", on ? 1 : 0);
+        fclose(fh);
+    }
+    // At once; when it is turned off, the music of the mission goes on from the next frame
+    SetHiDefMusic(game_hidef_music_active(), false);
+}
+
+/** Tells if a fight is on: the agents lose health, or an enemy who targets them is near. */
+static TbBool hidef_music_fight_check(void)
+{
+    PlayerInfo *p_locplayer;
+    static long last_health = -1;
+    long health;
+    int i;
+
+    p_locplayer = &players[local_player_no];
+    health = 0;
+    for (i = 0; i < playable_agents; i++)
+    {
+        struct Thing *p_agent;
+
+        p_agent = p_locplayer->MyAgent[i];
+        if ((p_agent == NULL) || (p_agent->Type != TT_PERSON) || ((p_agent->Flag & TngF_Destroyed) != 0))
+            continue;
+        health += p_agent->Health;
+    }
+    if ((last_health >= 0) && (health < last_health))
+        hidef_fight_until = gameturn + HIDEF_FIGHT_HOLD;
+    last_health = health;
+
+    // The people are looked through a few times in a second
+    if ((gameturn & 7) == 0)
+    {
+        ThingIdx thing;
+
+        for (thing = 1; thing < THINGS_LIMIT; thing++)
+        {
+            struct Thing *p_person;
+
+            p_person = &things[thing];
+            if ((p_person->Type != TT_PERSON) || ((p_person->Flag & TngF_Destroyed) != 0)
+              || ((p_person->Flag2 & TgF2_ExistsOffMap) != 0))
+                continue;
+            if (p_person->U.UPerson.EffectiveGroup == ingame.MyGroup)
+                continue;
+            if (p_person->PTarget == NULL)
+                continue;
+            for (i = 0; i < playable_agents; i++)
+            {
+                struct Thing *p_agent;
+                int dx, dz;
+
+                p_agent = p_locplayer->MyAgent[i];
+                if (p_person->PTarget != p_agent)
+                    continue;
+                dx = PRCCOORD_TO_MAPCOORD(p_agent->X) - PRCCOORD_TO_MAPCOORD(p_person->X);
+                dz = PRCCOORD_TO_MAPCOORD(p_agent->Z) - PRCCOORD_TO_MAPCOORD(p_person->Z);
+                if ((dx * dx + dz * dz) < (HIDEF_FIGHT_RANGE * HIDEF_FIGHT_RANGE)) {
+                    hidef_fight_until = gameturn + HIDEF_FIGHT_HOLD;
+                    break;
+                }
+            }
+        }
+    }
+    return (gameturn < hidef_fight_until);
+}
+
+/** Called every turn of the mission: starts, changes and ends the high definition music. */
+static void game_hidef_music_update(void)
+{
+    TbBool fight;
+
+    fight = false;
+    if (game_hidef_music_active())
+        fight = hidef_music_fight_check();
+    SetHiDefMusic(game_hidef_music_active(), fight);
+}
 void update_danger_music(ubyte a1)
 {
     short hurt_agents;
     struct Thing *p_agent;
+
+    // The fight music of the high definition mode is the tension music then
+    if (game_hidef_music_active())
+    {
+        if (a1 == 1)
+            hidef_fight_until = gameturn + HIDEF_FIGHT_HOLD;
+        if (a1 == 2) {
+            ingame.fld_unkC8B = 0;
+            dword_1DDECC = 0;
+            hidef_fight_until = 0;
+        }
+        return;
+    }
 
     switch (a1)
     {
@@ -4927,6 +5069,7 @@ ubyte do_user_interface(void)
 
     did_inp = GINPUT_NONE;
     p_locplayer = &players[local_player_no];
+    game_hidef_music_update();
     update_danger_music(0);
     do_scroll_map();
     do_rotate_map();
@@ -6336,6 +6479,7 @@ void pause_option_label(int opt, char *name, char *keys, int len)
     case 11: n = "APP FPS CAP";  k = "SHIFT+F7"; break;
     case 12: n = "UI COLOUR";    k = ""; break;
     case 13: n = "WEAPON ZOOM";  k = ""; break;
+    case 14: n = "HIDEF MUSIC";  k = ""; break;
     }
     snprintf(name, len, "%s", n);
     snprintf(keys, len, "%s", k);
@@ -6389,6 +6533,15 @@ void pause_option_value(int opt, char *buf, int len)
         break;
     case 13:
         snprintf(buf, len, "%s", game_weapon_zoom ? "ON" : "OFF");
+        break;
+    case 14:
+        // On, but the music files are not in the music folder: it says so
+        if (!game_hidef_music_get())
+            snprintf(buf, len, "OFF");
+        else if (HiDefMusicAvailable())
+            snprintf(buf, len, "ON");
+        else
+            snprintf(buf, len, "NO FILES");
         break;
     default:
         buf[0] = '\0';
@@ -6465,6 +6618,9 @@ void pause_option_change(int opt, int dir)
         break;
     case 13:
         game_weapon_zoom = !game_weapon_zoom;
+        break;
+    case 14:
+        game_hidef_music_set(!game_hidef_music_get());
         break;
     }
 }

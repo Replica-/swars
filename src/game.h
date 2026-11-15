@@ -206,7 +206,7 @@ void game_pause_scene_backdrop_restore(void);
 TbResult prep_multicolor_sprites(void);
 
 /** The settings which can be changed on the pause screen, and by shortcut keys during the game. */
-#define PAUSE_OPT_COUNT 14
+#define PAUSE_OPT_COUNT 15
 /** The agent costume has a button, not arrows: it opens a screen to choose the costume and its colours. */
 #define PAUSE_OPT_CUSTOM_COSTUME 5
 /** The row of the settings which opens the screen with the colours of the interface. */
@@ -214,6 +214,10 @@ TbResult prep_multicolor_sprites(void);
 /** Gives the name of the setting and its shortcut key. */
 /** Whether the weapon sets the minimum zoom of the camera; off by default. */
 extern TbBool game_weapon_zoom;
+/** The high definition music mode, which plays the files hidef_city.ogg and hidef_combat.ogg of the music folder in place of the
+ * music of the CD tracks; kept in a file. */
+TbBool game_hidef_music_get(void);
+void game_hidef_music_set(TbBool on);
 void pause_option_label(int opt, char *name, char *keys, int len);
 /** Gives the current value of the setting as text. */
 void pause_option_value(int opt, char *buf, int len);

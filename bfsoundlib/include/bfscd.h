@@ -59,6 +59,15 @@ void PlayCDTrack(ushort trkno);
 void PauseCD(void);
 void ResumeCD(void);
 void StopCD(void);
+
+/** The high definition music: the files hidef_city.ogg (the normal music) and hidef_combat.ogg (the music of the fight)
+ * of the music folder, played in place of the music of the CD tracks. Needs the streamed (ogg) music mode. */
+TbBool HiDefMusicAvailable(void);
+/** Plays the high definition music (the combat one or the normal one) or, with on false, stops it; the normal music of the
+ * mission has to be started again by the caller then. Changing between the two restarts the music. */
+void SetHiDefMusic(TbBool on, TbBool combat);
+/** Tells if the high definition music is playing now. */
+TbBool HiDefMusicPlaying(void);
 //int NumCDTracks();
 //int CDTrackInfo();
 //int CDAudioStatus();
