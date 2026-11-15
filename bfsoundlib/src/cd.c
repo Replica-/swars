@@ -93,19 +93,6 @@ ubyte CDType = CDTYP_NONE;
  */
 char music_dir[FILENAME_MAX];
 
-/** The high definition music: 0 is the normal music, 1 the music of the fight; -1 when it is not on. */
-static int hidef_selected = -1;
-static const char *const hidef_files[2] = { "hidef_city.ogg", "hidef_combat.ogg" };
-/** A number for CurrentCDTrack while the high definition music plays. */
-#define HIDEF_TRACK_ID 0xFFF0
-
-static TbBool hidef_file_path(int which, char *path, int len)
-{
-    int n;
-
-    n = snprintf(path, len, "%s" FS_SEP_STR "%s", music_dir, hidef_files[which]);
-    return (n > 0) && (n < len) && (access(path, F_OK) == 0);
-}
 /******************************************************************************/
 
 sbyte CDSpeedTest(const char *fname)
@@ -353,9 +340,6 @@ void PlayCDTrack(ushort trkno)
 {
     if (!CDAble)
         return;
-    // The high definition music plays in place of the music of the tracks
-    if (hidef_selected >= 0)
-        return;
     if (!is_daudio_track(trkno)) {
         SNDLOGSYNC("CDA play", "no CD audio track %d", (int)trkno);
         return;
@@ -447,47 +431,6 @@ void StopCD(void)
         break;
     }
     CurrentCDTrack = 0;
-    hidef_selected = -1;
-}
-
-TbBool HiDefMusicAvailable(void)
-{
-    char path[FILENAME_MAX];
-
-    if (!CDAble || (CDType != CDTYP_OGG))
-        return false;
-    return hidef_file_path(0, path, sizeof(path)) && hidef_file_path(1, path, sizeof(path));
-}
-
-TbBool HiDefMusicPlaying(void)
-{
-    return hidef_selected >= 0;
-}
-
-void SetHiDefMusic(TbBool on, TbBool combat)
-{
-    char path[FILENAME_MAX];
-    int sel;
-
-    if (!CDAble || (CDType != CDTYP_OGG))
-        return;
-    sel = on ? (combat ? 1 : 0) : -1;
-    if (sel == hidef_selected)
-        return;
-    if (CurrentCDTrack != 0)
-        StopCD();
-    hidef_selected = -1;
-    if (sel < 0)
-        return;
-    if (!hidef_file_path(sel, path, sizeof(path))) {
-        SNDLOGFAIL("CDA play", "no high definition music file '%s'", hidef_files[sel]);
-        return;
-    }
-    ogg_vorbis_stream_open(&sound_music_stream, path);
-    ogg_vorbis_stream_play(&sound_music_stream);
-    SNDLOGSYNC("CDA play", "high definition music '%s'", path);
-    CurrentCDTrack = HIDEF_TRACK_ID;
-    hidef_selected = sel;
 }
 
 void InitRedbook(void)
@@ -518,7 +461,6 @@ fail:
 void InitMusicOGG(const char *nmusic_dir)
 {
     const char *reason;
-    char hidef_probe[FILENAME_MAX];
     EnsureAILStartup();
 
     strncpy(music_dir, nmusic_dir, sizeof(music_dir) - 1);
@@ -532,7 +474,7 @@ void InitMusicOGG(const char *nmusic_dir)
     InitialCDVolume = GetCDVolume();
     ogg_list_music_tracks();
 
-    if ((CountMusicTracks() == 0) && !(hidef_file_path(0, hidef_probe, sizeof(hidef_probe)) && hidef_file_path(1, hidef_probe, sizeof(hidef_probe)))) {
+    if (CountMusicTracks() == 0) {
         reason = "no tracks";
         goto fail;
     }
